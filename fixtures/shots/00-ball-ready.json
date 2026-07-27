@@ -1,0 +1,13 @@
+{
+  "DeviceID": "Spike Fixture R50",
+  "Units": "Yards",
+  "ShotNumber": 0,
+  "APIversion": "1",
+  "ShotDataOptions": {
+    "ContainsBallData": false,
+    "ContainsClubData": false,
+    "LaunchMonitorIsReady": true,
+    "LaunchMonitorBallDetected": true,
+    "IsHeartBeat": false
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "DeviceID": "Spike Fixture R50",
+  "Units": "Yards",
+  "ShotNumber": 3,
+  "APIversion": "1",
+  "BallData": {
+    "Speed": 98.0,
+    "SpinAxis": 22.0,
+    "TotalSpin": 4200.0,
+    "HLA": 6.5,
+    "VLA": 18.0,
+    "CarryDistance": 112.0
+  },
+  "ClubData": {
+    "Speed": 78.0,
+    "SpeedAtImpact": 78.0
+  },
+  "ShotDataOptions": {
+    "ContainsBallData": true,
+    "ContainsClubData": true,
+    "LaunchMonitorIsReady": true,
+    "LaunchMonitorBallDetected": true,
+    "IsHeartBeat": false
+  }
+}

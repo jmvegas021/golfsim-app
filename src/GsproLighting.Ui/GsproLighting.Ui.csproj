@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon />
+    <RootNamespace>GsproLighting.Ui</RootNamespace>
+    <AssemblyName>GsproLighting</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GsproLighting.Core\GsproLighting.Core.csproj" />
+    <ProjectReference Include="..\GsproLighting.Gspro\GsproLighting.Gspro.csproj" />
+    <ProjectReference Include="..\GsproLighting.Wled\GsproLighting.Wled.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\config\appsettings.json" Link="config\appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

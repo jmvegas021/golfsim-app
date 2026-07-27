@@ -1,0 +1,10 @@
+bin/
+obj/
+dist/
+logs/
+*.user
+*.suo
+.vs/
+.idea/
+.DS_Store
+*.log
