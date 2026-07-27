@@ -1,8 +1,8 @@
 ## Overview
 
-See root README. This document captures the Section 7 spike plan and the Open Connect directionality fix.
+Windows-only spike plan for undocumented GSPro Open Connect outcome events. See root README for install/run.
 
-## Protocol facts (from GSPro Open Connect v1)
+## Protocol facts (GSPro Open Connect v1)
 
 | Direction | Content |
 |---|---|
@@ -13,33 +13,37 @@ Documented response codes only: **200, 201, 501/5xx**. Outcome events (made putt
 
 ## Why proxy (not client)
 
-Connecting as a second client to `:921` only behaves like another launch monitor. You can *send* shots; you do not *receive* other LM shots. GSPro typically accepts one LM connection.
+A second TCP client on `:921` behaves like another launch monitor — it does **not** see your R50/LM shots. The lighting app must **proxy**: LM → app → GSPro, logging both directions.
 
-**Proxy** is the workable tap: LM → app → GSPro, with both directions logged.
+## Spike checklist (Windows PC / Ally X + real GSPro)
 
-## Spike checklist (on Ally with real GSPro)
+1. On Windows, publish or build:
+   ```powershell
+   .\scripts\publish-ally.ps1
+   ```
+   Or run from source: `dotnet run --project src\GsproLighting.Ui`
+2. Start **GSPro** (Desktop Mode on Ally). Confirm Open Connect is on port **921**.
+3. Start **GSPro Lighting** (`GsproLighting.exe`) — proxy should listen on **1921**.
+4. Retarget your LM / Garmin bridge to `127.0.0.1:1921`.
+5. Capture baselines: fairway drive, iron, putt.
+6. Capture outcomes: water, OB, bunker (if distinct), made putt, penalty re-drop.
+7. Open `logs\gspro-raw-YYYYMMDD.jsonl` in Notepad or VS Code.
+8. Search for `"unknown"` keys / unexpected `Code` values.
+9. Record findings under **Results** below.
 
-1. Publish with `./scripts/publish-ally.sh`, copy to Ally
-2. Start GSPro, confirm Connect is up on 921
-3. Run `GsproLighting.App.exe proxy`
-4. Retarget LM bridge to `127.0.0.1:1921`
-5. Capture baselines: fairway drive, iron, putt
-6. Capture outcomes: water, OB, bunker if distinguishable, made putt, penalty re-drop
-7. Inspect `logs/gspro-raw-YYYYMMDD.jsonl`
-8. Search for `unknown` keys / unexpected `Code` values
-9. Record findings in this file under **Results**
+### Fixture validation (no GSPro / no LM)
 
-### Offline validation
+From PowerShell in the repo:
 
-```bash
-dotnet run --project src/GsproLighting.App -- replay
+```powershell
+dotnet run --project src\GsproLighting.App -- replay
 ```
 
-Fixture `05-water-spike.json` makes the mock reply with undocumented `Code: 250` + `Outcome` so the logger’s unknown-field detection can be verified without GSPro.
+Fixture `fixtures\shots\05-water-spike.json` makes the mock reply with undocumented `Code: 250` + `Outcome` so unknown-field detection can be verified offline.
 
 ## Results
 
-_Fill in after the Ally evening session._
+_Fill in after a Windows session with GSPro._
 
 | Scenario | Unexpected Code? | Unknown JSON keys | Notes |
 |---|---|---|---|

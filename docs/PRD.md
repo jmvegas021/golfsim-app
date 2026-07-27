@@ -55,7 +55,7 @@ A Windows background app that taps GSPro Open Connect traffic for live shot data
 Spike with raw proxy logger first. Fallback: heuristic penalty detection.
 
 ## 8. Tech Stack
-.NET 8 (C#) — self-contained win-x64 single-file publish for Ally X.
+.NET 8 (C#) / WinForms on **Windows only** (GSPro is Windows-only). Self-contained win-x64 single-file publish for the Ally X or any GSPro PC.
 
 ## 9. Milestones
 1. Spike — raw capture

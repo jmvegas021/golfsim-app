@@ -39,7 +39,7 @@ internal static class Program
 
     private static async Task<int> RunMockAsync(AppConfig config, CancellationToken cancellationToken)
     {
-        // Ports < 1024 need root on macOS; mock uses a high port for local dev.
+        // Prefer a high port for the offline mock so fixture tests don't collide with real GSPro :921.
         var port = config.Gspro.UpstreamPort < 1024 ? 9921 : config.Gspro.UpstreamPort;
         var server = new MockGsproServer(config.Gspro.UpstreamHost, port);
         await server.RunAsync(cancellationToken);
@@ -53,7 +53,7 @@ internal static class Program
     {
         var fixturesDir = ResolveFixturesDirectory(GetOption(args, "--fixtures"));
 
-        // Real GSPro uses 921; mock binds 9921 so macOS/Linux can run without root.
+        // Real GSPro uses 921; offline replay uses 9921 so it won't fight a running GSPro.
         var replayConfig = CloneConfig(config);
         replayConfig.Gspro.UpstreamPort = 9921;
 
@@ -157,24 +157,25 @@ internal static class Program
     private static int PrintHelp()
     {
         Console.WriteLine("""
-            GSPro Reactive Lighting — spike / v0.1
+            GSPro Reactive Lighting — Windows console tools
 
             Usage:
-              GsproLighting.App <mode> [options]
+              GsproLighting.App.exe <mode> [options]
 
             Modes:
               proxy   Listen for LM traffic, forward to GSPro, log+parse both directions
-              mock    Run a fake GSPro Open Connect server (offline / Mac dev)
-              replay  mock + proxy + inject fixtures/shots/*.json (end-to-end without Ally)
+              mock    Run a fake GSPro Open Connect server (offline fixture testing)
+              replay  mock + proxy + inject fixtures\shots\*.json (no GSPro/LM required)
 
             Options:
               --fixtures <dir>   Fixture directory for replay mode
 
-            Ally setup (proxy mode):
+            Windows / Ally setup (proxy mode):
               1. Start GSPro (Open Connect on 127.0.0.1:921)
               2. Run this app in proxy mode (listens on 1921 by default)
+                 Prefer GsproLighting.exe (tray UI) for day-to-day use
               3. Point your LM / Garmin→GSPro bridge at 127.0.0.1:1921
-              4. Hit water/OB/putts and inspect logs/gspro-raw-*.jsonl for unknown fields
+              4. Hit water/OB/putts and inspect logs\gspro-raw-*.jsonl for unknown fields
             """);
         return 0;
     }

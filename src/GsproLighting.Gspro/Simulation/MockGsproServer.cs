@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace GsproLighting.Gspro.Simulation;
 
 /// <summary>
-/// Minimal GSPro Open Connect stand-in for offline Mac development / replay tests.
+/// Minimal GSPro Open Connect stand-in for offline fixture / replay tests on Windows.
 /// Accepts LM JSON, replies with 200 (or 201 when club-related options change).
 /// </summary>
 public sealed class MockGsproServer
@@ -33,7 +33,7 @@ public sealed class MockGsproServer
         {
             throw new InvalidOperationException(
                 $"Mock GSPro could not bind {_host}:{_port}. " +
-                "On macOS/Linux use a port >= 1024 (replay uses 9921).",
+                "Close anything using that port, or use replay mode (binds 9921).",
                 ex);
         }
 
