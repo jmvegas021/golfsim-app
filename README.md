@@ -6,8 +6,10 @@ Windows tray app for GSPro. Listens to Open Connect shot traffic and drives a WL
 
 ## Easiest way to run (no build)
 
+> **Do not use the green “Code → Download ZIP” button** if you just want to run the app. That ZIP is source code and needs a build.
+
 1. Open **[Releases](https://github.com/jmvegas021/golfsim-app/releases)**
-2. Download **`GsproLighting-windows-x64.zip`**
+2. Download **`GsproLighting-windows-x64.zip`** (under Assets)
 3. Unzip anywhere (Desktop, Documents, USB, Ally…)
 4. **Double-click `GsproLighting.exe`**
 
@@ -15,16 +17,15 @@ That’s it. A tray icon appears; double-click it (or use the menu) for settings
 
 Optional: pin `GsproLighting.exe` to the taskbar or drop a shortcut in `shell:startup` so it launches with Windows.
 
-## If you cloned the repo
+## If you cloned / downloaded source
 
-On Windows, **double-click**:
+You need either:
+- The **Release ZIP** above (recommended), or
+- The [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) to build
 
-`Run GSPro Lighting.bat`
+On Windows, double-click **`Run GSPro Lighting.bat`**. If no `.exe` is built yet and no SDK is installed, it opens the Releases page for you.
 
-- First time: builds a self-contained `.exe` (needs [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0))
-- Next times: starts `dist\ally\GsproLighting.exe` immediately
-
-Or from PowerShell:
+Or from PowerShell (SDK required):
 
 ```powershell
 .\scripts\publish-ally.ps1

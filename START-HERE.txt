@@ -1,0 +1,26 @@
+========================================================
+  WANT TO RUN THE APP?  READ THIS FIRST
+========================================================
+
+Do NOT use "Code -> Download ZIP" (the green Code button).
+That download is SOURCE CODE and will not run by itself.
+
+Instead:
+
+  1. Open:
+     https://github.com/jmvegas021/golfsim-app/releases
+
+  2. Download:
+     GsproLighting-windows-x64.zip
+
+  3. Unzip it
+
+  4. Double-click:
+     GsproLighting.exe
+
+No .NET install required.
+
+--------------------------------------------------------
+This folder (golfsim-app-main) is for developers who want
+to change the code. Building it needs the .NET 8 SDK.
+========================================================
