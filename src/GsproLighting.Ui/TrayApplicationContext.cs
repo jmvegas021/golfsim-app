@@ -55,6 +55,11 @@ public sealed class TrayApplicationContext : ApplicationContext
                     ToolTipIcon.Info);
             }
 
+            _app.FirstShotObserved += OnFirstShotObserved;
+
+            if (_app.Config.R50Watch.AutoWatchEnabled)
+                _app.StartR50AutoWatch();
+
             if (_app.Config.Ui.StartProxyOnLaunch)
                 _app.StartProxy();
         }
@@ -64,13 +69,40 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
+    private void OnFirstShotObserved()
+    {
+        try
+        {
+            _tray.ShowBalloonTip(
+                4000,
+                "GSPro Lighting",
+                "R50 / Connect activity detected — live feed updating.",
+                ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("FirstShotBalloon", ex);
+        }
+    }
+
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open settings", null, (_, _) => ShowSettings());
         menu.Items.Add("Test lights", null, (_, _) => _ = TestLightsAsync());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Start proxy", null, (_, _) =>
+        menu.Items.Add("Start R50 auto-watch", null, (_, _) =>
+        {
+            try
+            {
+                _app.StartR50AutoWatch();
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Show("R50 watch start failed", ex);
+            }
+        });
+        menu.Items.Add("Start Open Connect proxy", null, (_, _) =>
         {
             try
             {

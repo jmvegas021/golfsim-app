@@ -7,6 +7,7 @@ public sealed class AppConfig
     public EffectConfig Effects { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
     public UiConfig Ui { get; set; } = new();
+    public R50WatchConfig R50Watch { get; set; } = new();
 }
 
 public sealed class GsproConfig
@@ -62,4 +63,13 @@ public sealed class UiConfig
 {
     public bool StartMinimizedToTray { get; set; }
     public bool StartProxyOnLaunch { get; set; } = true;
+}
+
+/// <summary>
+/// Auto-discover GSPro Connect logs and R50 network peers (native Connect path).
+/// </summary>
+public sealed class R50WatchConfig
+{
+    public bool AutoWatchEnabled { get; set; } = true;
+    public int DiscoveryRefreshSeconds { get; set; } = 10;
 }

@@ -25,31 +25,47 @@ public sealed class SettingsForm : Form
     private readonly ColorSwatchButton _hazard = new();
     private readonly ColorSwatchButton _player = new();
     private readonly ListBox _feed = new() { Dock = DockStyle.Fill, IntegralHeight = false };
-    private readonly Label _status = new() { AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
+    private readonly Label _status = new()
+    {
+        AutoSize = false,
+        Height = 56,
+        Width = 360,
+        Padding = new Padding(0, 8, 0, 0)
+    };
     private readonly Button _proxyToggle = new() { Width = 140, Height = 32 };
-    private readonly CheckBox _startProxy = new() { Text = "Start proxy when app launches", AutoSize = true };
+    private readonly CheckBox _startProxy = new() { Text = "Start Open Connect proxy on launch", AutoSize = true };
+    private readonly CheckBox _autoWatch = new() { Text = "Auto-watch R50 / Connect logs (recommended)", AutoSize = true };
     private readonly CheckBox _startMinimized = new() { Text = "Start minimized to tray", AutoSize = true };
+    private readonly System.Windows.Forms.Timer _statusTimer;
 
     public SettingsForm(LightingAppCoordinator app)
     {
         _app = app;
         Text = "GSPro Lighting — Settings";
-        Width = 760;
-        Height = 640;
-        MinimumSize = new Size(680, 520);
+        Width = 780;
+        Height = 680;
+        MinimumSize = new Size(700, 560);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9f);
 
         Controls.Add(BuildLayout());
         LoadFromConfig(app.Config);
-        UpdateProxyUi();
+        UpdateStatusUi();
+
+        _statusTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        _statusTimer.Tick += (_, _) => UpdateStatusUi();
+        _statusTimer.Start();
 
         app.Feed.EntryAdded += OnFeedEntry;
         app.ProxyStateChanged += OnProxyStateChanged;
+        app.R50StatusChanged += OnProxyStateChanged;
         FormClosed += (_, _) =>
         {
+            _statusTimer.Stop();
+            _statusTimer.Dispose();
             app.Feed.EntryAdded -= OnFeedEntry;
             app.ProxyStateChanged -= OnProxyStateChanged;
+            app.R50StatusChanged -= OnProxyStateChanged;
         };
     }
 
@@ -60,7 +76,7 @@ public sealed class SettingsForm : Form
 
         try
         {
-            BeginInvoke(UpdateProxyUi);
+            BeginInvoke(UpdateStatusUi);
         }
         catch (ObjectDisposedException)
         {
@@ -117,6 +133,7 @@ public sealed class SettingsForm : Form
         panel.Controls.Add(Row("Mishit max smash", _mishitSmash));
 
         panel.Controls.Add(Section("Startup"));
+        panel.Controls.Add(_autoWatch);
         panel.Controls.Add(_startProxy);
         panel.Controls.Add(_startMinimized);
 
@@ -216,6 +233,7 @@ public sealed class SettingsForm : Form
         _player.SelectedColor = config.Effects.Player;
         _startProxy.Checked = config.Ui.StartProxyOnLaunch;
         _startMinimized.Checked = config.Ui.StartMinimizedToTray;
+        _autoWatch.Checked = config.R50Watch.AutoWatchEnabled;
     }
 
     private AppConfig ReadConfig()
@@ -239,6 +257,7 @@ public sealed class SettingsForm : Form
         config.Effects.Player = _player.SelectedColor;
         config.Ui.StartProxyOnLaunch = _startProxy.Checked;
         config.Ui.StartMinimizedToTray = _startMinimized.Checked;
+        config.R50Watch.AutoWatchEnabled = _autoWatch.Checked;
         return config;
     }
 
@@ -246,8 +265,11 @@ public sealed class SettingsForm : Form
     {
         try
         {
-            _app.SaveConfig(ReadConfig());
-            _status.Text = $"Saved {_app.Config.Wled.ControllerIp} · {DateTime.Now:t}";
+            var config = ReadConfig();
+            _app.SaveConfig(config);
+            if (config.R50Watch.AutoWatchEnabled && !_app.IsR50WatchRunning)
+                _app.StartR50AutoWatch();
+            _status.Text = $"Saved {_app.Config.Wled.ControllerIp} · {DateTime.Now:t}\n{_app.BuildStatusText()}";
             _status.ForeColor = Color.ForestGreen;
         }
         catch (Exception ex)
@@ -265,7 +287,7 @@ public sealed class SettingsForm : Form
         try
         {
             await _app.Preview.PlaySweepAsync(_app.Config.Effects.PureStrike, _app.Config.Wled.LedCount);
-            _status.Text = "Test sweep sent";
+            _status.Text = "Test sweep sent\n" + _app.BuildStatusText();
             _status.ForeColor = Color.ForestGreen;
         }
         catch (Exception ex)
@@ -281,7 +303,7 @@ public sealed class SettingsForm : Form
         try
         {
             await _app.Preview.PlayIdleGlowAsync(_app.Config.Effects.Idle);
-            _status.Text = "Idle glow sent";
+            _status.Text = "Idle glow sent\n" + _app.BuildStatusText();
             _status.ForeColor = Color.ForestGreen;
         }
         catch (Exception ex)
@@ -298,26 +320,22 @@ public sealed class SettingsForm : Form
             await _app.StopProxyAsync();
         else
             _app.StartProxy();
-        UpdateProxyUi();
+        UpdateStatusUi();
     }
 
-    private void UpdateProxyUi()
+    private void UpdateStatusUi()
     {
         if (IsDisposed)
             return;
 
         _proxyToggle.Text = _app.IsProxyRunning ? "Stop proxy" : "Start proxy";
-        if (!string.IsNullOrWhiteSpace(_app.LastProxyError))
-        {
-            _status.Text = $"Proxy error: {_app.LastProxyError}";
-            _status.ForeColor = Color.Firebrick;
-            return;
-        }
-
-        _status.Text = _app.IsProxyRunning
-            ? $"Proxy listening on :{_app.Config.Gspro.ListenPort} → :{_app.Config.Gspro.UpstreamPort}"
-            : "Proxy stopped";
-        _status.ForeColor = _app.IsProxyRunning ? Color.ForestGreen : Color.DimGray;
+        var text = _app.BuildStatusText();
+        _status.Text = text;
+        _status.ForeColor = text.Contains("error", StringComparison.OrdinalIgnoreCase)
+            ? Color.Firebrick
+            : _app.IsR50WatchRunning || _app.IsProxyRunning
+                ? Color.ForestGreen
+                : Color.DimGray;
     }
 
     private void OnFeedEntry(ShotFeedEntry entry)

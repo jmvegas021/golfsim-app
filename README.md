@@ -1,6 +1,6 @@
 # GSPro Reactive Lighting
 
-Windows tray app for GSPro. Listens to Open Connect shot traffic and drives a WLED LED strip. Built for the same Windows PC as GSPro (e.g. ROG Xbox Ally X).
+Windows tray app for GSPro. Auto-watches **Garmin R50 → GSPro Connect** logs/network traffic and drives a WLED LED strip. Also supports an optional Open Connect TCP proxy for fixtures / bridged LMs. Built for the same Windows PC as GSPro (e.g. ROG Xbox Ally X).
 
 **GSPro is Windows-only — this app is too.**
 
@@ -35,16 +35,31 @@ Or from PowerShell (SDK required):
 ## First-time setup (once)
 
 1. Set your **WLED IP** → **Test lights**
-2. Start **GSPro**
-3. **Start proxy** (or leave “Start proxy when app launches” enabled)
-4. Point your launch monitor / Garmin→GSPro bridge at **`127.0.0.1:1921`**
+2. Start **GSPro** + **GSPro Connect** (Garmin R50) as usual
+3. Start **GSPro Lighting** — **R50 auto-watch is on by default** (no AppData digging, no port retarget for native Connect)
+4. Hit balls — the live feed should show `[LOG]` / `[NET]` / shot lines within ~1s
 5. Minimize to tray and play
+
+Status text shows discovered Connect logs and any R50 peer (`Watching: N log files · R50 peer …`). Raw captures land in `logs\`.
 
 Settings save next to the app in `config\appsettings.json`.
 
+### Optional: Open Connect proxy
+
+Only needed if you use an LM/bridge that speaks Open Connect TCP (or fixture replay). Point that client at **`127.0.0.1:1921`**. Native R50 → Connect v1.8.8 does **not** use this path.
+
 ## How it connects
 
-GSPro Open Connect is not a broadcast API. GSPro listens on `127.0.0.1:921`; your launch monitor sends `BallData` there. This app sits in the middle:
+**Native R50 (default):**
+
+```
+Garmin R50 ──Wi‑Fi──▶ GSPro Connect v1.8.8 ──▶ GSPro
+                         │
+                         ├─ AppData logs  ──tail──▶ live feed + WLED
+                         └─ TCP peers     ──watch─▶ live feed (+ limited net capture)
+```
+
+**Open Connect proxy (optional):**
 
 ```
 Launch monitor ──▶ :1921 (this app) ──▶ :921 (GSPro)
@@ -52,14 +67,15 @@ Launch monitor ──▶ :1921 (this app) ──▶ :921 (GSPro)
               tapped → feed + lights
 ```
 
-## Ally X
+## Ally X + R50
 
 1. Xbox button → **Desktop Mode**
 2. Unzip / run `GsproLighting.exe`
-3. Configure WLED + proxy once
-4. Return to Xbox full-screen experience — the tray app keeps running
+3. Configure WLED once; leave auto-watch on
+4. Start GSPro + Connect, hit balls, watch the live feed
+5. Return to Xbox full-screen experience — the tray app keeps running
 
-Keep Ally + WLED on the same Wi‑Fi.
+Keep Ally + WLED (+ R50 hotspot/LAN) on the same network path you normally use for Connect.
 
 ## Console tools (optional debugging)
 
@@ -77,9 +93,9 @@ dotnet run --project src\GsproLighting.App -- replay
 | `GsproLighting.Ui` | WinForms tray + settings (**main app**) |
 | `GsproLighting.App` | Console host (`proxy` / `mock` / `replay`) |
 | `GsproLighting.Core` | Models, config store, shot feed |
-| `GsproLighting.Gspro` | Proxy, parser, raw logger, fixtures |
-| `GsproLighting.Wled` | DRGB UDP output + preview sweeps |
+| `GsproLighting.Gspro` | Proxy, Connect discovery/watchers, parsers |
+| `GsproLighting.Wled` | DRGB UDP output + shot effect sink |
 
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md). Next: map live shots to effect colors automatically (v0.3).
+See [docs/PRD.md](docs/PRD.md).

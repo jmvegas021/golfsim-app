@@ -81,6 +81,22 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Surfaces a raw Connect/R50 watch line (v1: show activity before perfect field mapping).
+    /// </summary>
+    public void AddRaw(string kind, string summary)
+    {
+        Add(new ShotFeedEntry
+        {
+            Timestamp = DateTimeOffset.Now,
+            Kind = kind,
+            Summary = Truncate(summary, 180)
+        });
+    }
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..(max - 1)] + "…";
+
     private void Add(ShotFeedEntry entry)
     {
         lock (_gate)
