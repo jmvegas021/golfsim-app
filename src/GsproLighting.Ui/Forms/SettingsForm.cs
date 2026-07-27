@@ -45,8 +45,26 @@ public sealed class SettingsForm : Form
         UpdateProxyUi();
 
         app.Feed.EntryAdded += OnFeedEntry;
-        app.ProxyStateChanged += () => BeginInvoke(UpdateProxyUi);
-        FormClosed += (_, _) => app.Feed.EntryAdded -= OnFeedEntry;
+        app.ProxyStateChanged += OnProxyStateChanged;
+        FormClosed += (_, _) =>
+        {
+            app.Feed.EntryAdded -= OnFeedEntry;
+            app.ProxyStateChanged -= OnProxyStateChanged;
+        };
+    }
+
+    private void OnProxyStateChanged()
+    {
+        if (IsDisposed || !IsHandleCreated)
+            return;
+
+        try
+        {
+            BeginInvoke(UpdateProxyUi);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private Control BuildLayout()
@@ -285,7 +303,17 @@ public sealed class SettingsForm : Form
 
     private void UpdateProxyUi()
     {
+        if (IsDisposed)
+            return;
+
         _proxyToggle.Text = _app.IsProxyRunning ? "Stop proxy" : "Start proxy";
+        if (!string.IsNullOrWhiteSpace(_app.LastProxyError))
+        {
+            _status.Text = $"Proxy error: {_app.LastProxyError}";
+            _status.ForeColor = Color.Firebrick;
+            return;
+        }
+
         _status.Text = _app.IsProxyRunning
             ? $"Proxy listening on :{_app.Config.Gspro.ListenPort} → :{_app.Config.Gspro.UpstreamPort}"
             : "Proxy stopped";
@@ -294,15 +322,23 @@ public sealed class SettingsForm : Form
 
     private void OnFeedEntry(ShotFeedEntry entry)
     {
-        if (IsDisposed)
+        if (IsDisposed || !IsHandleCreated)
             return;
 
-        BeginInvoke(() =>
+        try
         {
-            _feed.Items.Insert(0, FormatEntry(entry));
-            while (_feed.Items.Count > 50)
-                _feed.Items.RemoveAt(_feed.Items.Count - 1);
-        });
+            BeginInvoke(() =>
+            {
+                if (IsDisposed)
+                    return;
+                _feed.Items.Insert(0, FormatEntry(entry));
+                while (_feed.Items.Count > 50)
+                    _feed.Items.RemoveAt(_feed.Items.Count - 1);
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private static string FormatEntry(ShotFeedEntry entry) =>

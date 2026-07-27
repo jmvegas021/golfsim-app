@@ -60,6 +60,6 @@ public sealed class LoggingConfig
 
 public sealed class UiConfig
 {
-    public bool StartMinimizedToTray { get; set; } = true;
+    public bool StartMinimizedToTray { get; set; }
     public bool StartProxyOnLaunch { get; set; } = true;
 }
