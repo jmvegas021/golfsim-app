@@ -7,6 +7,7 @@ namespace GsproLighting.Gspro.Parsing;
 
 /// <summary>
 /// Parses Garmin Connect / GSPro Connect log lines into shots or interesting raw events.
+/// Filters are intentionally loose so the live feed shows activity whenever Connect logs.
 /// </summary>
 public sealed class ConnectLogLineParser
 {
@@ -14,7 +15,7 @@ public sealed class ConnectLogLineParser
         @"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}",
         RegexOptions.Compiled);
 
-    private static readonly string[] InterestingTokens =
+    private static readonly string[] ShotTokens =
     {
         "[FROM GARMIN]",
         "FROM GARMIN",
@@ -30,13 +31,60 @@ public sealed class ConnectLogLineParser
         "TotalSpin",
         "LaunchAngle",
         "SpinAxis",
-        "HLA",
-        "VLA",
         "SmashFactor",
         "shot data",
         "Shot Data",
-        "Impact",
-        "LaunchMonitor"
+        "LaunchMonitor",
+        "ball speed",
+        "club speed",
+        "carry"
+    };
+
+    private static readonly string[] ActivityTokens =
+    {
+        "garmin",
+        "r50",
+        "gspro",
+        "gspconnect",
+        "connect",
+        "launch",
+        "monitor",
+        "ball",
+        "club",
+        "shot",
+        "spin",
+        "impact",
+        "ready",
+        "mph",
+        "yards",
+        "hla",
+        "vla",
+        "tcp",
+        "udp",
+        "socket",
+        "peer",
+        "device",
+        "paired",
+        "connected",
+        "disconnected",
+        "heartbeat",
+        "lm ",
+        " lm"
+    };
+
+    private static readonly string[] NoiseTokens =
+    {
+        "unityengine.",
+        "fallback handler",
+        "dontdestroyonload",
+        "shader",
+        "mesh.",
+        "texture.",
+        "audio.",
+        "input.",
+        "render",
+        "fps:",
+        "gc.alloc"
     };
 
     private readonly GsproMessageParser _jsonParser = new();
@@ -47,46 +95,66 @@ public sealed class ConnectLogLineParser
             return ConnectParseResult.Ignore;
 
         var trimmed = line.Trim();
-        if (!IsInteresting(trimmed))
+        if (IsNoise(trimmed))
             return ConnectParseResult.Ignore;
 
-        foreach (Match match in JsonBlob.Matches(trimmed))
+        var looksLikeShot = ContainsAny(trimmed, ShotTokens);
+        var looksLikeActivity = looksLikeShot || ContainsAny(trimmed, ActivityTokens);
+        if (!looksLikeActivity)
+            return ConnectParseResult.Ignore;
+
+        if (looksLikeShot)
         {
-            var json = match.Value;
-            if (!json.Contains("BallData", StringComparison.OrdinalIgnoreCase) &&
-                !json.Contains("ShotNumber", StringComparison.OrdinalIgnoreCase) &&
-                !json.Contains("BallSpeed", StringComparison.OrdinalIgnoreCase) &&
-                !json.Contains("Speed", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            try
+            foreach (Match match in JsonBlob.Matches(trimmed))
             {
-                var traffic = _jsonParser.Parse("ConnectLog", json);
-                if (traffic.Shot is { IsHeartBeat: false } shot &&
-                    (shot.HasBallData || shot.BallData?.Speed is > 0 || shot.ShotNumber is > 0))
+                var json = match.Value;
+                if (!json.Contains("BallData", StringComparison.OrdinalIgnoreCase) &&
+                    !json.Contains("ShotNumber", StringComparison.OrdinalIgnoreCase) &&
+                    !json.Contains("BallSpeed", StringComparison.OrdinalIgnoreCase) &&
+                    !json.Contains("Speed", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try
                 {
-                    EnsureShotOptions(shot);
-                    return ConnectParseResult.ForShot(shot, trimmed);
+                    var traffic = _jsonParser.Parse("ConnectLog", json);
+                    if (traffic.Shot is { IsHeartBeat: false } shot &&
+                        (shot.HasBallData || shot.BallData?.Speed is > 0 || shot.ShotNumber is > 0))
+                    {
+                        EnsureShotOptions(shot);
+                        return ConnectParseResult.ForShot(shot, trimmed);
+                    }
+
+                    if (traffic.Shot is { IsBallDetected: true } ready)
+                        return ConnectParseResult.ForReady(ready, trimmed);
                 }
+                catch (JsonException)
+                {
+                    // Fall through to key/value mapping.
+                }
+            }
 
-                if (traffic.Shot is { IsBallDetected: true } ready)
-                    return ConnectParseResult.ForReady(ready, trimmed);
-            }
-            catch (JsonException)
-            {
-                // Fall through to key/value mapping.
-            }
+            var mapped = TryMapKeyValues(trimmed);
+            if (mapped is not null)
+                return ConnectParseResult.ForShot(mapped, trimmed);
         }
-
-        var mapped = TryMapKeyValues(trimmed);
-        if (mapped is not null)
-            return ConnectParseResult.ForShot(mapped, trimmed);
 
         return ConnectParseResult.ForRaw(trimmed);
     }
 
     public static bool IsInteresting(string line) =>
-        InterestingTokens.Any(t => line.Contains(t, StringComparison.OrdinalIgnoreCase));
+        !string.IsNullOrWhiteSpace(line) &&
+        !IsNoise(line) &&
+        (ContainsAny(line, ShotTokens) || ContainsAny(line, ActivityTokens));
+
+    private static bool IsNoise(string line)
+    {
+        if (line.Length < 4)
+            return true;
+        return NoiseTokens.Any(t => line.Contains(t, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ContainsAny(string line, string[] tokens) =>
+        tokens.Any(t => line.Contains(t, StringComparison.OrdinalIgnoreCase));
 
     private static ShotPayload? TryMapKeyValues(string line)
     {

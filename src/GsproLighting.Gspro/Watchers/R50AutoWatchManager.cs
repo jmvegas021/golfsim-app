@@ -9,16 +9,19 @@ namespace GsproLighting.Gspro.Watchers;
 /// </summary>
 public sealed class R50AutoWatchManager : IAsyncDisposable
 {
+    private readonly ConnectProcessPathResolver _processPaths = new();
     private readonly ConnectLogDiscoverer _logDiscoverer = new();
     private readonly ConnectPeerDiscoverer _peerDiscoverer = new();
     private readonly ConnectLogTailWatcher _logWatcher;
     private readonly R50NetworkWatcher _networkWatcher;
+    private readonly ShotFeedBuffer _feed;
     private readonly int _refreshSeconds;
     private readonly object _gate = new();
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private ConnectDiscoverySnapshot _snapshot = new();
     private bool _running;
+    private bool _startedFeedNotified;
 
     public R50AutoWatchManager(
         ShotFeedBuffer feed,
@@ -26,6 +29,7 @@ public sealed class R50AutoWatchManager : IAsyncDisposable
         string rawLogDirectory,
         int refreshSeconds = 10)
     {
+        _feed = feed;
         _refreshSeconds = Math.Clamp(refreshSeconds, 5, 60);
         _logWatcher = new ConnectLogTailWatcher(feed, sink, rawLogDirectory);
         _networkWatcher = new R50NetworkWatcher(feed, rawLogDirectory);
@@ -57,6 +61,12 @@ public sealed class R50AutoWatchManager : IAsyncDisposable
             _logWatcher.Start();
             _networkWatcher.Start();
             _loop = Task.Run(() => RunAsync(_cts.Token));
+        }
+
+        if (!_startedFeedNotified)
+        {
+            _startedFeedNotified = true;
+            _feed.AddRaw("LOG", "R50 auto-watch started — discovering Connect logs and peers…");
         }
 
         RaiseStatusChanged();
@@ -104,9 +114,12 @@ public sealed class R50AutoWatchManager : IAsyncDisposable
     {
         try
         {
-            var logs = _logDiscoverer.Discover();
+            var processes = _processPaths.Resolve();
+            var logs = _logDiscoverer.Discover(processes);
             var (names, peers) = _peerDiscoverer.Discover();
             _logWatcher.UpdateWatchedFiles(logs.Select(l => l.FullPath));
+            if (logs.Count == 0)
+                _logWatcher.NotifyNoLogsFound();
             _networkWatcher.UpdatePeers(peers);
 
             var snapshot = new ConnectDiscoverySnapshot
@@ -114,7 +127,9 @@ public sealed class R50AutoWatchManager : IAsyncDisposable
                 TakenAt = DateTimeOffset.Now,
                 LogFiles = logs,
                 Peers = peers,
-                ConnectProcessNames = names,
+                ConnectProcessNames = names.Count > 0
+                    ? names
+                    : processes.Select(p => p.ProcessName).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 NetworkPayloadCaptureLimited = _networkWatcher.PayloadCaptureLimited
             };
 
@@ -135,6 +150,7 @@ public sealed class R50AutoWatchManager : IAsyncDisposable
                 };
             }
 
+            _feed.AddRaw("LOG", $"Discovery error: {ex.Message}");
             RaiseStatusChanged();
         }
     }

@@ -1,54 +1,41 @@
 namespace GsproLighting.Gspro.Discovery;
 
 /// <summary>
-/// Scans known GSPro / Connect AppData locations for active log files.
+/// Scans AppData, ProgramData, and Connect process install dirs for active log files.
 /// </summary>
 public sealed class ConnectLogDiscoverer
 {
     private static readonly string[] NameHints =
     {
-        "gspro", "connect", "gsp", "garmin", "r50", "output_log", "player.log"
+        "gspro", "connect", "gsp", "garmin", "r50", "gspconnect",
+        "output_log", "player.log", "player-prev", "launchmonitor"
     };
 
     private static readonly string[] Extensions = { ".log", ".txt", ".out" };
 
-    public IReadOnlyList<DiscoveredLogFile> Discover(DateTimeOffset? newerThanUtc = null)
+    private readonly ConnectLogCandidateRoots _roots = new();
+    private readonly ConnectOpenLogProbe _openProbe = new();
+
+    public IReadOnlyList<DiscoveredLogFile> Discover(
+        IReadOnlyList<ConnectProcessPath>? processes = null,
+        DateTimeOffset? newerThanUtc = null)
     {
-        var cutoff = newerThanUtc ?? DateTimeOffset.UtcNow.AddHours(-48);
-        var roots = EnumerateRoots().Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase);
+        var cutoff = newerThanUtc ?? DateTimeOffset.UtcNow.AddHours(-72);
         var found = new Dictionary<string, DiscoveredLogFile>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var root in roots)
+        foreach (var root in _roots.Build(processes))
             ScanRoot(root, cutoff, found);
+
+        if (processes is { Count: > 0 })
+        {
+            foreach (var path in _openProbe.Probe(processes))
+                TryAdd(found, path, cutoff, requireHint: false);
+        }
 
         return found.Values
             .OrderByDescending(f => f.LastWriteUtc)
-            .Take(12)
+            .Take(16)
             .ToList();
-    }
-
-    private static IEnumerable<string> EnumerateRoots()
-    {
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (!string.IsNullOrWhiteSpace(local))
-        {
-            yield return local;
-            var localLow = Path.GetFullPath(Path.Combine(local, "..", "LocalLow"));
-            yield return Path.Combine(localLow, "GSPro");
-            yield return localLow;
-            yield return Path.Combine(local, "GSPro");
-            yield return Path.Combine(local, "GSPro Connect");
-            yield return Path.Combine(local, "Garmin");
-        }
-
-        if (!string.IsNullOrWhiteSpace(roaming))
-        {
-            yield return Path.Combine(roaming, "GSPro");
-            yield return Path.Combine(roaming, "GSPro Connect");
-            yield return Path.Combine(roaming, "Garmin");
-            yield return roaming;
-        }
     }
 
     private static void ScanRoot(
@@ -62,30 +49,7 @@ public sealed class ConnectLogDiscoverer
             {
                 if (!LooksLikeConnectLog(path))
                     continue;
-
-                FileInfo info;
-                try
-                {
-                    info = new FileInfo(path);
-                }
-                catch
-                {
-                    continue;
-                }
-
-                if (!info.Exists || info.Length == 0)
-                    continue;
-
-                var write = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
-                if (write < cutoff && info.Length < 2_000_000)
-                    continue;
-
-                found[path] = new DiscoveredLogFile
-                {
-                    FullPath = path,
-                    LastWriteUtc = write,
-                    LengthBytes = info.Length
-                };
+                TryAdd(found, path, cutoff, requireHint: true);
             }
         }
         catch
@@ -94,13 +58,47 @@ public sealed class ConnectLogDiscoverer
         }
     }
 
+    private static void TryAdd(
+        Dictionary<string, DiscoveredLogFile> found,
+        string path,
+        DateTimeOffset cutoff,
+        bool requireHint)
+    {
+        FileInfo info;
+        try
+        {
+            info = new FileInfo(path);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (!info.Exists || info.Length == 0)
+            return;
+        if (requireHint && !LooksLikeConnectLog(path))
+            return;
+
+        var write = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
+        if (write < cutoff && info.Length < 2_000_000)
+            return;
+
+        found[path] = new DiscoveredLogFile
+        {
+            FullPath = path,
+            LastWriteUtc = write,
+            LengthBytes = info.Length
+        };
+    }
+
     private static IEnumerable<string> SafeEnumerateFiles(string root)
     {
         var stack = new Stack<string>();
         stack.Push(root);
         var depth = 0;
+        var maxDepth = IsBroadAppDataRoot(root) ? 4_000 : 8_000;
 
-        while (stack.Count > 0 && depth < 8_000)
+        while (stack.Count > 0 && depth < maxDepth)
         {
             depth++;
             var dir = stack.Pop();
@@ -131,6 +129,15 @@ public sealed class ConnectLogDiscoverer
         }
     }
 
+    private static bool IsBroadAppDataRoot(string root)
+    {
+        var name = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return name.Equals("Local", StringComparison.OrdinalIgnoreCase) ||
+               name.Equals("Roaming", StringComparison.OrdinalIgnoreCase) ||
+               name.Equals("LocalLow", StringComparison.OrdinalIgnoreCase) ||
+               name.Equals("ProgramData", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsNoiseDirectory(string name) =>
         name.Equals("Temp", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Cache", StringComparison.OrdinalIgnoreCase) ||
@@ -138,7 +145,9 @@ public sealed class ConnectLogDiscoverer
         name.Equals("Packages", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Google", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("npm", StringComparison.OrdinalIgnoreCase);
+        name.Equals("npm", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("CrashDumps", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("NVIDIA", StringComparison.OrdinalIgnoreCase);
 
     private static bool LooksLikeConnectLog(string path)
     {

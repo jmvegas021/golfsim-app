@@ -20,6 +20,7 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
     private Task? _loop;
     private string? _lastRawLine;
     private int _interestingCount;
+    private string _watchedSignature = string.Empty;
 
     public ConnectLogTailWatcher(ShotFeedBuffer feed, IShotEventSink sink, string rawLogDirectory)
     {
@@ -52,6 +53,7 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
 
     public void UpdateWatchedFiles(IEnumerable<string> paths)
     {
+        List<string> added;
         lock (_gate)
         {
             var desired = paths
@@ -68,13 +70,41 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
                 _tails.Remove(existing);
             }
 
+            added = new List<string>();
             foreach (var path in desired)
             {
                 if (_tails.ContainsKey(path))
                     continue;
                 _tails[path] = TailState.OpenAtEnd(path);
+                added.Add(path);
+            }
+
+            var signature = string.Join("|", desired.OrderBy(p => p, StringComparer.OrdinalIgnoreCase));
+            if (!string.Equals(signature, _watchedSignature, StringComparison.OrdinalIgnoreCase))
+            {
+                _watchedSignature = signature;
+                EmitWatchStatus(desired);
             }
         }
+
+        foreach (var path in added)
+            _feed.AddRaw("LOG", $"Tailing {ShortPath(path)}");
+    }
+
+    public void NotifyNoLogsFound()
+    {
+        lock (_gate)
+        {
+            if (_tails.Count > 0)
+                return;
+            if (string.Equals(_watchedSignature, "__none__", StringComparison.Ordinal))
+                return;
+            _watchedSignature = "__none__";
+        }
+
+        _feed.AddRaw(
+            "LOG",
+            "No Connect logs found under AppData — watching network only");
     }
 
     public async ValueTask DisposeAsync()
@@ -103,6 +133,15 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
 
             cts.Dispose();
         }
+    }
+
+    private void EmitWatchStatus(HashSet<string> paths)
+    {
+        if (paths.Count == 0)
+            return;
+        var names = string.Join(", ", paths.Take(3).Select(ShortPath));
+        var more = paths.Count > 3 ? $" (+{paths.Count - 3} more)" : string.Empty;
+        _feed.AddRaw("LOG", $"Watching {paths.Count} Connect log(s): {names}{more}");
     }
 
     private async Task RunAsync(CancellationToken token)
@@ -190,6 +229,20 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
         }
     }
 
+    private static string ShortPath(string path)
+    {
+        try
+        {
+            var file = Path.GetFileName(path);
+            var dir = Path.GetFileName(Path.GetDirectoryName(path) ?? string.Empty);
+            return string.IsNullOrWhiteSpace(dir) ? file : $"{dir}/{file}";
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
     private static string JsonEscape(string value) =>
         "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal)
@@ -204,7 +257,6 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
             var next = tail.Stream!.ReadByte();
             if (next < 0)
             {
-                // Detect truncate/rotation.
                 try
                 {
                     var info = new FileInfo(tail.Path);
