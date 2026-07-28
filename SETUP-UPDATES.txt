@@ -17,7 +17,7 @@ reliable auto-updates. Setup.exe is the supported install path.
 UPDATES IN THE APP
 ------------------
 Settings → section "Updates":
-  • Shows current version (e.g. v0.4.3)
+  • Shows current version (e.g. v0.4.4)
   • "Check for updates" — contacts GitHub Releases, downloads if newer
   • Status: up to date / downloading / error / ready
   • "Install update & restart" — applies and relaunches
@@ -43,17 +43,17 @@ Version lives in Directory.Build.props (Assembly + Informational).
 
 On Mac (cross-compile win-x64):
   export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
-  ./scripts/package-release.sh 0.4.3
-  ./scripts/publish-github-release.sh 0.4.3
+  ./scripts/package-release.sh 0.4.4
+  ./scripts/publish-github-release.sh 0.4.4
 
 On Windows:
-  .\scripts\package-release.ps1 0.4.3
+  .\scripts\package-release.ps1 0.4.4
   vpk upload github --repoUrl https://github.com/jmvegas021/golfsim-app `
-    --outputDir dist\Releases --publish --tag v0.4.3 --merge
-  gh release upload v0.4.3 dist\GsproLighting-windows-x64.zip --clobber
+    --outputDir dist\Releases --publish --tag v0.4.4 --merge
+  gh release upload v0.4.4 dist\GsproLighting-windows-x64.zip --clobber
 
 Exact pack command:
-  vpk [win] pack -u GsproLighting -v 0.4.3 -p dist/velopack-pack \
+  vpk [win] pack -u GsproLighting -v 0.4.4 -p dist/velopack-pack \
     -e GsproLighting.exe -o dist/Releases --packTitle "GSPro Lighting" -y
 
 Feed URL (built into app):

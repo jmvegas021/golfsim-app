@@ -16,6 +16,7 @@ public sealed class WledShotEffectSink : IShotEventSink
     private readonly ShotEffectMapper _mapper = new();
     private readonly object _gate = new();
     private CancellationTokenSource? _flashCts;
+    private bool _readyIdleActive;
 
     public WledShotEffectSink(IWledOutput output, Func<EffectConfig> effects)
     {
@@ -30,6 +31,9 @@ public sealed class WledShotEffectSink : IShotEventSink
             shot.BallData?.CarryDistance is null &&
             shot.BallData?.SideSpin is null)
             return;
+
+        lock (_gate)
+            _readyIdleActive = false;
 
         var effects = _effects();
         var color = _mapper.Map(shot, effects);
@@ -47,10 +51,14 @@ public sealed class WledShotEffectSink : IShotEventSink
 
     public async Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default)
     {
-        // Player glow, then settle on idle (ready state).
+        // Skip repeated ready keepalives — only pulse idle when entering ready.
         CancellationTokenSource linked;
         lock (_gate)
         {
+            if (_readyIdleActive)
+                return;
+
+            _readyIdleActive = true;
             _flashCts?.Cancel();
             _flashCts?.Dispose();
             _flashCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

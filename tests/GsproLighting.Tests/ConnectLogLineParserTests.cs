@@ -14,6 +14,51 @@ public sealed class ConnectLogLineParserTests
     }
 
     [Fact]
+    public void ReadyForShot_KeepaliveRepeats_AreIgnored()
+    {
+        var parser = new ConnectLogLineParser();
+        const string line = "GarminR50Form: readyForShot=true ballPlacement ready";
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse(line).Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse(line).Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("Sent readyForShot READY_TO_HIT").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse(line).Kind);
+    }
+
+    [Fact]
+    public void ReadyForShot_ReEmitsAfterNotReady()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("NOT_READY_TO_HIT").Kind);
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("readyForShot=true").Kind);
+    }
+
+    [Fact]
+    public void ReadyForShot_False_ClearsReadyWithoutEmitting()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("readyForShot=false").Kind);
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+    }
+
+    [Fact]
+    public void ReadyForShot_ReEmitsAfterShot()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+
+        var json = File.ReadAllText(
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "connect-logs", "garmin-full-shot.json")));
+        var shotLine = "Logging ball data IMMEDIATELY before sending to GSPro " +
+                       json.Replace("\n", " ").Replace("\r", "");
+        Assert.Equal(ConnectParseKind.Shot, parser.Parse(shotLine).Kind);
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("readyForShot=true").Kind);
+    }
+
+    [Fact]
     public void BallMarker_EmitsRawWhenJsonMissing()
     {
         var parser = new ConnectLogLineParser();

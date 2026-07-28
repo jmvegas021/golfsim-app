@@ -8,6 +8,7 @@ namespace GsproLighting.Gspro.Parsing;
 /// Parses Garmin Connect / GSPro Connect log lines into shots, ready events, or sparse raw lines.
 /// Tuned for GarminR50Form: readyForShot + "Logging ball data IMMEDIATELY" ball JSON
 /// (including multiline / pretty-printed payloads).
+/// Ready is edge-triggered — Connect re-logs readyForShot as keepalive.
 /// </summary>
 public sealed class ConnectLogLineParser
 {
@@ -73,6 +74,12 @@ public sealed class ConnectLogLineParser
     private bool _awaitingBallJson;
     private string? _ballContextLine;
     private int _awaitingIdleLines;
+    /// <summary>
+    /// Edge-trigger gate: Connect re-logs readyForShot / READY_TO_HIT as keepalive.
+    /// Only the transition into ready should emit a Ready event.
+    /// </summary>
+    private bool _isReady;
+    private string? _lastEmittedReadyLine;
 
     public ConnectParseResult Parse(string line)
     {
@@ -103,8 +110,9 @@ public sealed class ConnectLogLineParser
         if (IsNoise(trimmed))
             return ConnectParseResult.Ignore;
 
-        if (ContainsAny(trimmed, NotReadyTokens))
+        if (IsNotReadyLine(trimmed))
         {
+            ClearReadyState();
             ClearBallWait();
             return ConnectParseResult.Ignore;
         }
@@ -114,7 +122,7 @@ public sealed class ConnectLogLineParser
 
         var shot = TryExtractShot(trimmed, trimmed);
         if (shot is not null)
-            return ConnectParseResult.ForShot(shot, trimmed);
+            return EmitShot(shot, trimmed);
 
         if (GarminConnectBallMapper.LooksLikeBallMetrics(trimmed))
         {
@@ -128,10 +136,7 @@ public sealed class ConnectLogLineParser
                 {
                     var fromPartial = MapCompleteJson(partial, trimmed);
                     if (fromPartial is not null)
-                    {
-                        ClearBallWait();
-                        return ConnectParseResult.ForShot(fromPartial, trimmed);
-                    }
+                        return EmitShot(fromPartial, trimmed);
                 }
 
                 return ConnectParseResult.ForRaw(trimmed);
@@ -141,10 +146,7 @@ public sealed class ConnectLogLineParser
         }
 
         if (IsReadyLine(trimmed))
-        {
-            ClearBallWait();
-            return ConnectParseResult.ForReady(CreateReadyPayload(), trimmed);
-        }
+            return EmitReadyEdge(trimmed);
 
         if (ContainsAny(trimmed, HighSignalRawTokens) &&
             (trimmed.Contains("garmin", StringComparison.OrdinalIgnoreCase) ||
@@ -172,10 +174,7 @@ public sealed class ConnectLogLineParser
 
         var sameLineShot = TryExtractShot(trimmed, trimmed);
         if (sameLineShot is not null)
-        {
-            ClearBallWait();
-            return ConnectParseResult.ForShot(sameLineShot, trimmed);
-        }
+            return EmitShot(sameLineShot, trimmed);
 
         if (trimmed.Contains('{'))
         {
@@ -184,10 +183,7 @@ public sealed class ConnectLogLineParser
             {
                 var shot = MapCompleteJson(complete, trimmed);
                 if (shot is not null)
-                {
-                    ClearBallWait();
-                    return ConnectParseResult.ForShot(shot, trimmed);
-                }
+                    return EmitShot(shot, trimmed);
             }
         }
 
@@ -207,10 +203,7 @@ public sealed class ConnectLogLineParser
         {
             var pendingShot = TryExtractShot(trimmed, _ballContextLine);
             if (pendingShot is not null)
-            {
-                ClearBallWait();
-                return ConnectParseResult.ForShot(pendingShot, trimmed);
-            }
+                return EmitShot(pendingShot, trimmed);
 
             return null;
         }
@@ -219,10 +212,10 @@ public sealed class ConnectLogLineParser
             return null;
 
         var shot = MapCompleteJson(complete, _ballContextLine ?? trimmed);
-        ClearBallWait();
         if (shot is not null)
-            return ConnectParseResult.ForShot(shot, trimmed);
+            return EmitShot(shot, trimmed);
 
+        ClearBallWait();
         if (GarminConnectBallMapper.LooksLikeBallMetrics(complete))
             return ConnectParseResult.ForRaw(complete);
 
@@ -287,6 +280,38 @@ public sealed class ConnectLogLineParser
         return ConnectLogKeyValueMapper.TryMap(line, context);
     }
 
+    private ConnectParseResult EmitShot(ShotPayload shot, string raw)
+    {
+        // After a shot the monitor leaves ready; next readyForShot should fire once.
+        ClearReadyState();
+        ClearBallWait();
+        return ConnectParseResult.ForShot(shot, raw);
+    }
+
+    private ConnectParseResult EmitReadyEdge(string trimmed)
+    {
+        ClearBallWait();
+
+        // Identical keepalive line while already ready — ignore.
+        if (_isReady &&
+            _lastEmittedReadyLine is not null &&
+            string.Equals(_lastEmittedReadyLine, trimmed, StringComparison.Ordinal))
+            return ConnectParseResult.Ignore;
+
+        if (_isReady)
+            return ConnectParseResult.Ignore;
+
+        _isReady = true;
+        _lastEmittedReadyLine = trimmed;
+        return ConnectParseResult.ForReady(CreateReadyPayload(), trimmed);
+    }
+
+    private void ClearReadyState()
+    {
+        _isReady = false;
+        _lastEmittedReadyLine = null;
+    }
+
     private void ClearBallWait()
     {
         _awaitingBallJson = false;
@@ -295,9 +320,24 @@ public sealed class ConnectLogLineParser
         _jsonBuffer.Reset();
     }
 
-    private static bool IsReadyLine(string line)
+    private static bool IsNotReadyLine(string line)
     {
         if (ContainsAny(line, NotReadyTokens))
+            return true;
+
+        // readyForShot=false / readyForShot: false — clear, do not treat as Ready.
+        if (!line.Contains("readyForShot", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return line.Contains("readyForShot=false", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("readyForShot = false", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("readyForShot:false", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("readyForShot: false", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReadyLine(string line)
+    {
+        if (IsNotReadyLine(line))
             return false;
 
         if (ContainsAny(line, ReadyTokens))
