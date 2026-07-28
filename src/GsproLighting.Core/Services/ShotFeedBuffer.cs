@@ -75,7 +75,18 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         {
             Timestamp = DateTimeOffset.Now,
             Kind = "Ready",
-            Summary = "readyForShot — ball ready"
+            Summary = "R50 ready"
+        });
+        return Task.CompletedTask;
+    }
+
+    public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default)
+    {
+        Add(new ShotFeedEntry
+        {
+            Timestamp = DateTimeOffset.Now,
+            Kind = "Not ready",
+            Summary = "R50 not ready"
         });
         return Task.CompletedTask;
     }

@@ -50,7 +50,7 @@ Or from PowerShell (SDK required):
 4. Hit balls — Connect log ball metrics become clean `[Shot]` / `[Putt]` / `[Ready]` feed lines and drive WLED (pure / mishit / putt / ready glow)
 5. Minimize to tray and play
 
-**R50 Connect logs → lights:** the app tails GarminR50Form lines (`readyForShot`, `Logging ball data IMMEDIATELY…`, carry/sidespin JSON — including multiline payloads) and maps them to `[Shot]` / `[Putt]` / `[Ready]` plus your Effect colors. Ball-marker `[LOG]` lines stay visible; `[NET]` peer keepalives are quiet.
+**R50 Connect logs → lights:** the app tails GarminR50Form lines and maps them to `[Shot]` / `[Putt]` / `[Ready]` / `[Not ready]` plus your Effect colors. Green light = explicit ready (`READY_TO_HIT`, `readyForShot=true`); red = `NOT_READY_TO_HIT` / `readyForShot=false` (once each). Ball-marker `[LOG]` lines stay visible; `[NET]` peer keepalives are quiet.
 
 Status text shows discovered Connect logs and any R50 peer (`Watching: N log files · R50 peer …`). Raw captures land in `logs\`.
 
@@ -92,13 +92,13 @@ Keep Ally + WLED (+ R50 hotspot/LAN) on the same network path you normally use f
 
 ## Auto-updates (developers)
 
-Version is centralized in `Directory.Build.props` (`0.4.4`, etc.).
+Version is centralized in `Directory.Build.props` (`0.4.5`, etc.).
 
 ```bash
 # macOS host → win-x64 + Velopack
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
-./scripts/package-release.sh 0.4.4
-./scripts/publish-github-release.sh 0.4.4
+./scripts/package-release.sh 0.4.5
+./scripts/publish-github-release.sh 0.4.5
 ```
 
 App update feed: `https://github.com/jmvegas021/golfsim-app` (Velopack `GithubSource` → public `releases.win.json`). The repo must stay **public** so the updater can download release assets without a token. Portable installs fall back to downloading `GsproLighting-windows-x64.zip`.

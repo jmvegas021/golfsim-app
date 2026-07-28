@@ -41,7 +41,13 @@ public sealed class ConsoleShotEventSink : IShotEventSink
 
     public Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default)
     {
-        Console.WriteLine("[BALL READY] LaunchMonitorBallDetected");
+        Console.WriteLine("[Ready] R50 ready");
+        return Task.CompletedTask;
+    }
+
+    public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default)
+    {
+        Console.WriteLine("[Not ready] R50 not ready");
         return Task.CompletedTask;
     }
 }

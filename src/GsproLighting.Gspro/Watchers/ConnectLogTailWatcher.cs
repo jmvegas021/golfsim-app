@@ -220,6 +220,9 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
                 case ConnectParseKind.Ready when parsed.Shot is not null:
                     await _sink.OnBallReadyAsync(parsed.Shot, token).ConfigureAwait(false);
                     break;
+                case ConnectParseKind.NotReady:
+                    await _sink.OnBallNotReadyAsync(token).ConfigureAwait(false);
+                    break;
                 default:
                     _feed.AddRaw("LOG", parsed.RawLine ?? line);
                     break;

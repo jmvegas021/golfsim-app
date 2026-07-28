@@ -8,7 +8,7 @@ namespace GsproLighting.Gspro.Parsing;
 /// Parses Garmin Connect / GSPro Connect log lines into shots, ready events, or sparse raw lines.
 /// Tuned for GarminR50Form: readyForShot + "Logging ball data IMMEDIATELY" ball JSON
 /// (including multiline / pretty-printed payloads).
-/// Ready is edge-triggered — Connect re-logs readyForShot as keepalive.
+/// Ready / not-ready are edge-triggered to match the R50 green / red light.
 /// </summary>
 public sealed class ConnectLogLineParser
 {
@@ -22,22 +22,6 @@ public sealed class ConnectLogLineParser
         "Logging ball data",
         "before sending to GSPro",
         "sending to GSPro"
-    };
-
-    private static readonly string[] ReadyTokens =
-    {
-        "readyForShot",
-        "READY_TO_HIT",
-        "LaunchMonitorBallDetected",
-        "ball detected",
-        "BallDetected"
-    };
-
-    private static readonly string[] NotReadyTokens =
-    {
-        "NOT_READY_TO_HIT",
-        "notReadyToHit",
-        "not ready to hit"
     };
 
     private static readonly string[] HighSignalRawTokens =
@@ -74,12 +58,8 @@ public sealed class ConnectLogLineParser
     private bool _awaitingBallJson;
     private string? _ballContextLine;
     private int _awaitingIdleLines;
-    /// <summary>
-    /// Edge-trigger gate: Connect re-logs readyForShot / READY_TO_HIT as keepalive.
-    /// Only the transition into ready should emit a Ready event.
-    /// </summary>
-    private bool _isReady;
-    private string? _lastEmittedReadyLine;
+    /// <summary>R50 light state: null = unknown, true = green/ready, false = red/not-ready.</summary>
+    private bool? _isReady;
 
     public ConnectParseResult Parse(string line)
     {
@@ -110,12 +90,8 @@ public sealed class ConnectLogLineParser
         if (IsNoise(trimmed))
             return ConnectParseResult.Ignore;
 
-        if (IsNotReadyLine(trimmed))
-        {
-            ClearReadyState();
-            ClearBallWait();
-            return ConnectParseResult.Ignore;
-        }
+        if (ConnectReadySignalClassifier.IsNotReady(trimmed))
+            return EmitNotReadyEdge(trimmed);
 
         if (ContainsAny(trimmed, BallLogMarkers))
             return HandleBallMarkerLine(trimmed);
@@ -145,7 +121,7 @@ public sealed class ConnectLogLineParser
             return ConnectParseResult.ForRaw(trimmed);
         }
 
-        if (IsReadyLine(trimmed))
+        if (ConnectReadySignalClassifier.IsReady(trimmed))
             return EmitReadyEdge(trimmed);
 
         if (ContainsAny(trimmed, HighSignalRawTokens) &&
@@ -161,7 +137,7 @@ public sealed class ConnectLogLineParser
         !string.IsNullOrWhiteSpace(line) &&
         !IsNoise(line) &&
         (ContainsAny(line, BallLogMarkers) ||
-         ContainsAny(line, ReadyTokens) ||
+         ConnectReadySignalClassifier.MentionsReadySignal(line) ||
          GarminConnectBallMapper.LooksLikeBallMetrics(line) ||
          ContainsAny(line, HighSignalRawTokens));
 
@@ -282,7 +258,7 @@ public sealed class ConnectLogLineParser
 
     private ConnectParseResult EmitShot(ShotPayload shot, string raw)
     {
-        // After a shot the monitor leaves ready; next readyForShot should fire once.
+        // After a shot the monitor leaves ready; next green signal should fire once.
         ClearReadyState();
         ClearBallWait();
         return ConnectParseResult.ForShot(shot, raw);
@@ -292,24 +268,28 @@ public sealed class ConnectLogLineParser
     {
         ClearBallWait();
 
-        // Identical keepalive line while already ready — ignore.
-        if (_isReady &&
-            _lastEmittedReadyLine is not null &&
-            string.Equals(_lastEmittedReadyLine, trimmed, StringComparison.Ordinal))
-            return ConnectParseResult.Ignore;
-
-        if (_isReady)
+        if (_isReady == true)
             return ConnectParseResult.Ignore;
 
         _isReady = true;
-        _lastEmittedReadyLine = trimmed;
         return ConnectParseResult.ForReady(CreateReadyPayload(), trimmed);
+    }
+
+    private ConnectParseResult EmitNotReadyEdge(string trimmed)
+    {
+        ClearBallWait();
+
+        // Debounce: one [Not ready] per red stretch (keepAlive / repeats ignored).
+        if (_isReady == false)
+            return ConnectParseResult.Ignore;
+
+        _isReady = false;
+        return ConnectParseResult.ForNotReady(trimmed);
     }
 
     private void ClearReadyState()
     {
-        _isReady = false;
-        _lastEmittedReadyLine = null;
+        _isReady = null;
     }
 
     private void ClearBallWait()
@@ -318,33 +298,6 @@ public sealed class ConnectLogLineParser
         _ballContextLine = null;
         _awaitingIdleLines = 0;
         _jsonBuffer.Reset();
-    }
-
-    private static bool IsNotReadyLine(string line)
-    {
-        if (ContainsAny(line, NotReadyTokens))
-            return true;
-
-        // readyForShot=false / readyForShot: false — clear, do not treat as Ready.
-        if (!line.Contains("readyForShot", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        return line.Contains("readyForShot=false", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("readyForShot = false", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("readyForShot:false", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("readyForShot: false", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsReadyLine(string line)
-    {
-        if (IsNotReadyLine(line))
-            return false;
-
-        if (ContainsAny(line, ReadyTokens))
-            return true;
-
-        return line.Contains("ballPlacement", StringComparison.OrdinalIgnoreCase) &&
-               line.Contains("ready", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ShotPayload CreateReadyPayload() => new()

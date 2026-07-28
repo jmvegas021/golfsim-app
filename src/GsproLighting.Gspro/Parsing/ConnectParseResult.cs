@@ -24,6 +24,12 @@ public sealed class ConnectParseResult
         RawLine = raw
     };
 
+    public static ConnectParseResult ForNotReady(string raw) => new()
+    {
+        Kind = ConnectParseKind.NotReady,
+        RawLine = raw
+    };
+
     public static ConnectParseResult ForRaw(string raw) => new()
     {
         Kind = ConnectParseKind.Raw,
@@ -36,5 +42,6 @@ public enum ConnectParseKind
     Ignore,
     Raw,
     Shot,
-    Ready
+    Ready,
+    NotReady
 }

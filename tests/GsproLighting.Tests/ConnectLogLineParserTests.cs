@@ -6,11 +6,35 @@ namespace GsproLighting.Tests;
 public sealed class ConnectLogLineParserTests
 {
     [Fact]
-    public void ReadyForShot_EmitsReady()
+    public void ReadyForShotTrue_EmitsReady()
     {
         var parser = new ConnectLogLineParser();
         var result = parser.Parse("GarminR50Form: readyForShot=true ballPlacement ready");
         Assert.Equal(ConnectParseKind.Ready, result.Kind);
+    }
+
+    [Fact]
+    public void ReadyToHit_EmitsReady()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("GarminR50Form: status READY_TO_HIT").Kind);
+    }
+
+    [Fact]
+    public void BareReadyForShot_IsNotReady()
+    {
+        var parser = new ConnectLogLineParser();
+        // Connect logs the readyForShot token during keepalives / both light colors.
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("GarminR50Form: readyForShot").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("Sent readyForShot").Kind);
+    }
+
+    [Fact]
+    public void SentReadyForShot_WithReadyToHit_EmitsReadyOnce()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("Sent readyForShot READY_TO_HIT").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("Sent readyForShot READY_TO_HIT").Kind);
     }
 
     [Fact]
@@ -25,22 +49,57 @@ public sealed class ConnectLogLineParserTests
     }
 
     [Fact]
-    public void ReadyForShot_ReEmitsAfterNotReady()
+    public void NotReadyToHit_EmitsNotReady_ThenReadyReEmits()
     {
         var parser = new ConnectLogLineParser();
         Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+
+        var notReady = parser.Parse("\"status\": \"NOT_READY_TO_HIT\", type: ballPlacement");
+        Assert.Equal(ConnectParseKind.NotReady, notReady.Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("NOT_READY_TO_HIT").Kind);
+
         Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("readyForShot=true").Kind);
     }
 
     [Fact]
-    public void ReadyForShot_False_ClearsReadyWithoutEmitting()
+    public void NotReadyJsonStatus_DoesNotEmitBallReady()
+    {
+        var parser = new ConnectLogLineParser();
+        var result = parser.Parse(
+            "[FROM GARMIN] [GarminR50Form] {\"status\": \"NOT_READY_TO_HIT\", \"type\": \"ballPlacement\"}");
+        Assert.Equal(ConnectParseKind.NotReady, result.Kind);
+        Assert.NotEqual(ConnectParseKind.Ready, result.Kind);
+    }
+
+    [Fact]
+    public void ReadyForShot_False_ClearsReadyWithoutEmittingReady()
     {
         var parser = new ConnectLogLineParser();
         Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+        Assert.Equal(ConnectParseKind.NotReady, parser.Parse("readyForShot=false").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("ReadyForShot\":false").Kind);
+        Assert.Equal(ConnectParseKind.Ready, parser.Parse("ReadyForShot\":true").Kind);
+    }
+
+    [Fact]
+    public void NotReady_DebouncedAcrossKeepalives()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(ConnectParseKind.NotReady, parser.Parse("NOT_READY_TO_HIT").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("NOT_READY_TO_HIT").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("readyForShot=false").Kind);
-        Assert.Equal(ConnectParseKind.Ready, parser.Parse("readyForShot=true").Kind);
+        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("Sent readyForShot").Kind);
+    }
+
+    [Fact]
+    public void BallPlacementReadySubstring_InNotReady_IsNotReady()
+    {
+        var parser = new ConnectLogLineParser();
+        // "ready" appears inside NOT_READY — must never classify as Ready.
+        Assert.Equal(
+            ConnectParseKind.NotReady,
+            parser.Parse("type: ballPlacement status NOT_READY_TO_HIT").Kind);
     }
 
     [Fact]

@@ -79,6 +79,14 @@ public sealed class WledShotEffectSink : IShotEventSink
         }
     }
 
+    public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default)
+    {
+        // Red light — clear ready gate so the next green pulse can fire; no ready glow.
+        lock (_gate)
+            _readyIdleActive = false;
+        return Task.CompletedTask;
+    }
+
     private async Task FlashAsync(
         RgbColor color,
         int holdMs,
