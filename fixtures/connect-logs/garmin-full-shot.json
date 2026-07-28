@@ -1,0 +1,16 @@
+{
+  "ballSpeed": 148.2,
+  "launchAngle": 12.4,
+  "launchDirection": 1.6,
+  "carryDistance": 246.0,
+  "carryDeviationAngle": 1.6,
+  "carryDeviationDistance": 6.8,
+  "sidespin": -420.0,
+  "backspin": 2680.0,
+  "totalSpin": 2712.0,
+  "spinAxis": -8.9,
+  "spinType": "normal",
+  "smashFactor": 1.48,
+  "clubSpeed": 100.1,
+  "shotNumber": 12
+}

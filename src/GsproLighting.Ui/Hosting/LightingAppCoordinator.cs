@@ -223,7 +223,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     {
         if (_firstShotBalloonShown)
             return;
-        if (entry.Kind is not ("Shot" or "LOG" or "NET" or "Ready"))
+        if (entry.Kind is not ("Shot" or "Putt" or "LOG" or "NET" or "Ready"))
             return;
         _firstShotBalloonShown = true;
         try

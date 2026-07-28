@@ -37,8 +37,10 @@ Or from PowerShell (SDK required):
 1. Set your **WLED IP** → **Test lights**
 2. Start **GSPro** + **GSPro Connect** (Garmin R50) as usual
 3. Start **GSPro Lighting** — **R50 auto-watch is on by default** (no AppData digging, no port retarget for native Connect)
-4. Hit balls — the live feed should show `[LOG]` / `[NET]` / shot lines within ~1s
+4. Hit balls — Connect log ball metrics become clean `[Shot]` / `[Putt]` / `[Ready]` feed lines and drive WLED (pure / mishit / putt / ready glow)
 5. Minimize to tray and play
+
+**R50 Connect logs → lights:** the app tails GarminR50Form lines (`readyForShot`, `Logging ball data IMMEDIATELY…`, carry/sidespin JSON) and maps them to your Effect colors. Sparse `[LOG]` / `[NET]` lines remain for connect status only.
 
 Status text shows discovered Connect logs and any R50 peer (`Watching: N log files · R50 peer …`). Raw captures land in `logs\`.
 
@@ -72,7 +74,7 @@ Launch monitor ──▶ :1921 (this app) ──▶ :921 (GSPro)
 1. Xbox button → **Desktop Mode**
 2. Unzip / run `GsproLighting.exe`
 3. Configure WLED once; leave auto-watch on
-4. Start GSPro + Connect, hit balls, watch the live feed
+4. Start GSPro + Connect, hit balls — expect `[Ready]` then `[Shot]`/`[Putt]` and matching WLED flashes
 5. Return to Xbox full-screen experience — the tray app keeps running
 
 Keep Ally + WLED (+ R50 hotspot/LAN) on the same network path you normally use for Connect.

@@ -60,9 +60,10 @@ Spike with raw proxy logger first. Fallback: heuristic penalty detection.
 ## 9. Milestones
 1. Spike — raw capture
 2. v0.1 — parsed shot console log
-3. v0.2 — WLED UDP test effect + **tray/settings UI** ← **current**
-4. v0.3 — full effect engine (auto map shots → lights)
-5. v0.4 — hazard/made-putt effects
+3. v0.2 — WLED UDP test effect + **tray/settings UI**
+4. v0.3 — R50 Connect auto-watch (log/network → feed)
+5. v0.4 — Connect ball-metrics → Shot feed + WLED effects ← **current**
+6. v0.5 — hazard/made-putt effects
 6. v1.0 — packaged installer, autostart
 
 (Config UI was pulled forward from the original v0.5.)

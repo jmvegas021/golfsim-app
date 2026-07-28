@@ -24,8 +24,11 @@ GSPro Reactive Lighting — Windows
 
 1. Double-click GsproLighting.exe
 2. Set your WLED IP in Settings → Test lights
-3. Start GSPro, then Start proxy (or leave auto-start on)
-4. Point your launch monitor / Garmin bridge at 127.0.0.1:1921
+3. Start GSPro + GSPro Connect (Garmin R50) as usual
+4. Leave R50 auto-watch on — Connect log ball metrics drive the live feed + WLED
+5. Hit balls — expect [Ready] / [Shot] / [Putt] lines and light flashes
+
+Optional Open Connect proxy: point an LM/bridge at 127.0.0.1:1921
 
 Tray icon: right-click for settings / test lights / exit.
 

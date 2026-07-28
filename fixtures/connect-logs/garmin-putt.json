@@ -1,0 +1,14 @@
+{
+  "ballSpeed": 7.8,
+  "launchAngle": 1.1,
+  "launchDirection": 0.3,
+  "carryDistance": 8.0,
+  "carryDeviationAngle": 0.3,
+  "carryDeviationDistance": 0.1,
+  "sidespin": 12.0,
+  "backspin": 35.0,
+  "totalSpin": 37.0,
+  "spinAxis": 0.2,
+  "spinType": "putting",
+  "shotNumber": 3
+}

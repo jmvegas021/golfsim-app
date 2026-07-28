@@ -33,20 +33,19 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
 
     public Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
     {
+        var isPutt = shot.IsPutting == true ||
+                     (shot.SpinType?.Contains("putt", StringComparison.OrdinalIgnoreCase) ?? false);
         var entry = new ShotFeedEntry
         {
             Timestamp = DateTimeOffset.Now,
-            Kind = "Shot",
+            Kind = isPutt ? "Putt" : "Shot",
             ShotNumber = shot.ShotNumber,
             BallSpeed = shot.BallData?.Speed,
             Hla = shot.BallData?.Hla,
             SpinAxis = shot.BallData?.SpinAxis,
             Carry = shot.BallData?.CarryDistance,
             Smash = shot.SmashFactor,
-            Summary =
-                $"#{shot.ShotNumber}  {shot.BallData?.Speed:F1} mph  " +
-                $"HLA {shot.BallData?.Hla:F1}°  carry {shot.BallData?.CarryDistance:F0} yd" +
-                (shot.SmashFactor is double s ? $"  smash {s:F2}" : string.Empty)
+            Summary = BuildShotSummary(shot, isPutt)
         };
         Add(entry);
         return Task.CompletedTask;
@@ -76,13 +75,13 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         {
             Timestamp = DateTimeOffset.Now,
             Kind = "Ready",
-            Summary = "Ball detected — ready"
+            Summary = "readyForShot — ball ready"
         });
         return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Surfaces a raw Connect/R50 watch line (v1: show activity before perfect field mapping).
+    /// Surfaces a sparse Connect/R50 watch diagnostic line (errors / connect status).
     /// </summary>
     public void AddRaw(string kind, string summary)
     {
@@ -90,8 +89,34 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         {
             Timestamp = DateTimeOffset.Now,
             Kind = kind,
-            Summary = Truncate(summary, 180)
+            Summary = Truncate(summary, 140)
         });
+    }
+
+    private static string BuildShotSummary(ShotPayload shot, bool isPutt)
+    {
+        var ball = shot.BallData;
+        var parts = new List<string>();
+        if (isPutt)
+            parts.Add("Putt");
+        if (shot.ShotNumber is int n)
+            parts.Add($"#{n}");
+        if (ball?.CarryDistance is double carry)
+            parts.Add($"carry {carry:F0} yd");
+        if (ball?.Speed is double speed)
+            parts.Add($"{speed:F1} mph");
+        if (ball?.Hla is double hla)
+            parts.Add($"HLA {hla:F1}°");
+        if (ball?.SideSpin is double side)
+            parts.Add($"sidespin {side:F0}");
+        else if (ball?.SpinAxis is double axis)
+            parts.Add($"axis {axis:F1}°");
+        if (shot.SmashFactor is double smash)
+            parts.Add($"smash {smash:F2}");
+        if (!string.IsNullOrWhiteSpace(shot.SpinType) && !isPutt)
+            parts.Add(shot.SpinType!);
+
+        return parts.Count > 0 ? string.Join("  ", parts) : "Ball metrics";
     }
 
     private static string Truncate(string value, int max) =>

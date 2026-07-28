@@ -25,11 +25,17 @@ public sealed class WledShotEffectSink : IShotEventSink
 
     public async Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
     {
-        if (!shot.HasBallData && shot.BallData?.Speed is null)
+        if (!shot.HasBallData &&
+            shot.BallData?.Speed is null &&
+            shot.BallData?.CarryDistance is null &&
+            shot.BallData?.SideSpin is null)
             return;
 
-        var color = _mapper.Map(shot, _effects());
-        await FlashAsync(color, holdMs: 1600, cancellationToken).ConfigureAwait(false);
+        var effects = _effects();
+        var color = _mapper.Map(shot, effects);
+        var isPutt = ShotEffectMapper.IsPutt(shot, effects);
+        var holdMs = isPutt ? 2200 : 1600;
+        await FlashAsync(color, holdMs, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default)
@@ -41,8 +47,28 @@ public sealed class WledShotEffectSink : IShotEventSink
 
     public async Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default)
     {
-        await FlashAsync(_effects().Idle, holdMs: 700, cancellationToken: cancellationToken, returnToIdle: false)
-            .ConfigureAwait(false);
+        // Player glow, then settle on idle (ready state).
+        CancellationTokenSource linked;
+        lock (_gate)
+        {
+            _flashCts?.Cancel();
+            _flashCts?.Dispose();
+            _flashCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linked = _flashCts;
+        }
+
+        var token = linked.Token;
+        var effects = _effects();
+        try
+        {
+            await _output.SendSolidAsync(effects.Player, cancellationToken: token).ConfigureAwait(false);
+            await Task.Delay(500, token).ConfigureAwait(false);
+            await _output.SendSolidAsync(effects.Idle, cancellationToken: token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Superseded by a newer flash.
+        }
     }
 
     private async Task FlashAsync(
