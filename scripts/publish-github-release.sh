@@ -4,7 +4,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export PATH="${HOME}/.dotnet:${HOME}/.dotnet/tools:${PATH}:/usr/local/share/dotnet"
+export DOTNET_ROOT="${DOTNET_ROOT:-${HOME}/.dotnet}"
+export PATH="${DOTNET_ROOT}:${DOTNET_ROOT}/tools:${HOME}/.dotnet/tools:${PATH}:/usr/local/share/dotnet"
 
 VERSION="${1:-}"
 if [[ -z "${VERSION}" ]]; then
