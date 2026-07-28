@@ -33,8 +33,15 @@ public sealed class ConnectLogDiscoverer
         }
 
         return found.Values
-            .OrderByDescending(f => f.LastWriteUtc)
+            .Select(f => new
+            {
+                File = f,
+                ContentScore = ConnectLogContentRanker.ScoreFile(f.FullPath)
+            })
+            .OrderByDescending(x => x.ContentScore)
+            .ThenByDescending(x => x.File.LastWriteUtc)
             .Take(16)
+            .Select(x => x.File)
             .ToList();
     }
 

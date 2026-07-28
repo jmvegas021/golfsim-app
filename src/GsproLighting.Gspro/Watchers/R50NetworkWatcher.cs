@@ -126,9 +126,10 @@ public sealed class R50NetworkWatcher : IAsyncDisposable
             return;
         _watchStatusNotified = true;
         PayloadCaptureLimited = true;
+        _lastStatusUtc = DateTimeOffset.UtcNow;
         _feed.AddRaw(
             "NET",
-            "Watching R50 TCP peers — ball payloads need admin packet capture; use Connect logs when available");
+            "Watching R50 TCP peers — use Connect logs for ball data (payload sniff needs admin)");
         NotifyLimitedOnce();
     }
 
@@ -136,15 +137,14 @@ public sealed class R50NetworkWatcher : IAsyncDisposable
     {
         if (peers.Count == 0)
             return;
-        if (DateTimeOffset.UtcNow - _lastStatusUtc < TimeSpan.FromSeconds(30))
+        // Soft keepalive — avoid dominating the live feed while Connect logs carry shots.
+        if (DateTimeOffset.UtcNow - _lastStatusUtc < TimeSpan.FromMinutes(5))
             return;
 
         _lastStatusUtc = DateTimeOffset.UtcNow;
         var peer = peers[0];
         _lastEvent = $"alive {peer.RemoteAddress}:{peer.RemotePort}";
-        _feed.AddRaw(
-            "NET",
-            $"R50 peer still connected {peer.Display} · payloads need admin or Connect logs");
+        _feed.AddRaw("NET", $"R50 peer ok {peer.Display}");
     }
 
     private async Task TryProbePktmonAsync(CancellationToken token)

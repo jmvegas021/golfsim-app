@@ -40,7 +40,7 @@ Or from PowerShell (SDK required):
 4. Hit balls — Connect log ball metrics become clean `[Shot]` / `[Putt]` / `[Ready]` feed lines and drive WLED (pure / mishit / putt / ready glow)
 5. Minimize to tray and play
 
-**R50 Connect logs → lights:** the app tails GarminR50Form lines (`readyForShot`, `Logging ball data IMMEDIATELY…`, carry/sidespin JSON) and maps them to your Effect colors. Sparse `[LOG]` / `[NET]` lines remain for connect status only.
+**R50 Connect logs → lights:** the app tails GarminR50Form lines (`readyForShot`, `Logging ball data IMMEDIATELY…`, carry/sidespin JSON — including multiline payloads) and maps them to `[Shot]` / `[Putt]` / `[Ready]` plus your Effect colors. Ball-marker `[LOG]` lines stay visible; `[NET]` peer keepalives are quiet.
 
 Status text shows discovered Connect logs and any R50 peer (`Watching: N log files · R50 peer …`). Raw captures land in `logs\`.
 

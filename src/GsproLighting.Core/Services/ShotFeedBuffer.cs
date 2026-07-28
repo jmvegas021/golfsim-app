@@ -89,7 +89,7 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         {
             Timestamp = DateTimeOffset.Now,
             Kind = kind,
-            Summary = Truncate(summary, 140)
+            Summary = Truncate(summary, 220)
         });
     }
 

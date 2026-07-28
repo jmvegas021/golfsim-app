@@ -56,10 +56,11 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
         List<string> added;
         lock (_gate)
         {
+            // Discoverer already ranks ball-metric logs first; keep a wider watch set.
             var desired = paths
                 .Where(File.Exists)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(8)
+                .Take(12)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var existing in _tails.Keys.ToList())
@@ -191,7 +192,17 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
 
     private async Task HandleLineAsync(string line, CancellationToken token)
     {
-        var parsed = _parser.Parse(line);
+        ConnectParseResult parsed;
+        try
+        {
+            parsed = _parser.Parse(line);
+        }
+        catch (Exception ex)
+        {
+            _feed.AddRaw("LOG", $"Parse error: {ex.Message}");
+            return;
+        }
+
         if (parsed.Kind == ConnectParseKind.Ignore)
             return;
 
@@ -199,17 +210,24 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
         Interlocked.Increment(ref _interestingCount);
         AppendCapture("log", line);
 
-        switch (parsed.Kind)
+        try
         {
-            case ConnectParseKind.Shot when parsed.Shot is not null:
-                await _sink.OnShotAsync(parsed.Shot, token).ConfigureAwait(false);
-                break;
-            case ConnectParseKind.Ready when parsed.Shot is not null:
-                await _sink.OnBallReadyAsync(parsed.Shot, token).ConfigureAwait(false);
-                break;
-            default:
-                _feed.AddRaw("LOG", line);
-                break;
+            switch (parsed.Kind)
+            {
+                case ConnectParseKind.Shot when parsed.Shot is not null:
+                    await _sink.OnShotAsync(parsed.Shot, token).ConfigureAwait(false);
+                    break;
+                case ConnectParseKind.Ready when parsed.Shot is not null:
+                    await _sink.OnBallReadyAsync(parsed.Shot, token).ConfigureAwait(false);
+                    break;
+                default:
+                    _feed.AddRaw("LOG", parsed.RawLine ?? line);
+                    break;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _feed.AddRaw("LOG", $"Shot emit error: {ex.Message}");
         }
     }
 
