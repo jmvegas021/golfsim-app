@@ -100,7 +100,7 @@ public sealed class AppUpdateService
         }
         catch (Exception ex)
         {
-            Set(UpdatePhase.Error, $"Update check failed: {ex.Message}");
+            Set(UpdatePhase.Error, $"Update check failed: {FormatUpdateError(ex)}");
         }
         finally
         {
@@ -128,7 +128,7 @@ public sealed class AppUpdateService
         }
         catch (Exception ex)
         {
-            Set(UpdatePhase.Error, $"Update failed: {ex.Message}");
+            Set(UpdatePhase.Error, $"Update failed: {FormatUpdateError(ex)}");
         }
         finally
         {
@@ -212,5 +212,17 @@ public sealed class AppUpdateService
         }
 
         Changed?.Invoke();
+    }
+
+    private static string FormatUpdateError(Exception ex)
+    {
+        var message = ex.Message;
+        if (message.Contains("404", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("does not indicate success", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{message} (feed: {RepoUrl}/releases — needs public releases.win.json)";
+        }
+
+        return message;
     }
 }

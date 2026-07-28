@@ -92,16 +92,16 @@ Keep Ally + WLED (+ R50 hotspot/LAN) on the same network path you normally use f
 
 ## Auto-updates (developers)
 
-Version is centralized in `Directory.Build.props` (`0.4.2`, etc.).
+Version is centralized in `Directory.Build.props` (`0.4.3`, etc.).
 
 ```bash
 # macOS host → win-x64 + Velopack
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
-./scripts/package-release.sh 0.4.2
-./scripts/publish-github-release.sh 0.4.2
+./scripts/package-release.sh 0.4.3
+./scripts/publish-github-release.sh 0.4.3
 ```
 
-App update feed: `https://github.com/jmvegas021/golfsim-app` (Velopack `GithubSource`). Portable installs fall back to downloading `GsproLighting-windows-x64.zip`.
+App update feed: `https://github.com/jmvegas021/golfsim-app` (Velopack `GithubSource` → public `releases.win.json`). The repo must stay **public** so the updater can download release assets without a token. Portable installs fall back to downloading `GsproLighting-windows-x64.zip`.
 
 ## Console tools (optional debugging)
 

@@ -74,5 +74,26 @@ if [[ -f "${ZIP}" ]]; then
   gh release upload "${TAG}" -R "${REPO}" "${ZIP}" --clobber
 fi
 
+# Velopack GithubSource (no token) uses browser_download_url for these names.
+# Fail the publish if the public feed is not reachable (private repo / bad upload).
+FEED_URL="${REPO_URL}/releases/download/${TAG}/releases.win.json"
+echo "Verifying Velopack feed: ${FEED_URL}"
+for attempt in 1 2 3 4 5; do
+  code="$(curl -sI -o /dev/null -w '%{http_code}' -L -A 'Velopack' "${FEED_URL}" || true)"
+  if [[ "${code}" == "200" ]]; then
+    break
+  fi
+  echo "  attempt ${attempt}: HTTP ${code} — retrying…"
+  sleep 2
+done
+if [[ "${code}" != "200" ]]; then
+  echo "ERROR: Velopack feed not publicly downloadable (HTTP ${code})." >&2
+  echo "  Repo must be public (or pass a GithubSource accessToken)." >&2
+  echo "  Expected asset: releases.win.json on ${TAG}" >&2
+  exit 1
+fi
+curl -sL -A 'Velopack' "${FEED_URL}" | head -c 400
+echo
+
 rm -f "${NOTES}"
 echo "Release: ${REPO_URL}/releases/tag/${TAG}"

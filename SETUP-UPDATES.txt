@@ -17,7 +17,7 @@ reliable auto-updates. Setup.exe is the supported install path.
 UPDATES IN THE APP
 ------------------
 Settings → section "Updates":
-  • Shows current version (e.g. v0.4.2)
+  • Shows current version (e.g. v0.4.3)
   • "Check for updates" — contacts GitHub Releases, downloads if newer
   • Status: up to date / downloading / error / ready
   • "Install update & restart" — applies and relaunches
@@ -58,6 +58,15 @@ Exact pack command:
 
 Feed URL (built into app):
   https://github.com/jmvegas021/golfsim-app
-  (Velopack GithubSource → Releases assets)
+  (Velopack GithubSource → latest release asset releases.win.json)
+
+Requirements:
+  • Repo/releases must be PUBLIC (unauthenticated browser_download_url).
+  • Each release must include: releases.win.json, *.nupkg, Setup.exe
+  • Publish script verifies:
+      https://github.com/jmvegas021/golfsim-app/releases/download/vX.Y.Z/releases.win.json
+
+If Check for updates shows 404: open the releases.win.json URL in a
+browser. If that 404s, re-upload the Velopack assets or make the repo public.
 
 ========================================================
