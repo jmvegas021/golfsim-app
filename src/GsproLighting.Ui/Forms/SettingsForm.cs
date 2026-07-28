@@ -2,12 +2,14 @@ using GsproLighting.Core.Config;
 using GsproLighting.Core.Models;
 using GsproLighting.Ui.Controls;
 using GsproLighting.Ui.Hosting;
+using GsproLighting.Ui.Updates;
 
 namespace GsproLighting.Ui.Forms;
 
 public sealed class SettingsForm : Form
 {
     private readonly LightingAppCoordinator _app;
+    private readonly UpdatesPanel _updatesPanel;
     private readonly TextBox _wledIp = new() { Width = 140 };
     private readonly NumericUpDown _wledPort = new() { Minimum = 1, Maximum = 65535, Width = 80 };
     private readonly NumericUpDown _ledCount = new() { Minimum = 1, Maximum = 1000, Width = 80 };
@@ -38,13 +40,14 @@ public sealed class SettingsForm : Form
     private readonly CheckBox _startMinimized = new() { Text = "Start minimized to tray", AutoSize = true };
     private readonly System.Windows.Forms.Timer _statusTimer;
 
-    public SettingsForm(LightingAppCoordinator app)
+    public SettingsForm(LightingAppCoordinator app, AppUpdateService updates)
     {
         _app = app;
+        _updatesPanel = new UpdatesPanel(updates);
         Text = "GSPro Lighting — Settings";
         Width = 780;
-        Height = 680;
-        MinimumSize = new Size(700, 560);
+        Height = 720;
+        MinimumSize = new Size(700, 600);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9f);
 
@@ -137,9 +140,19 @@ public sealed class SettingsForm : Form
         panel.Controls.Add(_startProxy);
         panel.Controls.Add(_startMinimized);
 
+        panel.Controls.Add(_updatesPanel);
+
         panel.Controls.Add(BuildActionRow());
         panel.Controls.Add(_status);
         return panel;
+    }
+
+    public async Task FocusUpdatesAndCheckAsync()
+    {
+        BringToFront();
+        Activate();
+        _updatesPanel.Focus();
+        await _updatesPanel.CheckAsync();
     }
 
     private Control BuildFeedColumn()

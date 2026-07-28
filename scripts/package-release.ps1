@@ -1,43 +1,63 @@
 #!/usr/bin/env pwsh
+# Build win-x64 tray app, Velopack release, and portable zip (Windows host).
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
+$Version = if ($args.Count -ge 1 -and $args[0]) {
+    $args[0]
+} else {
+    ([xml](Get-Content (Join-Path $Root "Directory.Build.props"))).Project.PropertyGroup.Version
+}
+
+Write-Host "Packaging GSPro Lighting v$Version"
 & (Join-Path $PSScriptRoot "publish-ally.ps1")
 
 $Ally = Join-Path $Root "dist\ally"
+$PackDir = Join-Path $Root "dist\velopack-pack"
+$Releases = Join-Path $Root "dist\Releases"
 $Stage = Join-Path $Root "dist\release-stage"
 $Zip = Join-Path $Root "dist\GsproLighting-windows-x64.zip"
 
-if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
-New-Item -ItemType Directory -Force -Path $Stage | Out-Null
+foreach ($p in @($PackDir, $Releases, $Stage)) {
+    if (Test-Path $p) { Remove-Item -Recurse -Force $p }
+    New-Item -ItemType Directory -Force -Path $p | Out-Null
+}
+
+Copy-Item (Join-Path $Ally "GsproLighting.exe") $PackDir
+Copy-Item (Join-Path $Ally "config") $PackDir -Recurse -ErrorAction SilentlyContinue
+
+$vpk = Get-Command vpk -ErrorAction SilentlyContinue
+if (-not $vpk) {
+    Write-Host "Installing vpk…"
+    dotnet tool install -g vpk
+}
+
+# On Windows, default vpk target is win — no [win] directive required.
+& vpk pack `
+    -u GsproLighting `
+    -v $Version `
+    -p $PackDir `
+    -e GsproLighting.exe `
+    -o $Releases `
+    --packTitle "GSPro Lighting" `
+    --packAuthors "jmvegas021" `
+    -y
+if ($LASTEXITCODE -ne 0) { throw "vpk pack failed ($LASTEXITCODE)" }
 
 Copy-Item (Join-Path $Ally "GsproLighting.exe") $Stage
 Copy-Item (Join-Path $Ally "config") $Stage -Recurse -ErrorAction SilentlyContinue
-
-# Include any native/deps next to the single-file exe if present
-Get-ChildItem $Ally -File | Where-Object {
-    $_.Name -ne "GsproLighting.exe" -and $_.Extension -in ".dll", ".json", ".pdb"
-} | ForEach-Object { Copy-Item $_.FullName $Stage -ErrorAction SilentlyContinue }
-
 @"
-GSPro Reactive Lighting — Windows
+GSPro Lighting — Windows (portable zip)
 
-1. Double-click GsproLighting.exe
-2. Set your WLED IP in Settings → Test lights
-3. Start GSPro + GSPro Connect (Garmin R50) as usual
-4. Leave R50 auto-watch on — Connect log ball metrics drive the live feed + WLED
-5. Hit balls — expect [Ready] / [Shot] / [Putt] lines and light flashes
-
-Optional Open Connect proxy: point an LM/bridge at 127.0.0.1:1921
-
-Tray icon: right-click for settings / test lights / exit.
-
-Repo: https://github.com/jmvegas021/golfsim-app
+Preferred: install via GsproLighting-win-Setup.exe from GitHub Releases.
+Settings → Updates for check / install. Tray: Check for updates…
 "@ | Set-Content -Path (Join-Path $Stage "README.txt") -Encoding UTF8
 
 if (Test-Path $Zip) { Remove-Item -Force $Zip }
 Compress-Archive -Path (Join-Path $Stage "*") -DestinationPath $Zip -Force
 
 Write-Host ""
-Write-Host "Release zip: $Zip"
-Write-Host "Unzip on any Windows GSPro PC and double-click GsproLighting.exe"
+Write-Host "Velopack Releases: $Releases"
+Write-Host "Portable zip:      $Zip"
+Write-Host "Upload: vpk upload github --repoUrl https://github.com/jmvegas021/golfsim-app --outputDir `"$Releases`" --publish --tag v$Version --merge"
+Write-Host "         gh release upload v$Version `"$Zip`" --clobber"

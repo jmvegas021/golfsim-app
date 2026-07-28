@@ -1,0 +1,63 @@
+========================================================
+  GSPro Lighting — Ally setup & auto-updates
+========================================================
+
+FIRST TIME (recommended — Velopack)
+-----------------------------------
+1. Open: https://github.com/jmvegas021/golfsim-app/releases
+2. Download: GsproLighting-win-Setup.exe
+3. Run Setup once (installs to a user-writable Velopack folder)
+4. Launch GSPro Lighting from the Start Menu / Desktop shortcut
+5. Tray icon appears → open Settings
+
+Do NOT keep using a random Desktop unzip forever if you want
+reliable auto-updates. Setup.exe is the supported install path.
+
+
+UPDATES IN THE APP
+------------------
+Settings → section "Updates":
+  • Shows current version (e.g. v0.4.2)
+  • "Check for updates" — contacts GitHub Releases, downloads if newer
+  • Status: up to date / downloading / error / ready
+  • "Install update & restart" — applies and relaunches
+
+Tray menu → "Check for updates…"
+  • Opens Settings and runs the same check
+
+Optional: a few seconds after launch, if an update exists you may
+see a balloon: "Update available — open Settings to install".
+
+
+PORTABLE ZIP (still works)
+--------------------------
+Asset name (unchanged): GsproLighting-windows-x64.zip
+Unzip → run GsproLighting.exe
+Settings → Updates still works (zip swap updater).
+For the Ally, Setup.exe is preferred.
+
+
+DEVELOPER — CUT A NEW RELEASE
+-----------------------------
+Version lives in Directory.Build.props (Assembly + Informational).
+
+On Mac (cross-compile win-x64):
+  export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
+  ./scripts/package-release.sh 0.4.3
+  ./scripts/publish-github-release.sh 0.4.3
+
+On Windows:
+  .\scripts\package-release.ps1 0.4.3
+  vpk upload github --repoUrl https://github.com/jmvegas021/golfsim-app `
+    --outputDir dist\Releases --publish --tag v0.4.3 --merge
+  gh release upload v0.4.3 dist\GsproLighting-windows-x64.zip --clobber
+
+Exact pack command:
+  vpk [win] pack -u GsproLighting -v 0.4.3 -p dist/velopack-pack \
+    -e GsproLighting.exe -o dist/Releases --packTitle "GSPro Lighting" -y
+
+Feed URL (built into app):
+  https://github.com/jmvegas021/golfsim-app
+  (Velopack GithubSource → Releases assets)
+
+========================================================

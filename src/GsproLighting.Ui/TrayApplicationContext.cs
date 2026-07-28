@@ -1,18 +1,22 @@
 using GsproLighting.Ui.Forms;
 using GsproLighting.Ui.Hosting;
+using GsproLighting.Ui.Updates;
 
 namespace GsproLighting.Ui;
 
 public sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly LightingAppCoordinator _app;
+    private readonly AppUpdateService _updates;
     private readonly NotifyIcon _tray;
     private SettingsForm? _settings;
     private bool _exitRequested;
+    private bool _launchUpdateCheckStarted;
 
-    public TrayApplicationContext(LightingAppCoordinator app)
+    public TrayApplicationContext(LightingAppCoordinator app, AppUpdateService updates)
     {
         _app = app;
+        _updates = updates;
         _tray = new NotifyIcon
         {
             Text = "GSPro Lighting",
@@ -62,11 +66,46 @@ public sealed class TrayApplicationContext : ApplicationContext
 
             if (_app.Config.Ui.StartProxyOnLaunch)
                 _app.StartProxy();
+
+            StartQuietUpdateCheck();
         }
         catch (Exception ex)
         {
             CrashLog.Show("GSPro Lighting startup error", ex);
         }
+    }
+
+    private void StartQuietUpdateCheck()
+    {
+        if (_launchUpdateCheckStarted)
+            return;
+        _launchUpdateCheckStarted = true;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // Give play/setup a moment; avoid competing with first-shot balloons.
+                await Task.Delay(8000).ConfigureAwait(false);
+                await _updates.CheckAvailabilityAsync().ConfigureAwait(false);
+                var snap = _updates.Snapshot();
+                if (snap.Phase is not UpdatePhase.Available and not UpdatePhase.ReadyToInstall)
+                    return;
+
+                if (_exitRequested)
+                    return;
+
+                _tray.ShowBalloonTip(
+                    6000,
+                    "GSPro Lighting",
+                    "Update available — open Settings to install.",
+                    ToolTipIcon.Info);
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Write("QuietUpdateCheck", ex);
+            }
+        });
     }
 
     private void OnFirstShotObserved()
@@ -89,6 +128,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open settings", null, (_, _) => ShowSettings());
+        menu.Items.Add("Check for updates…", null, (_, _) => _ = CheckUpdatesFromTrayAsync());
         menu.Items.Add("Test lights", null, (_, _) => _ = TestLightsAsync());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Start R50 auto-watch", null, (_, _) =>
@@ -117,6 +157,21 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => _ = ExitAsync());
         return menu;
+    }
+
+    private async Task CheckUpdatesFromTrayAsync()
+    {
+        try
+        {
+            ShowSettings();
+            if (_settings is { IsDisposed: false })
+                await _settings.FocusUpdatesAndCheckAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("CheckUpdatesTray", ex);
+            _tray.ShowBalloonTip(5000, "GSPro Lighting", ex.Message, ToolTipIcon.Error);
+        }
     }
 
     private async Task TestLightsAsync()
@@ -161,7 +216,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        _settings = new SettingsForm(_app);
+        _settings = new SettingsForm(_app, _updates);
         _settings.FormClosing += (_, args) =>
         {
             // Hide instead of close so closing the window doesn't look like the app died.

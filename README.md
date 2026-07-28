@@ -8,19 +8,29 @@ Windows tray app for GSPro. Auto-watches **Garmin R50 → GSPro Connect** logs/n
 
 > **Do not use the green “Code → Download ZIP” button** if you just want to run the app. That ZIP is source code and needs a build.
 
+### Recommended (auto-updates via Velopack)
+
 1. Open **[Releases](https://github.com/jmvegas021/golfsim-app/releases)**
-2. Download **`GsproLighting-windows-x64.zip`** (under Assets)
-3. Unzip anywhere (Desktop, Documents, USB, Ally…)
-4. **Double-click `GsproLighting.exe`**
+2. Download **`GsproLighting-win-Setup.exe`**
+3. Run Setup once (installs under your user profile)
+4. Launch **GSPro Lighting** — tray icon appears
 
-That’s it. A tray icon appears; double-click it (or use the menu) for settings.
+Later updates: **Settings → Updates → Check for updates**, or tray **Check for updates…**. When ready, **Install update & restart**.
 
-Optional: pin `GsproLighting.exe` to the taskbar or drop a shortcut in `shell:startup` so it launches with Windows.
+See [SETUP-UPDATES.txt](SETUP-UPDATES.txt) for Ally-oriented steps and how developers cut releases.
+
+### Portable zip (still supported)
+
+1. Download **`GsproLighting-windows-x64.zip`**
+2. Unzip anywhere → double-click **`GsproLighting.exe`**
+3. Settings → Updates still works (zip-based updater)
+
+Optional: pin the app to the taskbar or drop a shortcut in `shell:startup`.
 
 ## If you cloned / downloaded source
 
 You need either:
-- The **Release ZIP** above (recommended), or
+- The **Setup.exe** / Release ZIP above (recommended), or
 - The [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) to build
 
 On Windows, double-click **`Run GSPro Lighting.bat`**. If no `.exe` is built yet and no SDK is installed, it opens the Releases page for you.
@@ -72,12 +82,26 @@ Launch monitor ──▶ :1921 (this app) ──▶ :921 (GSPro)
 ## Ally X + R50
 
 1. Xbox button → **Desktop Mode**
-2. Unzip / run `GsproLighting.exe`
+2. Install via **Setup.exe** from Releases (preferred) or unzip the portable ZIP
 3. Configure WLED once; leave auto-watch on
 4. Start GSPro + Connect, hit balls — expect `[Ready]` then `[Shot]`/`[Putt]` and matching WLED flashes
-5. Return to Xbox full-screen experience — the tray app keeps running
+5. Use **Settings → Updates** (or tray **Check for updates…**) when a new release ships
+6. Return to Xbox full-screen experience — the tray app keeps running
 
 Keep Ally + WLED (+ R50 hotspot/LAN) on the same network path you normally use for Connect.
+
+## Auto-updates (developers)
+
+Version is centralized in `Directory.Build.props` (`0.4.2`, etc.).
+
+```bash
+# macOS host → win-x64 + Velopack
+export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
+./scripts/package-release.sh 0.4.2
+./scripts/publish-github-release.sh 0.4.2
+```
+
+App update feed: `https://github.com/jmvegas021/golfsim-app` (Velopack `GithubSource`). Portable installs fall back to downloading `GsproLighting-windows-x64.zip`.
 
 ## Console tools (optional debugging)
 

@@ -33,4 +33,5 @@ dotnet publish "${ROOT}/src/GsproLighting.App/GsproLighting.App.csproj" \
 
 echo "Published Windows tray app: ${OUT}/GsproLighting.exe"
 echo "Published Windows console:  ${OUT}/console/GsproLighting.App.exe"
-echo "Or download the Release ZIP: https://github.com/jmvegas021/golfsim-app/releases"
+echo "Next: ./scripts/package-release.sh   # Velopack Setup.exe + portable zip"
+echo "Releases: https://github.com/jmvegas021/golfsim-app/releases"
