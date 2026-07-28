@@ -37,9 +37,11 @@ cat > "${NOTES}" <<EOF
 Packaged with Velopack from \`scripts/package-release.sh\`.
 EOF
 
-# Prefer vpk upload for Velopack assets (RELEASES / nupkg / Setup)
+# Prefer vpk upload for Velopack assets (RELEASES / nupkg / Setup).
+# On macOS hosts, vpk defaults --channel to osx even under '[win]' — force win.
 if [[ -d "${RELEASES}" ]]; then
   vpk '[win]' upload github \
+    --channel win \
     --repoUrl "${REPO_URL}" \
     --outputDir "${RELEASES}" \
     --publish true \
@@ -79,9 +81,12 @@ fi
 # Fail the publish if the public feed is not reachable (private repo / bad upload).
 FEED_URL="${REPO_URL}/releases/download/${TAG}/releases.win.json"
 echo "Verifying Velopack feed: ${FEED_URL}"
-for attempt in 1 2 3 4 5; do
+FEED_BODY=""
+code="000"
+for attempt in 1 2 3 4 5 6 7 8; do
   code="$(curl -sI -o /dev/null -w '%{http_code}' -L -A 'Velopack' "${FEED_URL}" || true)"
-  if [[ "${code}" == "200" ]]; then
+  FEED_BODY="$(curl -sL -A 'Velopack' "${FEED_URL}" || true)"
+  if [[ "${code}" == "200" && "${FEED_BODY}" == *"${VERSION}"* ]]; then
     break
   fi
   echo "  attempt ${attempt}: HTTP ${code} — retrying…"
@@ -93,7 +98,12 @@ if [[ "${code}" != "200" ]]; then
   echo "  Expected asset: releases.win.json on ${TAG}" >&2
   exit 1
 fi
-curl -sL -A 'Velopack' "${FEED_URL}" | head -c 400
+if [[ "${FEED_BODY}" != *"${VERSION}"* ]]; then
+  echo "ERROR: Feed JSON does not mention version ${VERSION}:" >&2
+  echo "${FEED_BODY}" >&2
+  exit 1
+fi
+echo "${FEED_BODY}" | head -c 400
 echo
 
 rm -f "${NOTES}"
