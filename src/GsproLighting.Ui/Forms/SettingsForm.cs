@@ -12,6 +12,7 @@ public sealed class SettingsForm : Form
 {
     private readonly LightingAppCoordinator _app;
     private readonly EffectsTabPanel _effects;
+    private readonly QuickControlTabPanel _quickControl;
     private readonly PreviewTabPanel _preview;
     private readonly WledTabPanel _wled;
     private readonly ConnectionTabPanel _connection = new();
@@ -37,12 +38,13 @@ public sealed class SettingsForm : Form
         ApplyInitialBounds();
 
         _effects = new EffectsTabPanel();
+        _quickControl = new QuickControlTabPanel(
+            ResolveEffectsForPreview,
+            () => _app.Config.Wled,
+            ResolveControllerIp,
+            app.Preview);
         _preview = new PreviewTabPanel(ResolveEffectsForPreview, () => _app.Config.Wled, app.Preview);
-        _wled = new WledTabPanel(
-            () => string.IsNullOrWhiteSpace(_connection.ControllerIp)
-                ? _app.Config.Wled.ControllerIp
-                : _connection.ControllerIp,
-            () => _connection.Brightness);
+        _wled = new WledTabPanel(ResolveControllerIp, () => _connection.Brightness);
         _updatesPanel = new UpdatesPanel(updates);
         _liveFeed = new LiveFeedTabPanel(
             app.Feed,
@@ -52,6 +54,7 @@ public sealed class SettingsForm : Form
 
         // Thin theme apply for workstream A/B panels without rewriting internals.
         UiTheme.ApplyTabChrome(_effects);
+        UiTheme.ApplyTabChrome(_quickControl);
         UiTheme.ApplyTabChrome(_preview);
         UiTheme.ApplyTabChrome(_wled);
 
@@ -64,6 +67,7 @@ public sealed class SettingsForm : Form
         {
             PerformLayout();
             _effects.PerformLayout();
+            _quickControl.PerformLayout();
             _preview.PerformLayout();
             UpdateFooterTip();
         };
@@ -98,8 +102,9 @@ public sealed class SettingsForm : Form
         Controls.Add(_footer);
         Controls.Add(new BrandHeader());
 
-        // Sellable tab order: Effects → Preview → WLED → Connection → Live feed → Updates
+        // Sellable tab order: Effects → Quick control → Preview → WLED → Connection → Live feed → Updates
         AddTab("Effects", _effects);
+        AddTab("Quick control", _quickControl);
         AddTab("Preview", _preview);
         AddTab("WLED", _wled);
         AddTab("Connection", _connection);
@@ -154,6 +159,7 @@ public sealed class SettingsForm : Form
         _connection.LoadConfig(_app.Config);
         _liveFeed.ExportIncludeDays = _app.Config.Logging.ExportIncludeDays;
         _preview.RefreshFromEffects();
+        _quickControl.RefreshFromEffects();
     }
 
     private void WireEvents()
@@ -161,7 +167,10 @@ public sealed class SettingsForm : Form
         _effects.SaveRequested += (_, _) =>
         {
             if (_actions.Save())
+            {
                 _preview.RefreshFromEffects();
+                _quickControl.RefreshFromEffects();
+            }
         };
         _effects.TestRequested += async (_, _) => await _actions.TestSweepAsync();
         _effects.IdleRequested += async (_, _) => await _actions.TestIdleAsync();
@@ -180,6 +189,11 @@ public sealed class SettingsForm : Form
         _effects.ApplyTo(working);
         return working;
     }
+
+    private string ResolveControllerIp() =>
+        string.IsNullOrWhiteSpace(_connection.ControllerIp)
+            ? _app.Config.Wled.ControllerIp
+            : _connection.ControllerIp;
 
     private void UnwireEvents()
     {
