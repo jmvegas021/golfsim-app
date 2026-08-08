@@ -154,11 +154,23 @@ public sealed class WledDeviceClient : IDisposable
         return await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
     }
 
+    private Task PostJsonAsync(
+        string controllerIp,
+        string path,
+        object body,
+        CancellationToken cancellationToken) =>
+        PostJsonAsync(controllerIp, path, body, cancellationToken, isRetry: false);
+
+    /// <summary>
+    /// Posts a JSON body, retrying once on 413 — memory-constrained WLED controllers
+    /// (e.g. ESP8266 boards) can transiently reject even small requests under heap pressure.
+    /// </summary>
     private async Task PostJsonAsync(
         string controllerIp,
         string path,
         object body,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isRetry)
     {
         var endpoint = BuildEndpoint(controllerIp, path);
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
@@ -171,6 +183,24 @@ public sealed class WledDeviceClient : IDisposable
             request,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.RequestEntityTooLarge)
+        {
+            if (!isRetry)
+            {
+                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                await PostJsonAsync(controllerIp, path, body, cancellationToken, isRetry: true)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            throw new HttpRequestException(
+                "WLED controller is low on memory and rejected the request twice (413). " +
+                "Try again, or power-cycle the controller if this keeps happening.",
+                inner: null,
+                HttpStatusCode.RequestEntityTooLarge);
+        }
+
         response.EnsureSuccessStatusCode();
     }
 

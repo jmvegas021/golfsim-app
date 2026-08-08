@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using GsproLighting.Core.Config;
 using GsproLighting.Wled.Animations;
@@ -7,6 +8,51 @@ namespace GsproLighting.Tests;
 
 public sealed class WledHttpClientTests
 {
+    [Fact]
+    public async Task ApplyPresetAsync_RetriesOnceOn413_ThenSucceeds()
+    {
+        var handler = new SequencedStatusHandler([HttpStatusCode.RequestEntityTooLarge, HttpStatusCode.OK]);
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+
+        await http.ApplyPresetAsync("192.168.1.50", new WledPresetRequest { FxId = 79 });
+
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ApplyPresetAsync_413Twice_ThrowsFriendlyMessage()
+    {
+        var handler = new SequencedStatusHandler(
+            [HttpStatusCode.RequestEntityTooLarge, HttpStatusCode.RequestEntityTooLarge]);
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(
+            () => http.ApplyPresetAsync("192.168.1.50", new WledPresetRequest { FxId = 79 }));
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains("low on memory", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, ex.StatusCode);
+    }
+
+    private sealed class SequencedStatusHandler : HttpMessageHandler
+    {
+        private readonly Queue<HttpStatusCode> _statuses;
+
+        public SequencedStatusHandler(IEnumerable<HttpStatusCode> statuses) =>
+            _statuses = new Queue<HttpStatusCode>(statuses);
+
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            var status = _statuses.Count > 0 ? _statuses.Dequeue() : HttpStatusCode.OK;
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("{}") });
+        }
+    }
+
     [Fact]
     public void BuildStateBody_RippleAmbient_IncludesFxSxIxPalOverlayAndColors()
     {

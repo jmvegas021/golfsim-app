@@ -33,9 +33,23 @@ public sealed class WledHttpClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(request), "WLED effect id must be between 0 and 255.");
 
         var endpoint = BuildStateEndpoint(controllerIp);
+        var body = BuildStateBody(request);
+        await PostStateAsync(endpoint, body, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Posts a state body, retrying once on 413 — memory-constrained WLED controllers
+    /// (e.g. ESP8266 boards) can transiently reject even small requests under heap pressure.
+    /// </summary>
+    private async Task PostStateAsync(
+        Uri endpoint,
+        object body,
+        CancellationToken cancellationToken,
+        bool isRetry = false)
+    {
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
-            Content = JsonContent.Create(BuildStateBody(request))
+            Content = JsonContent.Create(body)
         };
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_requestTimeout);
@@ -43,6 +57,23 @@ public sealed class WledHttpClient : IDisposable
             httpRequest,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.RequestEntityTooLarge)
+        {
+            if (!isRetry)
+            {
+                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                await PostStateAsync(endpoint, body, cancellationToken, isRetry: true).ConfigureAwait(false);
+                return;
+            }
+
+            throw new HttpRequestException(
+                "WLED controller is low on memory and rejected the request twice (413). " +
+                "Try again, or power-cycle the controller if this keeps happening.",
+                inner: null,
+                HttpStatusCode.RequestEntityTooLarge);
+        }
+
         response.EnsureSuccessStatusCode();
     }
 

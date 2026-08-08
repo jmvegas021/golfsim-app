@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using GsproLighting.Core.Config;
 using GsproLighting.Wled.Device;
@@ -7,6 +8,53 @@ namespace GsproLighting.Tests;
 
 public sealed class WledDeviceClientTests
 {
+    [Fact]
+    public async Task ApplyStateAsync_RetriesOnceOn413_ThenSucceeds()
+    {
+        var handler = new SequencedStatusHandler([HttpStatusCode.RequestEntityTooLarge, HttpStatusCode.OK]);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
+        using var client = new WledDeviceClient(http);
+
+        await client.ApplyStateAsync("192.168.1.50", new WledStatePatch { On = true });
+
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ApplyStateAsync_413Twice_ThrowsFriendlyMessage()
+    {
+        var handler = new SequencedStatusHandler(
+            [HttpStatusCode.RequestEntityTooLarge, HttpStatusCode.RequestEntityTooLarge]);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
+        using var client = new WledDeviceClient(http);
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(
+            () => client.ApplyStateAsync("192.168.1.50", new WledStatePatch { On = true }));
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains("low on memory", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, ex.StatusCode);
+    }
+
+    private sealed class SequencedStatusHandler : HttpMessageHandler
+    {
+        private readonly Queue<HttpStatusCode> _statuses;
+
+        public SequencedStatusHandler(IEnumerable<HttpStatusCode> statuses) =>
+            _statuses = new Queue<HttpStatusCode>(statuses);
+
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            var status = _statuses.Count > 0 ? _statuses.Dequeue() : HttpStatusCode.OK;
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("{}") });
+        }
+    }
+
     [Fact]
     public void ParseNameArray_SkipsReservedAndKeepsIds()
     {
