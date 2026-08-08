@@ -1,5 +1,6 @@
 using GsproLighting.Core.Config;
 using GsproLighting.Core.Contracts;
+using GsproLighting.Core.Models;
 using GsproLighting.Core.Services;
 using GsproLighting.Gspro.Discovery;
 using GsproLighting.Gspro.Logging;
@@ -18,6 +19,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
 {
     private readonly ConfigStore _store;
     private readonly ShotFeedBuffer _feed = new();
+    private readonly BallReadyStateResolver _readyStateResolver = new();
     private readonly WarlsWledOutput _wled = new();
     private readonly WledShotEffectSink _effectSink;
     private readonly CompositeShotEventSink _shotSink;
@@ -52,6 +54,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     public bool IsR50WatchRunning => _r50Watch?.IsRunning == true;
     public string? LastR50LogLine => _r50Watch?.LastLogLine;
     public string? LastR50NetworkEvent => _r50Watch?.LastNetworkEvent;
+    public BallReadyState BallReadyState => _readyStateResolver.Resolve(_feed.Recent);
 
     public bool IsProxyRunning
     {

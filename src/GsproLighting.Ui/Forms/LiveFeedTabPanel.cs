@@ -18,7 +18,8 @@ public sealed class LiveFeedTabPanel : UserControl
         IntegralHeight = false,
         DrawMode = DrawMode.OwnerDrawFixed,
         ItemHeight = 25,
-        BorderStyle = BorderStyle.FixedSingle
+        BorderStyle = BorderStyle.FixedSingle,
+        AccessibleName = "Live simulator events"
     };
     private readonly NumericUpDown _includeDays = new()
     {
@@ -32,7 +33,8 @@ public sealed class LiveFeedTabPanel : UserControl
         Dock = DockStyle.Bottom,
         Height = 34,
         ForeColor = UiTheme.Muted,
-        TextAlign = ContentAlignment.MiddleLeft
+        TextAlign = ContentAlignment.MiddleLeft,
+        Text = "Waiting for simulator events. Ready, shot, player, and diagnostic messages appear here."
     };
 
     public LiveFeedTabPanel(
@@ -84,6 +86,7 @@ public sealed class LiveFeedTabPanel : UserControl
         export.Click += (_, _) => ExportLogs();
         UiTheme.StyleInput(_includeDays);
         toolbar.Controls.AddRange([
+            CreateToolbarTitle(),
             clear,
             open,
             export,
@@ -100,6 +103,17 @@ public sealed class LiveFeedTabPanel : UserControl
         ]);
         return toolbar;
     }
+
+    private static Label CreateToolbarTitle() => new()
+    {
+        Text = "LIVE FEED",
+        AutoSize = false,
+        Width = 92,
+        Height = 36,
+        TextAlign = ContentAlignment.MiddleLeft,
+        ForeColor = UiTheme.Text,
+        Font = UiTheme.BodyFont(9f, FontStyle.Bold)
+    };
 
     private void ClearFeed()
     {

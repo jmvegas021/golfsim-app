@@ -20,11 +20,18 @@ public static class UiTheme
         button.FlatStyle = FlatStyle.Flat;
         button.FlatAppearance.BorderSize = 1;
         button.FlatAppearance.BorderColor = primary ? Accent : Border;
+        button.FlatAppearance.MouseOverBackColor = primary
+            ? Color.FromArgb(230, 178, 35)
+            : Color.FromArgb(34, 46, 39);
+        button.FlatAppearance.MouseDownBackColor = primary
+            ? Color.FromArgb(186, 137, 14)
+            : Console;
         button.BackColor = primary ? Accent : Panel;
         button.ForeColor = primary ? Background : Text;
         button.Height = Math.Max(button.Height, 36);
         button.Cursor = Cursors.Hand;
         button.UseVisualStyleBackColor = false;
+        button.TabStop = true;
     }
 
     public static void StyleInput(Control control)

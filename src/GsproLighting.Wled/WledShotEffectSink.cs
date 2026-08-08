@@ -17,6 +17,7 @@ public sealed class WledShotEffectSink : IShotEventSink
     private readonly Func<WledConfig> _wledConfig;
     private readonly ShotEffectMapper _mapper = new();
     private readonly LedAnimationPlayer _animationPlayer;
+    private readonly LiveShotAnimationRequestFactory _requestFactory = new();
     private readonly object _gate = new();
     private CancellationTokenSource? _activeEffectCts;
     private bool _readyIdleActive;
@@ -96,24 +97,22 @@ public sealed class WledShotEffectSink : IShotEventSink
             {
                 var slot = _effects().NotReady;
                 await PlayConfiguredSlotAsync(slot, token).ConfigureAwait(false);
-                var dimBrightness = (byte)Math.Max(1, _wledConfig().Brightness / 3);
-                await _output.SendSolidAsync(slot.Color, dimBrightness, token).ConfigureAwait(false);
+                if (slot.Mode == EffectMode.Curated)
+                {
+                    var dimBrightness = (byte)Math.Max(1, _wledConfig().Brightness / 3);
+                    await _output.SendSolidAsync(slot.Color, dimBrightness, token).ConfigureAwait(false);
+                }
             },
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task PlayShotAsync(ShotLightPlan plan, CancellationToken cancellationToken)
+    private Task PlayShotAsync(ShotLightPlan plan, CancellationToken cancellationToken)
     {
-        var config = _wledConfig();
-        await _animationPlayer.PlayAsync(new LedAnimationRequest
-        {
-            Animation = EffectAnimations.DirectionAuto,
-            Color = plan.Color,
-            LedCount = config.LedCount,
-            InvertLeftRight = config.InvertLeftRight,
-            Direction = ToAnimationDirection(plan.Direction),
-            Brightness = config.Brightness
-        }, cancellationToken).ConfigureAwait(false);
+        if (plan.Slot.Mode != EffectMode.Curated)
+            return Task.CompletedTask;
+
+        var request = _requestFactory.Create(plan, _wledConfig());
+        return _animationPlayer.PlayAsync(request, cancellationToken);
     }
 
     private Task PlayConfiguredSlotAsync(EffectSlot slot, CancellationToken cancellationToken)
@@ -121,15 +120,17 @@ public sealed class WledShotEffectSink : IShotEventSink
         if (slot.Mode == EffectMode.Curated)
             return _animationPlayer.PlayAsync(slot, _wledConfig(), cancellationToken: cancellationToken);
 
-        // WLED presets are intentionally preview-only until a reliable live outcome exists.
-        return _output.SendSolidAsync(slot.Color, cancellationToken: cancellationToken);
+        // Presets are preview-only; the UI prevents selecting them for live slots.
+        return Task.CompletedTask;
     }
 
-    private Task HoldIdleAsync(CancellationToken cancellationToken) =>
-        _output.SendSolidAsync(
-            _effects().Idle.Color,
-            _wledConfig().Brightness,
-            cancellationToken);
+    private Task HoldIdleAsync(CancellationToken cancellationToken)
+    {
+        var idle = _effects().Idle;
+        return idle.Mode == EffectMode.Curated
+            ? _output.SendSolidAsync(idle.Color, _wledConfig().Brightness, cancellationToken)
+            : Task.CompletedTask;
+    }
 
     private async Task RunEffectAsync(
         bool? isReady,
@@ -184,11 +185,4 @@ public sealed class WledShotEffectSink : IShotEventSink
         completed.Dispose();
     }
 
-    private static AnimationDirection ToAnimationDirection(ShotDirection direction) =>
-        direction switch
-        {
-            ShotDirection.Left => AnimationDirection.Left,
-            ShotDirection.Right => AnimationDirection.Right,
-            _ => AnimationDirection.Center
-        };
 }

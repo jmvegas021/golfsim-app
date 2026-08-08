@@ -11,7 +11,7 @@ namespace GsproLighting.Ui.Forms;
 public sealed class SettingsForm : Form
 {
     private readonly LightingAppCoordinator _app;
-    private readonly EffectsTabPanel _effects = new();
+    private readonly EffectsTabPanel _effects;
     private readonly ConnectionTabPanel _connection = new();
     private readonly LiveFeedTabPanel _liveFeed;
     private readonly UpdatesPanel _updatesPanel;
@@ -22,6 +22,15 @@ public sealed class SettingsForm : Form
     public SettingsForm(LightingAppCoordinator app, AppUpdateService updates)
     {
         _app = app;
+        Text = "GSPro Lighting — Settings";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        MinimumSize = new Size(820, 640);
+        BackColor = UiTheme.Background;
+        ForeColor = UiTheme.Text;
+        Font = UiTheme.BodyFont();
+        ApplyInitialBounds();
+
+        _effects = new EffectsTabPanel();
         _updatesPanel = new UpdatesPanel(updates);
         _liveFeed = new LiveFeedTabPanel(
             app.Feed,
@@ -29,20 +38,16 @@ public sealed class SettingsForm : Form
             new LogExportService(app.Config.Logging.RawLogDirectory, AppPaths.CrashLogPath));
         _actions = new SettingsFormActions(app, _effects, _connection, _liveFeed);
 
-        Text = "GSPro Lighting — Settings";
-        Width = 1040;
-        Height = 780;
-        MinimumSize = new Size(820, 640);
-        StartPosition = FormStartPosition.CenterScreen;
-        BackColor = UiTheme.Background;
-        ForeColor = UiTheme.Text;
-        Font = UiTheme.BodyFont();
-
         BuildLayout();
         LoadFromConfig();
         WireEvents();
         _actions.UpdateStatus();
         _statusTimer.Start();
+        Shown += (_, _) =>
+        {
+            PerformLayout();
+            _effects.PerformLayout();
+        };
     }
 
     public async Task FocusUpdatesAndCheckAsync()
@@ -63,6 +68,17 @@ public sealed class SettingsForm : Form
         AddTab("Connection", _connection);
         AddTab("Live feed", _liveFeed);
         AddTab("Updates", BuildUpdatesWrapper());
+    }
+
+    private void ApplyInitialBounds()
+    {
+        var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1040, 780);
+        var width = Math.Min(1040, workingArea.Width);
+        var height = Math.Min(780, workingArea.Height);
+        var left = workingArea.Left + Math.Max(0, (workingArea.Width - width) / 2);
+        var top = workingArea.Top + Math.Max(0, (workingArea.Height - height) / 2);
+        StartPosition = FormStartPosition.Manual;
+        Bounds = new Rectangle(left, top, width, height);
     }
 
     private void AddTab(string title, Control content)

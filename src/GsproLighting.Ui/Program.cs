@@ -13,8 +13,8 @@ internal static class Program
         // Required by Velopack pack verification and update apply hooks.
         VelopackApp.Build().Run();
 
+        // Generated initialization configures per-monitor DPI awareness before controls exist.
         ApplicationConfiguration.Initialize();
-        Application.SetHighDpiMode(HighDpiMode.SystemAware);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) =>
             CrashLog.Show("GSPro Lighting — UI error", e.Exception);

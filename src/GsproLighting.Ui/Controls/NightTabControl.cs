@@ -19,8 +19,8 @@ public sealed class NightTabControl : TabControl
     {
         var isSelected = e.Index == SelectedIndex;
         var bounds = GetTabRect(e.Index);
-        using var background = new SolidBrush(UiTheme.Background);
-        using var textBrush = new SolidBrush(isSelected ? UiTheme.Text : UiTheme.Muted);
+        using var background = new SolidBrush(isSelected ? UiTheme.Panel : UiTheme.Background);
+        using var textBrush = new SolidBrush(isSelected ? UiTheme.Accent : UiTheme.Muted);
         using var font = UiTheme.BodyFont(10f, isSelected ? FontStyle.Bold : FontStyle.Regular);
         e.Graphics.FillRectangle(background, bounds);
 

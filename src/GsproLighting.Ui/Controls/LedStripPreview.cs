@@ -13,8 +13,8 @@ public sealed class LedStripPreview : Control
 
     public LedStripPreview()
     {
-        Height = 62;
-        Dock = DockStyle.Top;
+        Height = 92;
+        Dock = DockStyle.Fill;
         BackColor = UiTheme.Console;
         DoubleBuffered = true;
         _timer.Tick += (_, _) =>
@@ -47,6 +47,25 @@ public sealed class LedStripPreview : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
+        DrawHeader(e.Graphics);
+        DrawPixels(e.Graphics);
+        DrawLegend(e.Graphics);
+    }
+
+    private void DrawHeader(Graphics graphics)
+    {
+        using var titleFont = UiTheme.BodyFont(9f, FontStyle.Bold);
+        TextRenderer.DrawText(
+            graphics,
+            "Lighting preview",
+            titleFont,
+            new Rectangle(14, 6, Width - 28, 20),
+            UiTheme.Text,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+    }
+
+    private void DrawPixels(Graphics graphics)
+    {
         var gap = 4;
         var availableWidth = Math.Max(1, Width - 28 - (PixelCount - 1) * gap);
         var pixelWidth = Math.Max(4, availableWidth / PixelCount);
@@ -61,8 +80,27 @@ public sealed class LedStripPreview : Control
                 Scale(_color.G, intensity),
                 Scale(_color.B, intensity));
             using var brush = new SolidBrush(pixelColor);
-            e.Graphics.FillRectangle(brush, startX + index * (pixelWidth + gap), 21, pixelWidth, 20);
+            graphics.FillRectangle(brush, startX + index * (pixelWidth + gap), 30, pixelWidth, 20);
         }
+    }
+
+    private void DrawLegend(Graphics graphics)
+    {
+        var legendBounds = new Rectangle(14, 55, Width - 28, 18);
+        TextRenderer.DrawText(graphics, "Left", Font, legendBounds, UiTheme.Muted,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        TextRenderer.DrawText(graphics, "Center", Font, legendBounds, UiTheme.Muted,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        TextRenderer.DrawText(graphics, "Right", Font, legendBounds, UiTheme.Muted,
+            TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+        using var helperFont = UiTheme.BodyFont(8f);
+        TextRenderer.DrawText(
+            graphics,
+            _timer.Enabled ? "Previewing selected animation" : "Idle preview · choose a card below",
+            helperFont,
+            new Rectangle(14, 72, Width - 28, 16),
+            UiTheme.Muted,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
     }
 
     private double GetIntensity(int index)

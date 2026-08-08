@@ -1,4 +1,5 @@
 using GsproLighting.Core.Config;
+using GsproLighting.Core.Models;
 using GsproLighting.Ui.Hosting;
 using GsproLighting.Ui.Theme;
 
@@ -46,28 +47,20 @@ internal sealed class SettingsFormActions
 
     public async Task TestSweepAsync()
     {
-        if (!Save())
-            return;
         await RunPreviewAsync(
-            "Test sweep",
-            () => _app.Preview.PlaySweepAsync(
-                _app.Config.Effects.PureStrike.Color,
-                _app.Config.Wled.LedCount));
+            "Test lights",
+            () => _app.Preview.PreviewEffectAsync(_effects.PureSlot, _app.Config.Wled));
     }
 
     public async Task TestIdleAsync()
     {
-        if (!Save())
-            return;
         await RunPreviewAsync(
             "Idle glow",
-            () => _app.Preview.PlayIdleGlowAsync(_app.Config.Effects.Idle.Color));
+            () => _app.Preview.PreviewEffectAsync(_effects.IdleSlot, _app.Config.Wled));
     }
 
     public async Task PreviewEffectAsync(EffectSlot slot)
     {
-        if (!Save())
-            return;
         await RunPreviewAsync(
             "Effect preview",
             () => _app.Preview.PreviewEffectAsync(slot, _app.Config.Wled));
@@ -75,8 +68,6 @@ internal sealed class SettingsFormActions
 
     public async Task ToggleProxyAsync()
     {
-        if (!Save())
-            return;
         if (_app.IsProxyRunning)
             await _app.StopProxyAsync();
         else
@@ -88,27 +79,31 @@ internal sealed class SettingsFormActions
     {
         var summary = _app.BuildStatusText();
         var hasError = summary.Contains("error", StringComparison.OrdinalIgnoreCase);
-        var isReady = _app.IsR50WatchRunning || _app.IsProxyRunning;
-
-        var chipText = "IDLE";
-        var chipColor = UiTheme.Border;
-        if (hasError)
+        var (readyText, readyColor) = _app.BallReadyState switch
         {
-            chipText = "NOT READY";
-            chipColor = UiTheme.NotReady;
-        }
-        else if (isReady)
-        {
-            chipText = "READY";
-            chipColor = UiTheme.Ready;
-        }
+            BallReadyState.Ready => ("READY", UiTheme.Ready),
+            BallReadyState.NotReady => ("NOT READY", UiTheme.NotReady),
+            _ => ("WAITING", UiTheme.Accent)
+        };
+        var isServiceRunning = _app.IsR50WatchRunning || _app.IsProxyRunning;
+        var (serviceText, serviceColor) = ResolveServiceStatus(hasError, isServiceRunning);
 
         _effects.UpdateStatus(
-            chipText,
-            chipColor,
+            readyText,
+            readyColor,
+            serviceText,
+            serviceColor,
             summary,
             _app.IsProxyRunning);
     }
+
+    private static (string Text, Color Color) ResolveServiceStatus(bool hasError, bool isRunning) =>
+        (hasError, isRunning) switch
+        {
+            (true, _) => ("SERVICE ERROR", UiTheme.NotReady),
+            (false, true) => ("SERVICE ON", UiTheme.Ready),
+            _ => ("SERVICE IDLE", UiTheme.Muted)
+        };
 
     private async Task RunPreviewAsync(string label, Func<Task> preview)
     {
