@@ -24,6 +24,7 @@ public sealed class WledTabManager : IDisposable
     public WledDeviceInfo? Info { get; private set; }
     public WledDeviceState? State { get; private set; }
     public WledDeviceState? Snapshot { get; private set; }
+    public IReadOnlyList<string> CatalogWarnings { get; private set; } = [];
 
     public async Task RefreshAsync(string controllerIp, CancellationToken cancellationToken = default)
     {
@@ -43,6 +44,7 @@ public sealed class WledTabManager : IDisposable
         Info = await infoTask.ConfigureAwait(false);
         Presets = await presetsTask.ConfigureAwait(false);
         Snapshot = State.Clone();
+        CatalogWarnings = WledCatalogValidator.ValidateConfiguredIds(Effects, Palettes);
     }
 
     public Task ApplyAsync(

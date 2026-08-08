@@ -42,7 +42,10 @@ public sealed partial class WledTabPanel
             SetEditorEnabled(true);
             _empty.HideMessage();
             RefreshConnectionStatus();
-            SetStatusDetail("Live from controller.");
+            if (_manager.CatalogWarnings.Count > 0)
+                SetStatusWarning("Live from controller — " + string.Join(" ", _manager.CatalogWarnings));
+            else
+                SetStatusDetail("Live from controller.");
         }
         catch (Exception ex)
         {
@@ -337,6 +340,12 @@ public sealed partial class WledTabPanel
     {
         _deviceMeta.Text = text;
         _deviceMeta.ForeColor = UiTheme.Muted;
+    }
+
+    private void SetStatusWarning(string text)
+    {
+        _deviceMeta.Text = text;
+        _deviceMeta.ForeColor = UiTheme.Waiting;
     }
 
     private void UpdateValueLabels()
