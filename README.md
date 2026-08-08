@@ -58,7 +58,9 @@ Settings save next to the app in `config\appsettings.json`.
 
 ### Optional: Open Connect proxy
 
-Only needed if you use an LM/bridge that speaks Open Connect TCP (or fixture replay). Point that client at **`127.0.0.1:1921`**. Native R50 → Connect v1.8.8 does **not** use this path.
+Only needed if you use an LM/bridge that speaks Open Connect TCP (or fixture replay), or when capturing GSPro→LM traffic for the [outcome spike](docs/SPIKE.md). Point that client at **`127.0.0.1:1921`**. Native R50 → Connect v1.8.8 does **not** use this path (and will not see undocumented reply codes).
+
+Raw proxy lines land in `logs\gspro-raw-YYYYMMDD.jsonl`. Share via **Export logs…** / folder copy only — no cloud upload or email from the app.
 
 ## How it connects
 

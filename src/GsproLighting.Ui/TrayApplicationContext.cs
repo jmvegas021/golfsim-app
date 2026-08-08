@@ -179,7 +179,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         try
         {
             await _app.Preview.PlaySweepAsync(
-                _app.Config.Effects.PureStrike,
+                _app.Config.Effects.PureStrike.Color,
                 _app.Config.Wled.LedCount);
         }
         catch (Exception ex)

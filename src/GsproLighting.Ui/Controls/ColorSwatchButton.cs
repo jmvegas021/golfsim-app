@@ -1,4 +1,5 @@
 using GsproLighting.Core.Config;
+using GsproLighting.Ui.Theme;
 
 namespace GsproLighting.Ui.Controls;
 
@@ -9,9 +10,12 @@ public sealed class ColorSwatchButton : Button
     public ColorSwatchButton()
     {
         FlatStyle = FlatStyle.Flat;
-        Width = 88;
-        Height = 28;
+        FlatAppearance.BorderColor = UiTheme.Border;
+        Width = 132;
+        Height = 38;
+        Font = UiTheme.BodyFont(9f, FontStyle.Bold);
         Cursor = Cursors.Hand;
+        AccessibleName = "Effect color";
         Click += (_, _) => PickColor();
     }
 

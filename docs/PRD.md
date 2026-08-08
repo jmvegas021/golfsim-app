@@ -52,7 +52,7 @@ A Windows background app that taps GSPro Open Connect traffic for live shot data
 | New hole | Shot number reset | Idle glow |
 
 ## 7. Key Risk: Undocumented GSPro Events
-Spike with raw proxy logger first. Fallback: heuristic penalty detection.
+Official Open Connect does **not** document water / OB / made putt. Capture via Open Connect **proxy** → `logs/gspro-raw-*.jsonl` on Windows (Ally); export zip and share manually — no cloud/email from the app. See [`docs/SPIKE.md`](SPIKE.md). Wire Celebrate / Hazard live **only** if a stable signal appears; otherwise Preview-only. Do not invent heuristic penalty detection in the current release.
 
 ## 8. Tech Stack
 .NET 8 (C#) / WinForms on **Windows only** (GSPro is Windows-only). Self-contained win-x64 single-file publish for the Ally X or any GSPro PC.

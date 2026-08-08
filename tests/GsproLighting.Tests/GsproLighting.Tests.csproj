@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GsproLighting.Gspro\GsproLighting.Gspro.csproj" />
     <ProjectReference Include="..\..\src\GsproLighting.Core\GsproLighting.Core.csproj" />
+    <ProjectReference Include="..\..\src\GsproLighting.Wled\GsproLighting.Wled.csproj" />
   </ItemGroup>
 </Project>

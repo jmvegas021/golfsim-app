@@ -35,7 +35,10 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         NormalizePaths(Config);
         _wled.Configure(Config.Wled);
         Preview = new WledPreviewPlayer(_wled);
-        _effectSink = new WledShotEffectSink(_wled, () => Config.Effects);
+        _effectSink = new WledShotEffectSink(
+            _wled,
+            () => Config.Effects,
+            () => Config.Wled);
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
     }
 
@@ -216,6 +219,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     {
         await StopR50AutoWatchAsync().ConfigureAwait(false);
         await StopProxyAsync().ConfigureAwait(false);
+        Preview.Dispose();
         await _wled.DisposeAsync().ConfigureAwait(false);
     }
 

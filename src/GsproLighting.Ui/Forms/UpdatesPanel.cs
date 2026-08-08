@@ -1,4 +1,5 @@
 using GsproLighting.Ui.Updates;
+using GsproLighting.Ui.Theme;
 
 namespace GsproLighting.Ui.Forms;
 
@@ -14,33 +15,40 @@ public sealed class UpdatesPanel : UserControl
         AutoSize = false,
         Width = 340,
         Height = 48,
-        ForeColor = Color.DimGray
+        ForeColor = UiTheme.Muted
     };
     private readonly Button _checkButton = new()
     {
         Text = "Check for updates",
         Width = 150,
-        Height = 30
+        Height = 36
     };
     private readonly Button _installButton = new()
     {
         Text = "Install update & restart",
         Width = 180,
-        Height = 30,
+        Height = 36,
         Enabled = false
     };
     private readonly Label _modeLabel = new()
     {
         AutoSize = true,
-        ForeColor = Color.Gray,
+        ForeColor = UiTheme.Muted,
         Margin = new Padding(0, 2, 0, 6)
     };
 
     public UpdatesPanel(AppUpdateService updates)
     {
         _updates = updates;
+        BackColor = UiTheme.Panel;
+        ForeColor = UiTheme.Text;
+        Font = UiTheme.BodyFont();
+        Padding = new Padding(20);
+        BorderStyle = BorderStyle.FixedSingle;
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        UiTheme.StyleButton(_checkButton);
+        UiTheme.StyleButton(_installButton, primary: true);
 
         var layout = new FlowLayoutPanel
         {
@@ -54,7 +62,8 @@ public sealed class UpdatesPanel : UserControl
         {
             Text = "Updates",
             AutoSize = true,
-            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            ForeColor = UiTheme.Text,
+            Font = UiTheme.BodyFont(13f, FontStyle.Bold),
             Margin = new Padding(0, 14, 0, 4)
         });
         layout.Controls.Add(_versionLabel);
@@ -105,7 +114,7 @@ public sealed class UpdatesPanel : UserControl
         catch (Exception ex)
         {
             _statusLabel.Text = ex.Message;
-            _statusLabel.ForeColor = Color.Firebrick;
+            _statusLabel.ForeColor = UiTheme.NotReady;
             RefreshFromSnapshot();
         }
     }
@@ -138,11 +147,11 @@ public sealed class UpdatesPanel : UserControl
         _installButton.Enabled = snap.CanInstall;
         _statusLabel.ForeColor = snap.Phase switch
         {
-            UpdatePhase.Error => Color.Firebrick,
-            UpdatePhase.ReadyToInstall or UpdatePhase.Available => Color.DarkOrange,
-            UpdatePhase.UpToDate => Color.ForestGreen,
-            UpdatePhase.Downloading or UpdatePhase.Checking => Color.DimGray,
-            _ => Color.DimGray
+            UpdatePhase.Error => UiTheme.NotReady,
+            UpdatePhase.ReadyToInstall or UpdatePhase.Available => UiTheme.Accent,
+            UpdatePhase.UpToDate => UiTheme.Ready,
+            UpdatePhase.Downloading or UpdatePhase.Checking => UiTheme.Muted,
+            _ => UiTheme.Muted
         };
     }
 }
