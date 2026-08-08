@@ -47,7 +47,9 @@ public static class ProductCopy
         "Primary, secondary, and tertiary colors for the selected segment.";
 
     public const string WledOptionsHelp =
-        "Layered keeps golf flashes over ambient. Option 2 / 3 map to WLED o2 / o3 for the active effect.";
+        "Layered keeps golf flashes over ambient. Extra options 1 / 2 map to WLED's o2 / o3 " +
+        "toggles — their meaning depends on the selected effect; check WLED's own effect " +
+        "description if unsure.";
 
     public const string WledBrightnessHelp =
         "Power and brightness are global. Segment chooses which strip range Look / Motion / Colors edits apply to. Press Apply to send.";

@@ -148,6 +148,11 @@ public sealed partial class WledTabPanel
             row.Controls.Add(box);
         }
 
+        var optionTip = "Meaning depends on the selected effect — check WLED's own effect " +
+                         "description for what this toggle does.";
+        _optionsToolTip.SetToolTip(_option2, optionTip);
+        _optionsToolTip.SetToolTip(_option3, optionTip);
+
         return Section("Options", ProductCopy.WledOptionsHelp, row);
     }
 

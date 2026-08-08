@@ -26,8 +26,9 @@ public sealed partial class WledTabPanel : UserControl
     private readonly Label _speedValue = new();
     private readonly Label _intensityValue = new();
     private readonly CheckBox _overlay = new() { Text = "Layered (keep golf flashes over ambient)" };
-    private readonly CheckBox _option2 = new() { Text = "Option 2 (effect o2)" };
-    private readonly CheckBox _option3 = new() { Text = "Option 3 (effect o3)" };
+    private readonly CheckBox _option2 = new() { Text = "Extra option 1 (o2)" };
+    private readonly CheckBox _option3 = new() { Text = "Extra option 2 (o3)" };
+    private readonly ToolTip _optionsToolTip = new();
     private readonly WledColorSlotEditor _colors = new();
     private readonly NightComboBox _segments = new() { Width = 220 };
     private readonly NightComboBox _presets = new() { Width = 280 };
@@ -86,7 +87,10 @@ public sealed partial class WledTabPanel : UserControl
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _manager.Dispose();
+            _optionsToolTip.Dispose();
+        }
         base.Dispose(disposing);
     }
 }
