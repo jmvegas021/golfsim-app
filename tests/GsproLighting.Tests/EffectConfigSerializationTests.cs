@@ -24,12 +24,10 @@ public sealed class EffectConfigSerializationTests
         var config = new ConfigStore(configPath).Load();
 
         // Legacy RGB deserializes into the slot, then Load rewrites product lighting.
-        AssertColor(config.Effects.Idle.Color, 61, 220, 132);
-        Assert.Equal(EffectMode.Curated, config.Effects.Idle.Mode);
-        Assert.Equal(EffectAnimations.CenterToOutside, config.Effects.Idle.Animation);
+        AssertRippleAmbient(config.Effects.Idle, 71, 255, 153);
         AssertColor(config.Effects.NotReady.Color, 229, 83, 61);
         Assert.Equal(EffectAnimations.OutsideToCenter, config.Effects.NotReady.Animation);
-        AssertColor(config.Effects.Waiting.Color, 212, 160, 23);
+        AssertRippleAmbient(config.Effects.Waiting, 255, 192, 28);
         AssertColor(config.Effects.WaterHazard.Color, 0, 168, 200);
         AssertColor(config.Effects.OutOfBounds.Color, 255, 42, 42);
         Assert.Equal(1.7, config.Effects.PureMinSmashFactor);
@@ -83,10 +81,9 @@ public sealed class EffectConfigSerializationTests
         store.Save(config);
 
         // In-memory config is normalized on Save; reload confirms disk match.
-        AssertColor(config.Effects.Idle.Color, 61, 220, 132);
+        AssertRippleAmbient(config.Effects.Idle, 71, 255, 153);
         var loaded = store.Load();
-        AssertColor(loaded.Effects.Idle.Color, 61, 220, 132);
-        Assert.Equal(EffectAnimations.CenterToOutside, loaded.Effects.Idle.Animation);
+        AssertRippleAmbient(loaded.Effects.Idle, 71, 255, 153);
     }
 
     [Fact]
@@ -96,10 +93,8 @@ public sealed class EffectConfigSerializationTests
 
         AssertColor(effects.NotReady.Color, 229, 83, 61);
         Assert.Equal(EffectAnimations.OutsideToCenter, effects.NotReady.Animation);
-        AssertColor(effects.Idle.Color, 61, 220, 132);
-        Assert.Equal(EffectAnimations.CenterToOutside, effects.Idle.Animation);
-        AssertColor(effects.Waiting.Color, 212, 160, 23);
-        Assert.Equal(EffectAnimations.Solid, effects.Waiting.Animation);
+        AssertRippleAmbient(effects.Idle, 71, 255, 153);
+        AssertRippleAmbient(effects.Waiting, 255, 192, 28);
         AssertColor(effects.PureStrike.Color, 0, 224, 90);
         Assert.Equal(EffectAnimations.DirectionAuto, effects.PureStrike.Animation);
         AssertColor(effects.Mishit.Color, 198, 40, 40);
@@ -135,11 +130,26 @@ public sealed class EffectConfigSerializationTests
 
         effects.ResetLightingSlotsToProductDefaults();
 
-        AssertColor(effects.Idle.Color, 61, 220, 132);
+        AssertRippleAmbient(effects.Idle, 71, 255, 153);
         Assert.Equal(1.6, effects.PureMinSmashFactor);
         Assert.Equal(1.1, effects.MishitMaxSmashFactor);
         Assert.Equal(15, effects.PuttMaxBallSpeedMph);
         Assert.Equal(2.0, effects.CenterHlaAbsDegrees);
+    }
+
+    private static void AssertRippleAmbient(EffectSlot slot, byte red, byte green, byte blue)
+    {
+        AssertColor(slot.Color, red, green, blue);
+        Assert.Equal(EffectMode.WledPreset, slot.Mode);
+        Assert.Equal(EffectConfig.RippleFxId, slot.WledFxId);
+        Assert.NotNull(slot.WledOptions);
+        Assert.Equal(EffectConfig.RippleTimingByte, slot.WledOptions!.Speed);
+        Assert.Equal(EffectConfig.RippleTimingByte, slot.WledOptions.Intensity);
+        Assert.Equal(EffectConfig.RedReefPaletteId, slot.WledOptions.PaletteId);
+        Assert.True(slot.WledOptions.Overlay);
+        Assert.Equal(79, slot.WledFxId);
+        Assert.Equal(62, slot.WledOptions.PaletteId);
+        Assert.Equal(38, slot.WledOptions.Speed);
     }
 
     private static void AssertColor(RgbColor color, byte red, byte green, byte blue)

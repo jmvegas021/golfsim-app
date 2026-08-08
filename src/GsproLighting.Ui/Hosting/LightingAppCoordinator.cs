@@ -40,7 +40,8 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         _effectSink = new WledShotEffectSink(
             _wled,
             () => Config.Effects,
-            () => Config.Wled);
+            () => Config.Wled,
+            logFailure: msg => _feed.AddRaw("WLED", msg));
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
     }
 

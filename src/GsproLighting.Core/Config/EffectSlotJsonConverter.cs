@@ -35,6 +35,12 @@ public sealed class EffectSlotJsonConverter : JsonConverter<EffectSlot>
         writer.WriteString("Animation", value.Animation ?? EffectAnimations.Solid);
         if (value.WledFxId is int fxId)
             writer.WriteNumber("WledFxId", fxId);
+        if (value.WledOptions is WledPresetOptions presetOptions)
+        {
+            writer.WritePropertyName("WledOptions");
+            JsonSerializer.Serialize(writer, presetOptions, options);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -69,7 +75,26 @@ public sealed class EffectSlotJsonConverter : JsonConverter<EffectSlot>
             fxElement.TryGetInt32(out var fxId))
             slot.WledFxId = fxId;
 
+        if (TryGetProperty(root, "WledOptions", out var optionsElement) &&
+            optionsElement.ValueKind == JsonValueKind.Object)
+            slot.WledOptions = ReadPresetOptions(optionsElement);
+
         return slot;
+    }
+
+    private static WledPresetOptions ReadPresetOptions(JsonElement root)
+    {
+        var options = new WledPresetOptions();
+        if (TryGetInt(root, "Speed", out var speed))
+            options.Speed = speed;
+        if (TryGetInt(root, "Intensity", out var intensity))
+            options.Intensity = intensity;
+        if (TryGetInt(root, "PaletteId", out var paletteId))
+            options.PaletteId = paletteId;
+        if (TryGetProperty(root, "Overlay", out var overlayElement) &&
+            (overlayElement.ValueKind == JsonValueKind.True || overlayElement.ValueKind == JsonValueKind.False))
+            options.Overlay = overlayElement.GetBoolean();
+        return options;
     }
 
     private static RgbColor DeserializeColor(JsonElement element)
@@ -87,11 +112,20 @@ public sealed class EffectSlotJsonConverter : JsonConverter<EffectSlot>
     private static bool TryGetByte(JsonElement parent, string name, out byte value)
     {
         value = 0;
+        if (!TryGetInt(parent, name, out var n))
+            return false;
+        value = (byte)Math.Clamp(n, 0, 255);
+        return true;
+    }
+
+    private static bool TryGetInt(JsonElement parent, string name, out int value)
+    {
+        value = 0;
         if (!TryGetProperty(parent, name, out var element))
             return false;
         if (element.ValueKind != JsonValueKind.Number || !element.TryGetInt32(out var n))
             return false;
-        value = (byte)Math.Clamp(n, 0, 255);
+        value = n;
         return true;
     }
 

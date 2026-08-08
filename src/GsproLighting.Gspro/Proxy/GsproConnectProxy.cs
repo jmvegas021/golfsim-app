@@ -153,16 +153,24 @@ public sealed class GsproConnectProxy
             Console.WriteLine(
                 $"  ! UNKNOWN KEYS (spike hit?): {string.Join(", ", parsed.UnknownFields.Keys)}");
 
-        if (parsed.Shot is { } shot)
+        try
         {
-            if (shot.HasBallData)
-                await _shotSink.OnShotAsync(shot, cancellationToken);
-            else if (shot.IsBallDetected)
-                await _shotSink.OnBallReadyAsync(shot, cancellationToken);
-        }
+            if (parsed.Shot is { } shot)
+            {
+                if (shot.HasBallData)
+                    await _shotSink.OnShotAsync(shot, cancellationToken);
+                else if (shot.IsBallDetected)
+                    await _shotSink.OnBallReadyAsync(shot, cancellationToken);
+            }
 
-        if (parsed.Response is { } response)
-            await _shotSink.OnPlayerInfoAsync(response, cancellationToken);
+            if (parsed.Response is { } response)
+                await _shotSink.OnPlayerInfoAsync(response, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Backstop: sink/HTTP failures must not tear down LM↔GSPro TCP pipes.
+            Console.WriteLine($"[proxy] shot sink error: {ex.Message}");
+        }
     }
 
     private static string Truncate(string value, int max) =>

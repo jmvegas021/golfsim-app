@@ -8,9 +8,16 @@ namespace GsproLighting.Core.Config;
 /// </summary>
 public sealed class EffectConfig
 {
-    // WLED FX ids: Fireworks Starburst ≈ 89, Sparkle ≈ 20 (device catalogs vary).
+    // WLED FX ids: Ripple = 79, Fireworks Starburst ≈ 89, Sparkle ≈ 20 (device catalogs vary).
+    public const int RippleFxId = 79;
     public const int CelebrateFxId = 89;
     public const int SparkleFxId = 20;
+
+    /// <summary>WLED built-in palette “Red Reaf” (commonly typed Red Reef).</summary>
+    public const int RedReefPaletteId = 62;
+
+    /// <summary>~15% of the 0–255 WLED speed/intensity range.</summary>
+    public const int RippleTimingByte = 38;
 
     public EffectSlot Idle { get; set; } = null!;
     public EffectSlot NotReady { get; set; } = null!;
@@ -41,12 +48,12 @@ public sealed class EffectConfig
     /// </summary>
     public void ResetLightingSlotsToProductDefaults()
     {
-        // Ready — fairway green center→out, then solid hold.
-        Idle = EffectSlot.Curated(RgbColor.FromRgb(61, 220, 132), EffectAnimations.CenterToOutside);
+        // Basic ambient — WLED Ripple (layered, Red Reef, colors max, timing 15%).
+        Idle = CreateRippleAmbient(RgbColor.FromRgb(61, 220, 132));
         // Not ready — alert red outside→center, then dim hold.
         NotReady = EffectSlot.Curated(RgbColor.FromRgb(229, 83, 61), EffectAnimations.OutsideToCenter);
-        // Waiting — amber solid (no pulse anxiety).
-        Waiting = EffectSlot.Curated(RgbColor.FromRgb(212, 160, 23), EffectAnimations.Solid);
+        // Waiting — same Ripple ambient with amber tint while Connect state is unknown.
+        Waiting = CreateRippleAmbient(RgbColor.FromRgb(212, 160, 23));
         PureStrike = EffectSlot.Curated(RgbColor.FromRgb(0, 224, 90), EffectAnimations.DirectionAuto);
         Mishit = EffectSlot.Curated(RgbColor.FromRgb(198, 40, 40), EffectAnimations.DirectionAuto);
         Putt = EffectSlot.Curated(RgbColor.FromRgb(79, 159, 224), EffectAnimations.DirectionAuto);
@@ -56,6 +63,18 @@ public sealed class EffectConfig
         OutOfBounds = EffectSlot.Curated(RgbColor.FromRgb(255, 42, 42), EffectAnimations.Flash);
         Player = EffectSlot.Curated(RgbColor.FromRgb(47, 160, 255), EffectAnimations.Pulse);
     }
+
+    public static EffectSlot CreateRippleAmbient(RgbColor color) =>
+        EffectSlot.WledPreset(
+            color.WithMaxIntensity(),
+            RippleFxId,
+            new WledPresetOptions
+            {
+                Speed = RippleTimingByte,
+                Intensity = RippleTimingByte,
+                PaletteId = RedReefPaletteId,
+                Overlay = true
+            });
 
     public EffectConfig Clone() => new()
     {

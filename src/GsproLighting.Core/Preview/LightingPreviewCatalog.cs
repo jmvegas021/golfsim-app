@@ -16,9 +16,10 @@ public sealed class LightingPreviewCatalog
             Item(
                 LightingPreviewIds.Waiting,
                 "Waiting / unknown",
-                "Amber solid dim while Connect state is unknown",
+                "WLED Ripple ambient (Red Reef, layered, timing 15%) while Connect state is unknown",
                 effects.Waiting,
-                holdBrightnessFactor: 0.33),
+                holdBrightnessFactor: 0.33,
+                holdAsSolid: false),
             Item(
                 LightingPreviewIds.NotReady,
                 "Not ready",
@@ -28,8 +29,9 @@ public sealed class LightingPreviewCatalog
             Item(
                 LightingPreviewIds.Ready,
                 "Ready / idle",
-                "Green center→out, then hold solid green",
-                effects.Idle),
+                "WLED Ripple basic ambient (Red Reef, layered, colors max, timing 15%)",
+                effects.Idle,
+                holdAsSolid: false),
             Item(
                 LightingPreviewIds.Pure,
                 "Pure strike",

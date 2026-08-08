@@ -65,7 +65,7 @@ public sealed class LedStripPreview : Control
     }
 
     public void ClearToIdle(RgbColor idleColor) =>
-        HoldSolid(idleColor, intensity: 0.9, status: "Stopped · holding ready / idle green");
+        HoldSolid(idleColor, intensity: 0.9, status: "Stopped · holding ready / idle Ripple");
 
     protected override void Dispose(bool disposing)
     {

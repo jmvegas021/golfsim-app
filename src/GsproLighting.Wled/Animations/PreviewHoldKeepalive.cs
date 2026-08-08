@@ -4,7 +4,8 @@ using GsproLighting.Wled.Contracts;
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Re-sends DRGB hold frames so WLED realtime timeout (~5s) cannot drop the hold.
+/// Re-sends hold frames so WLED realtime timeout (~5s) cannot drop the hold.
+/// Supports DRGB solid/pixel holds and HTTP preset re-apply loops.
 /// </summary>
 public sealed class PreviewHoldKeepalive
 {
@@ -35,6 +36,20 @@ public sealed class PreviewHoldKeepalive
             duration,
             cancellationToken,
             sendInitialFrame);
+
+    public Task HoldWhileAsync(
+        Func<CancellationToken, Task> sendFrame,
+        TimeSpan? duration,
+        CancellationToken cancellationToken = default,
+        bool sendInitialFrame = true)
+    {
+        ArgumentNullException.ThrowIfNull(sendFrame);
+        return RunLoopAsync(
+            () => sendFrame(cancellationToken),
+            duration,
+            cancellationToken,
+            sendInitialFrame);
+    }
 
     private async Task RunLoopAsync(
         Func<Task> sendFrame,

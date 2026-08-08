@@ -6,7 +6,7 @@ namespace GsproLighting.Wled;
 
 /// <summary>
 /// Reusable preview facade for curated animations and WLED effects.
-/// Supports superseding previews, fade handoff, and DRGB hold keepalive.
+/// Supports superseding previews, fade handoff, and DRGB / HTTP hold keepalive.
 /// </summary>
 public sealed class WledPreviewPlayer : IDisposable
 {
@@ -41,9 +41,8 @@ public sealed class WledPreviewPlayer : IDisposable
 
         if (slot.Mode == EffectMode.WledPreset)
         {
-            if (slot.WledFxId is not int fxId)
-                throw new ArgumentException("A WLED preset effect id is required.", nameof(slot));
-            await _httpClient.ApplyPresetAsync(config.ControllerIp, fxId, cancellationToken)
+            var request = WledPresetRequest.FromSlot(slot, config.Brightness);
+            await _httpClient.ApplyPresetAsync(config.ControllerIp, request, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -74,10 +73,8 @@ public sealed class WledPreviewPlayer : IDisposable
     }
 
     /// <summary>
-    /// Plays the effect then holds the end color with DRGB keepalive until cancelled
-    /// or <paramref name="holdDuration"/> elapses. Null hold keeps the strip until
-    /// Stop / another preview supersedes it. Returns after the hold frame is established;
-    /// indefinite keepalive continues in the background until superseded.
+    /// Plays the effect then holds until cancelled or <paramref name="holdDuration"/> elapses.
+    /// Curated holds use DRGB keepalive; WLED presets re-apply over HTTP.
     /// </summary>
     public async Task PreviewAndHoldAsync(
         PreviewHoldPlan plan,
@@ -96,6 +93,22 @@ public sealed class WledPreviewPlayer : IDisposable
         {
             await FadeFromHeldAsync(token).ConfigureAwait(false);
             await PlayEffectAsync(plan.Slot, config, plan.Direction, token).ConfigureAwait(false);
+
+            if (plan.Slot.Mode == EffectMode.WledPreset)
+            {
+                RememberHold(plan.Slot.Color, plan.HoldBrightness);
+                onHoldStarted?.Invoke();
+                holdReady.TrySetResult();
+                await HoldPresetAsync(
+                        plan.Slot,
+                        config,
+                        plan.HoldBrightness,
+                        holdDuration,
+                        token,
+                        sendInitialFrame: false)
+                    .ConfigureAwait(false);
+                return;
+            }
 
             await PreviewHoldKeepalive.SendHoldFrameAsync(_output, plan, config, token)
                 .ConfigureAwait(false);
@@ -124,8 +137,7 @@ public sealed class WledPreviewPlayer : IDisposable
     }
 
     /// <summary>
-    /// Cancels any active preview and holds ready/idle green with keepalive until superseded.
-    /// Returns after the idle solid is established.
+    /// Cancels any active preview and holds ready/idle ambient until superseded.
     /// </summary>
     public async Task StopAndHoldIdleAsync(
         EffectSlot idleSlot,
@@ -141,6 +153,16 @@ public sealed class WledPreviewPlayer : IDisposable
         var session = RunSessionAsync(linked, async token =>
         {
             await FadeFromHeldAsync(token).ConfigureAwait(false);
+
+            if (idleSlot.Mode == EffectMode.WledPreset)
+            {
+                RememberHold(idleSlot.Color, config.Brightness);
+                holdReady.TrySetResult();
+                await HoldPresetAsync(idleSlot, config, config.Brightness, duration: null, token)
+                    .ConfigureAwait(false);
+                return;
+            }
+
             await _output.SendSolidAsync(idleSlot.Color, config.Brightness, token).ConfigureAwait(false);
             RememberHold(idleSlot.Color, config.Brightness);
             holdReady.TrySetResult();
@@ -202,6 +224,22 @@ public sealed class WledPreviewPlayer : IDisposable
         CancelActivePreview();
         if (_ownsHttpClient)
             _httpClient.Dispose();
+    }
+
+    private Task HoldPresetAsync(
+        EffectSlot slot,
+        WledConfig config,
+        byte brightness,
+        TimeSpan? duration,
+        CancellationToken cancellationToken,
+        bool sendInitialFrame = true)
+    {
+        var request = WledPresetRequest.FromSlot(slot, brightness);
+        return _keepalive.HoldWhileAsync(
+            ct => _httpClient.ApplyPresetAsync(config.ControllerIp, request, ct),
+            duration,
+            cancellationToken,
+            sendInitialFrame);
     }
 
     private async Task FadeFromHeldAsync(CancellationToken cancellationToken)

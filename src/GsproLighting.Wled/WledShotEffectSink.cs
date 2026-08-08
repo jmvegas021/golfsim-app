@@ -9,7 +9,8 @@ namespace GsproLighting.Wled;
 
 /// <summary>
 /// Drives curated WLED animations from live shot, ready, and player events.
-/// Solid holds use DRGB keepalive so WLED realtime timeout (~5s) cannot drop the bay.
+/// Basic Idle/Waiting ambient uses WLED Ripple via HTTP; curated flashes return to that hold.
+/// Solid curated holds use DRGB keepalive so WLED realtime timeout (~5s) cannot drop the bay.
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink
 {
@@ -20,6 +21,8 @@ public sealed class WledShotEffectSink : IShotEventSink
     private readonly LedAnimationPlayer _animationPlayer;
     private readonly LiveShotAnimationRequestFactory _requestFactory = new();
     private readonly PreviewHoldKeepalive _keepalive;
+    private readonly WledHttpClient _httpClient;
+    private readonly Action<string>? _logFailure;
     private readonly object _gate = new();
     private CancellationTokenSource? _activeEffectCts;
     private bool _readyIdleActive;
@@ -28,13 +31,17 @@ public sealed class WledShotEffectSink : IShotEventSink
         IWledOutput output,
         Func<EffectConfig> effects,
         Func<WledConfig>? wledConfig = null,
-        PreviewHoldKeepalive? keepalive = null)
+        PreviewHoldKeepalive? keepalive = null,
+        WledHttpClient? httpClient = null,
+        Action<string>? logFailure = null)
     {
         _output = output;
         _effects = effects;
         _wledConfig = wledConfig ?? (() => new WledConfig());
         _animationPlayer = new LedAnimationPlayer(output);
         _keepalive = keepalive ?? new PreviewHoldKeepalive();
+        _httpClient = httpClient ?? new WledHttpClient();
+        _logFailure = logFailure;
     }
 
     public async Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
@@ -86,7 +93,7 @@ public sealed class WledShotEffectSink : IShotEventSink
             debounceReady: true,
             async token =>
             {
-                await PlayConfiguredSlotAsync(_effects().Idle, token).ConfigureAwait(false);
+                await PlayReadyIntroAsync(token).ConfigureAwait(false);
                 await HoldIdleAsync(token).ConfigureAwait(false);
             },
             cancellationToken).ConfigureAwait(false);
@@ -125,12 +132,24 @@ public sealed class WledShotEffectSink : IShotEventSink
         return _animationPlayer.PlayAsync(request, cancellationToken);
     }
 
+    private Task PlayReadyIntroAsync(CancellationToken cancellationToken)
+    {
+        // Ready transition stays a curated flash; Idle slot itself is Ripple ambient hold.
+        var intro = EffectSlot.Curated(_effects().Idle.Color, EffectAnimations.CenterToOutside);
+        return _animationPlayer.PlayAsync(intro, _wledConfig(), cancellationToken: cancellationToken);
+    }
+
     private Task PlayConfiguredSlotAsync(EffectSlot slot, CancellationToken cancellationToken)
     {
         if (slot.Mode == EffectMode.Curated)
             return _animationPlayer.PlayAsync(slot, _wledConfig(), cancellationToken: cancellationToken);
 
-        // Presets are preview-only; the UI prevents selecting them for live slots.
+        if (slot.Mode == EffectMode.WledPreset)
+        {
+            var request = WledPresetRequest.FromSlot(slot, _wledConfig().Brightness);
+            return _httpClient.ApplyPresetAsync(_wledConfig().ControllerIp, request, cancellationToken);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -153,6 +172,9 @@ public sealed class WledShotEffectSink : IShotEventSink
     private Task HoldIdleAsync(CancellationToken cancellationToken)
     {
         var idle = _effects().Idle;
+        if (idle.Mode == EffectMode.WledPreset)
+            return HoldPresetAsync(idle, duration: null, cancellationToken);
+
         if (idle.Mode != EffectMode.Curated)
             return Task.CompletedTask;
 
@@ -161,6 +183,19 @@ public sealed class WledShotEffectSink : IShotEventSink
             idle.Color,
             _wledConfig().Brightness,
             duration: null,
+            cancellationToken);
+    }
+
+    private Task HoldPresetAsync(
+        EffectSlot slot,
+        TimeSpan? duration,
+        CancellationToken cancellationToken)
+    {
+        var request = WledPresetRequest.FromSlot(slot, _wledConfig().Brightness);
+        var ip = _wledConfig().ControllerIp;
+        return _keepalive.HoldWhileAsync(
+            ct => _httpClient.ApplyPresetAsync(ip, request, ct),
+            duration,
             cancellationToken);
     }
 
@@ -178,13 +213,33 @@ public sealed class WledShotEffectSink : IShotEventSink
         {
             await playEffect(linked.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            !cancellationToken.IsCancellationRequested && linked.IsCancellationRequested)
         {
             // Superseded by a newer live event.
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // HTTP Idle/Ripple (or other apply) failures must not tear down GSPro TCP pipes.
+            LogEffectFailure(ex);
         }
         finally
         {
             CompleteEffect(linked);
+        }
+    }
+
+    private void LogEffectFailure(Exception ex)
+    {
+        var message = $"WLED effect failed: {ex.Message}";
+        Console.WriteLine($"[wled] {message}");
+        try
+        {
+            _logFailure?.Invoke(message);
+        }
+        catch
+        {
+            // Logging must never break the live effect path.
         }
     }
 

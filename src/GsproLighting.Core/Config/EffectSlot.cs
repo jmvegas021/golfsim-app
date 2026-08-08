@@ -12,6 +12,7 @@ public sealed class EffectSlot
     public EffectMode Mode { get; set; } = EffectMode.Curated;
     public string Animation { get; set; } = EffectAnimations.Solid;
     public int? WledFxId { get; set; }
+    public WledPresetOptions? WledOptions { get; set; }
 
     public static EffectSlot Curated(RgbColor color, string animation) => new()
     {
@@ -20,12 +21,13 @@ public sealed class EffectSlot
         Animation = animation
     };
 
-    public static EffectSlot WledPreset(RgbColor color, int fxId) => new()
+    public static EffectSlot WledPreset(RgbColor color, int fxId, WledPresetOptions? options = null) => new()
     {
         Color = color,
         Mode = EffectMode.WledPreset,
         Animation = EffectAnimations.Solid,
-        WledFxId = fxId
+        WledFxId = fxId,
+        WledOptions = options?.Clone()
     };
 
     public EffectSlot Clone() => new()
@@ -33,6 +35,7 @@ public sealed class EffectSlot
         Color = RgbColor.FromRgb(Color.R, Color.G, Color.B),
         Mode = Mode,
         Animation = Animation,
-        WledFxId = WledFxId
+        WledFxId = WledFxId,
+        WledOptions = WledOptions?.Clone()
     };
 }

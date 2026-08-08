@@ -55,4 +55,21 @@ public sealed class LightingPreviewCatalogTests
         Assert.Equal(2, ready.Slot.Color.G);
         Assert.Equal(3, ready.Slot.Color.B);
     }
+
+    [Fact]
+    public void Create_ReadyAndWaitingUseRippleAmbientDefaults()
+    {
+        var items = new LightingPreviewCatalog().Create(new EffectConfig());
+        var ready = items.Single(i => i.Id == LightingPreviewIds.Ready);
+        var waiting = items.Single(i => i.Id == LightingPreviewIds.Waiting);
+
+        Assert.Equal(EffectMode.WledPreset, ready.Slot.Mode);
+        Assert.Equal(EffectConfig.RippleFxId, ready.Slot.WledFxId);
+        Assert.Equal(EffectConfig.RedReefPaletteId, ready.Slot.WledOptions?.PaletteId);
+        Assert.False(ready.HoldAsSolid);
+
+        Assert.Equal(EffectMode.WledPreset, waiting.Slot.Mode);
+        Assert.Equal(EffectConfig.RippleFxId, waiting.Slot.WledFxId);
+        Assert.False(waiting.HoldAsSolid);
+    }
 }

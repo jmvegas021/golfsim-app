@@ -23,7 +23,16 @@ public static class ProductCopy
         "Ready, shot, putt, and player events show here once Connect is live. Clear, open the logs folder, or export a zip for support.";
 
     public const string PreviewHint =
-        "Preview plays on-screen and on WLED without saving. Colors hold after each animation — Stop holds ready green.";
+        "Preview plays on-screen and on WLED without saving. Colors hold after each animation — Stop holds ready Ripple ambient.";
+
+    public const string WledTabIntro =
+        "Live WLED controls from your controller catalogs. Golf reactions still win during shots, then return to Ripple ambient.";
+
+    public const string WledTabTip =
+        "Refresh loads effects/palettes/state. Apply writes the editor. Sync ambient restores Ripple + Red Reef. Open full WLED for advanced setup.";
+
+    public const string WledDrgbNote =
+        "Shot flashes use DRGB realtime. After each event the bay returns to WLED effect ambient (HTTP apply with live:false). Wi‑Fi, security, 2D matrix editors, audio config, and firmware stay in the full WLED UI.";
 
     public const string UpdatesIntro =
         "Check GitHub Releases for Setup or portable zip updates. Install only when you are between rounds.";

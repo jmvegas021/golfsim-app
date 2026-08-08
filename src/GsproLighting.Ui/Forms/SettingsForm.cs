@@ -13,6 +13,7 @@ public sealed class SettingsForm : Form
     private readonly LightingAppCoordinator _app;
     private readonly EffectsTabPanel _effects;
     private readonly PreviewTabPanel _preview;
+    private readonly WledTabPanel _wled;
     private readonly ConnectionTabPanel _connection = new();
     private readonly LiveFeedTabPanel _liveFeed;
     private readonly UpdatesPanel _updatesPanel;
@@ -37,6 +38,11 @@ public sealed class SettingsForm : Form
 
         _effects = new EffectsTabPanel();
         _preview = new PreviewTabPanel(ResolveEffectsForPreview, () => _app.Config.Wled, app.Preview);
+        _wled = new WledTabPanel(
+            () => string.IsNullOrWhiteSpace(_connection.ControllerIp)
+                ? _app.Config.Wled.ControllerIp
+                : _connection.ControllerIp,
+            () => _connection.Brightness);
         _updatesPanel = new UpdatesPanel(updates);
         _liveFeed = new LiveFeedTabPanel(
             app.Feed,
@@ -47,6 +53,7 @@ public sealed class SettingsForm : Form
         // Thin theme apply for workstream A/B panels without rewriting internals.
         UiTheme.ApplyTabChrome(_effects);
         UiTheme.ApplyTabChrome(_preview);
+        UiTheme.ApplyTabChrome(_wled);
 
         BuildLayout();
         LoadFromConfig();
@@ -91,9 +98,10 @@ public sealed class SettingsForm : Form
         Controls.Add(_footer);
         Controls.Add(new BrandHeader());
 
-        // Sellable tab order: Effects → Preview → Connection → Live feed → Updates
+        // Sellable tab order: Effects → Preview → WLED → Connection → Live feed → Updates
         AddTab("Effects", _effects);
         AddTab("Preview", _preview);
+        AddTab("WLED", _wled);
         AddTab("Connection", _connection);
         AddTab("Live feed", _liveFeed);
         AddTab("Updates", BuildUpdatesWrapper());
@@ -212,6 +220,7 @@ public sealed class SettingsForm : Form
         {
             "Effects" => "Save writes config. Test lights / Idle glow preview without leaving this tab.",
             "Preview" => ProductCopy.PreviewHint,
+            "WLED" => ProductCopy.WledTabTip,
             "Connection" => ProductCopy.NoWledBody,
             "Live feed" => ProductCopy.LiveFeedWaitingBody,
             "Updates" => ProductCopy.UpdatesIntro,

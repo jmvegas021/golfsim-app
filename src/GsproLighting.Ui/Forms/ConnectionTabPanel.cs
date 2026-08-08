@@ -70,6 +70,10 @@ public sealed class ConnectionTabPanel : UserControl
     protected override void OnPaintBackground(PaintEventArgs e) =>
         UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
 
+    public string ControllerIp => _wledIp.Text.Trim();
+
+    public byte Brightness => (byte)_brightness.Value;
+
     public void LoadConfig(AppConfig config)
     {
         _wledIp.Text = config.Wled.ControllerIp;

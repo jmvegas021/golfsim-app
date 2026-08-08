@@ -7,9 +7,9 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Live bay ready/idle/not-ready holds refresh over DRGB so WLED won’t drop to the playlist after ~5s.",
-        "Lighting colors are product defaults — Load/Save normalize slots; thresholds and WLED stay yours.",
-        "Preview lab tests sequences on-screen and WLED; end colors hold (Stop = ready green).",
-        "No per-phase color editors — tune connection and thresholds, not the palette.",
+        "New WLED tab: live effects, palettes, colors, speed/intensity, presets, and Sync ambient.",
+        "Basic idle/waiting ambient is Ripple + Red Reef (layered, colors max, timing 15%).",
+        "Shot/ready/not-ready flashes still play over DRGB, then return to Ripple ambient via HTTP.",
+        "Open full WLED from the tab for matrix/audio/Wi‑Fi and other controller-only settings.",
     ];
 }

@@ -24,13 +24,94 @@ public sealed class WledShotEffectSinkHoldTests
         using var cts = new CancellationTokenSource();
         var readyTask = sink.OnBallReadyAsync(new ShotPayload(), cts.Token);
 
-        await Task.Delay(200);
+        // Ready intro (CenterToOutside) runs before idle solid keepalive.
+        await Task.Delay(450);
         Assert.True(
             output.SolidCountFor(61, 220, 132) >= 3,
             $"Expected idle keepalive resends, got {output.SolidCountFor(61, 220, 132)}");
 
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await readyTask);
+    }
+
+    [Fact]
+    public async Task OnBallReadyAsync_RippleIdle_ReappliesHttpPreset()
+    {
+        var output = new RecordingWledOutput();
+        var handler = new RecordingHttpHandler();
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var keepalive = new PreviewHoldKeepalive { Interval = TimeSpan.FromMilliseconds(40) };
+        var effects = new EffectConfig();
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.1.50" },
+            keepalive,
+            http);
+
+        using var cts = new CancellationTokenSource();
+        var readyTask = sink.OnBallReadyAsync(new ShotPayload(), cts.Token);
+
+        // Intro animation then Ripple HTTP hold with keepalive re-apply.
+        await Task.Delay(450);
+        Assert.True(handler.PostCount >= 2, $"Expected Ripple HTTP re-apply, got {handler.PostCount}");
+        Assert.Contains(handler.Bodies, body => body.Contains("\"fx\":79") && body.Contains("\"pal\":62"));
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await readyTask);
+    }
+
+    [Fact]
+    public async Task OnBallReadyAsync_HttpIdleFailure_DoesNotThrow_AndLogs()
+    {
+        var output = new RecordingWledOutput();
+        var handler = new FailingHttpHandler();
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var logs = new List<string>();
+        var effects = new EffectConfig();
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.1.50" },
+            httpClient: http,
+            logFailure: logs.Add);
+
+        // Must complete without throwing — proxy pipes depend on this.
+        await sink.OnBallReadyAsync(new ShotPayload());
+
+        Assert.NotEmpty(logs);
+        Assert.Contains(logs, line => line.Contains("WLED effect failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task OnShotAsync_HttpIdleFailure_DoesNotThrow()
+    {
+        var output = new RecordingWledOutput();
+        var handler = new FailingHttpHandler();
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var effects = FastHoldEffects();
+        effects.Idle = EffectConfig.CreateRippleAmbient(RgbColor.FromRgb(61, 220, 132));
+        effects.PureStrike = EffectSlot.Curated(
+            RgbColor.FromRgb(0, 224, 90),
+            EffectAnimations.Solid);
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.1.50" },
+            httpClient: http);
+
+        await sink.OnShotAsync(
+            new ShotPayload
+            {
+                BallData = new BallData
+                {
+                    Speed = 140,
+                    SideSpin = 0,
+                    Hla = 0,
+                    CarryDistance = 200
+                },
+                MeasuredSmashFactor = 1.5
+            });
     }
 
     [Fact]
@@ -141,6 +222,33 @@ public sealed class WledShotEffectSinkHoldTests
             RgbColor.FromRgb(229, 83, 61),
             EffectAnimations.Solid);
         return effects;
+    }
+
+    private sealed class RecordingHttpHandler : HttpMessageHandler
+    {
+        public int PostCount { get; private set; }
+        public List<string> Bodies { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            PostCount++;
+            if (request.Content is not null)
+                Bodies.Add(await request.Content.ReadAsStringAsync(cancellationToken));
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}")
+            };
+        }
+    }
+
+    private sealed class FailingHttpHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            throw new HttpRequestException("Simulated WLED controller unreachable");
     }
 
     private sealed class RecordingWledOutput : IWledOutput
