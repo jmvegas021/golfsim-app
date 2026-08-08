@@ -68,6 +68,10 @@ internal sealed class SettingsFormActions
 
     public async Task ToggleProxyAsync()
     {
+        // Proxy start/stop must apply Connection-tab (and other) edits so StartProxy
+        // uses current UI values — same as pre-v0.4.7. Preview/test intentionally
+        // do NOT call Save(); only this path and the Save button persist config.
+        Save();
         if (_app.IsProxyRunning)
             await _app.StopProxyAsync();
         else

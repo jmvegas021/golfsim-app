@@ -13,7 +13,8 @@ internal static class Program
         // Required by Velopack pack verification and update apply hooks.
         VelopackApp.Build().Run();
 
-        // Generated initialization configures per-monitor DPI awareness before controls exist.
+        // ApplicationConfiguration.Initialize applies ApplicationHighDpiMode (PerMonitorV2)
+        // from the project file before any controls exist. Do not call SetHighDpiMode after Initialize.
         ApplicationConfiguration.Initialize();
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) =>
