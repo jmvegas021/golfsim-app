@@ -1,5 +1,6 @@
 using GsproLighting.Ui.Forms;
 using GsproLighting.Ui.Hosting;
+using GsproLighting.Ui.Theme;
 using GsproLighting.Ui.Updates;
 
 namespace GsproLighting.Ui;
@@ -20,7 +21,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _tray = new NotifyIcon
         {
             Text = "GSPro Lighting",
-            Icon = SystemIcons.Application,
+            Icon = AppIconLoader.TrayIcon,
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
@@ -47,7 +48,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _tray.ShowBalloonTip(
                     4000,
                     "GSPro Lighting",
-                    "Running in the tray. Double-click the tray icon to open settings.",
+                    ProductCopy.TrayMinimized,
                     ToolTipIcon.Info);
 
             if (!_app.Config.Ui.StartMinimizedToTray)
@@ -98,7 +99,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _tray.ShowBalloonTip(
                     6000,
                     "GSPro Lighting",
-                    "Update available — open Settings to install.",
+                    "Update available — open Settings → Updates to install.",
                     ToolTipIcon.Info);
             }
             catch (Exception ex)
@@ -127,11 +128,13 @@ public sealed class TrayApplicationContext : ApplicationContext
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Open settings", null, (_, _) => ShowSettings());
-        menu.Items.Add("Check for updates…", null, (_, _) => _ = CheckUpdatesFromTrayAsync());
-        menu.Items.Add("Test lights", null, (_, _) => _ = TestLightsAsync());
+        UiTheme.StyleContextMenu(menu);
+        menu.Items.Add(MenuItem("Open settings", (_, _) => ShowSettings()));
+        menu.Items.Add(MenuItem("About / What’s new…", (_, _) => ShowAbout()));
+        menu.Items.Add(MenuItem("Check for updates…", (_, _) => _ = CheckUpdatesFromTrayAsync()));
+        menu.Items.Add(MenuItem("Test lights", (_, _) => _ = TestLightsAsync()));
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Start R50 auto-watch", null, (_, _) =>
+        menu.Items.Add(MenuItem("Start R50 auto-watch", (_, _) =>
         {
             try
             {
@@ -141,8 +144,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             {
                 CrashLog.Show("R50 watch start failed", ex);
             }
-        });
-        menu.Items.Add("Start Open Connect proxy", null, (_, _) =>
+        }));
+        menu.Items.Add(MenuItem("Start Open Connect proxy", (_, _) =>
         {
             try
             {
@@ -152,11 +155,42 @@ public sealed class TrayApplicationContext : ApplicationContext
             {
                 CrashLog.Show("Proxy start failed", ex);
             }
-        });
-        menu.Items.Add("Stop proxy", null, (_, _) => _ = StopProxySafeAsync());
+        }));
+        menu.Items.Add(MenuItem("Stop proxy", (_, _) => _ = StopProxySafeAsync()));
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => _ = ExitAsync());
+        menu.Items.Add(MenuItem("Exit", (_, _) => _ = ExitAsync()));
         return menu;
+    }
+
+    private static ToolStripMenuItem MenuItem(string text, EventHandler onClick)
+    {
+        var item = new ToolStripMenuItem(text);
+        item.Click += onClick;
+        item.ForeColor = UiTheme.Text;
+        item.Padding = new Padding(4, 6, 4, 6);
+        return item;
+    }
+
+    private void ShowAbout()
+    {
+        try
+        {
+            ShowSettings();
+            if (_settings is { IsDisposed: false })
+            {
+                using var about = new AboutForm();
+                about.ShowDialog(_settings);
+            }
+            else
+            {
+                using var about = new AboutForm();
+                about.ShowDialog();
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("ShowAbout", ex);
+        }
     }
 
     private async Task CheckUpdatesFromTrayAsync()
@@ -228,7 +262,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             _tray.ShowBalloonTip(
                 2500,
                 "GSPro Lighting",
-                "Still running in the tray. Right-click the tray icon for menu.",
+                ProductCopy.TrayRunning,
                 ToolTipIcon.Info);
         };
         _settings.Show();

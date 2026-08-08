@@ -1,5 +1,6 @@
-using GsproLighting.Ui.Updates;
+using GsproLighting.Ui.Controls;
 using GsproLighting.Ui.Theme;
+using GsproLighting.Ui.Updates;
 
 namespace GsproLighting.Ui.Forms;
 
@@ -9,32 +10,31 @@ namespace GsproLighting.Ui.Forms;
 public sealed class UpdatesPanel : UserControl
 {
     private readonly AppUpdateService _updates;
-    private readonly Label _versionLabel = new() { AutoSize = true };
+    private readonly Label _versionLabel = new() { AutoSize = true, ForeColor = UiTheme.Text };
     private readonly Label _statusLabel = new()
     {
         AutoSize = false,
-        Width = 340,
-        Height = 48,
+        Width = 420,
+        Height = 56,
         ForeColor = UiTheme.Muted
     };
-    private readonly Button _checkButton = new()
+    private readonly NightButton _checkButton = new()
     {
         Text = "Check for updates",
-        Width = 150,
-        Height = 36
+        Width = 168
     };
-    private readonly Button _installButton = new()
+    private readonly NightButton _installButton = new()
     {
         Text = "Install update & restart",
-        Width = 180,
-        Height = 36,
+        Width = 200,
+        IsPrimary = true,
         Enabled = false
     };
     private readonly Label _modeLabel = new()
     {
         AutoSize = true,
         ForeColor = UiTheme.Muted,
-        Margin = new Padding(0, 2, 0, 6)
+        Margin = new Padding(0, 2, 0, 8)
     };
 
     public UpdatesPanel(AppUpdateService updates)
@@ -43,19 +43,17 @@ public sealed class UpdatesPanel : UserControl
         BackColor = UiTheme.Panel;
         ForeColor = UiTheme.Text;
         Font = UiTheme.BodyFont();
-        Padding = new Padding(20);
-        BorderStyle = BorderStyle.FixedSingle;
+        Padding = new Padding(22);
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        UiTheme.StyleButton(_checkButton);
-        UiTheme.StyleButton(_installButton, primary: true);
 
         var layout = new FlowLayoutPanel
         {
             AutoSize = true,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            BackColor = Color.Transparent
         };
 
         layout.Controls.Add(new Label
@@ -63,8 +61,20 @@ public sealed class UpdatesPanel : UserControl
             Text = "Updates",
             AutoSize = true,
             ForeColor = UiTheme.Text,
-            Font = UiTheme.BodyFont(13f, FontStyle.Bold),
-            Margin = new Padding(0, 14, 0, 4)
+            Font = UiTheme.HeadingFont(16f, FontStyle.Bold),
+            Margin = new Padding(0, 8, 0, 6),
+            BackColor = Color.Transparent
+        });
+        layout.Controls.Add(new Label
+        {
+            Text = ProductCopy.UpdatesIntro,
+            AutoSize = false,
+            Width = 420,
+            Height = 36,
+            ForeColor = UiTheme.Muted,
+            Font = UiTheme.BodyFont(9f),
+            Margin = new Padding(0, 0, 0, 8),
+            BackColor = Color.Transparent
         });
         layout.Controls.Add(_versionLabel);
         layout.Controls.Add(_modeLabel);
@@ -73,8 +83,10 @@ public sealed class UpdatesPanel : UserControl
         {
             AutoSize = true,
             WrapContents = false,
-            Margin = new Padding(0, 4, 0, 4)
+            Margin = new Padding(0, 8, 0, 8),
+            BackColor = Color.Transparent
         };
+        _checkButton.Margin = new Padding(0, 0, 10, 0);
         buttons.Controls.Add(_checkButton);
         buttons.Controls.Add(_installButton);
         layout.Controls.Add(buttons);
@@ -87,6 +99,12 @@ public sealed class UpdatesPanel : UserControl
         _updates.Changed += OnChanged;
         Disposed += (_, _) => _updates.Changed -= OnChanged;
         RefreshFromSnapshot();
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        UiTheme.FillPanelSurface(e.Graphics, ClientRectangle, raised: true);
+        UiTheme.DrawPanelBorder(e.Graphics, ClientRectangle);
     }
 
     public async Task CheckAsync()

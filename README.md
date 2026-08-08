@@ -50,11 +50,11 @@ Or from PowerShell (SDK required):
 4. Hit balls — Connect log ball metrics become clean `[Shot]` / `[Putt]` / `[Ready]` feed lines and drive WLED (pure / mishit / putt / ready glow)
 5. Minimize to tray and play
 
-**R50 Connect logs → lights:** the app tails GarminR50Form lines and maps them to `[Shot]` / `[Putt]` / `[Ready]` / `[Not ready]` plus your Effect colors. Green light = explicit ready (`READY_TO_HIT`, `readyForShot=true`); red = `NOT_READY_TO_HIT` / `readyForShot=false` (once each). Ball-marker `[LOG]` lines stay visible; `[NET]` peer keepalives are quiet.
+**R50 Connect logs → lights:** the app tails GarminR50Form lines and maps them to `[Shot]` / `[Putt]` / `[Ready]` / `[Not ready]` using product-authored lighting defaults (Preview tab to test; no per-phase color editors). Green light = explicit ready (`READY_TO_HIT`, `readyForShot=true`); red = `NOT_READY_TO_HIT` / `readyForShot=false` (once each). Ready/idle/not-ready solids use DRGB keepalive so WLED realtime timeout (~5s) cannot drop the bay back to a playlist. Ball-marker `[LOG]` lines stay visible; `[NET]` peer keepalives are quiet.
 
 Status text shows discovered Connect logs and any R50 peer (`Watching: N log files · R50 peer …`). Raw captures land in `logs\`.
 
-Settings save next to the app in `config\appsettings.json`.
+Settings save next to the app in `config\appsettings.json`. Lighting slot colors/animations are authored product defaults — Load and Save rewrite them (legacy custom RGB is migrated away). Smash/putt/HLA thresholds, WLED IP, and connection settings are kept.
 
 ### Optional: Open Connect proxy
 
@@ -123,6 +123,10 @@ dotnet run --project src\GsproLighting.App -- replay
 | `GsproLighting.Core` | Models, config store, shot feed |
 | `GsproLighting.Gspro` | Proxy, Connect discovery/watchers, parsers |
 | `GsproLighting.Wled` | DRGB UDP output + shot effect sink |
+
+## License
+
+Proprietary — all rights reserved. See [LICENSE](LICENSE). About → View LICENSE in the app links to the same terms.
 
 ## Roadmap
 

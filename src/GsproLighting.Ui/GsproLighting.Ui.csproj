@@ -8,7 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <ApplicationIcon />
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <RootNamespace>GsproLighting.Ui</RootNamespace>
     <AssemblyName>GsproLighting</AssemblyName>
   </PropertyGroup>
@@ -21,6 +21,12 @@
 
   <ItemGroup>
     <None Include="..\..\config\appsettings.json" Link="config\appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="GsproLighting.Ui.Assets.app.ico" />
+    <None Include="Assets\app-256.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\tray-32.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

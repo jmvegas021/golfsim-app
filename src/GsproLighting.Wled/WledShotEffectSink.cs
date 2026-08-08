@@ -9,6 +9,7 @@ namespace GsproLighting.Wled;
 
 /// <summary>
 /// Drives curated WLED animations from live shot, ready, and player events.
+/// Solid holds use DRGB keepalive so WLED realtime timeout (~5s) cannot drop the bay.
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink
 {
@@ -18,6 +19,7 @@ public sealed class WledShotEffectSink : IShotEventSink
     private readonly ShotEffectMapper _mapper = new();
     private readonly LedAnimationPlayer _animationPlayer;
     private readonly LiveShotAnimationRequestFactory _requestFactory = new();
+    private readonly PreviewHoldKeepalive _keepalive;
     private readonly object _gate = new();
     private CancellationTokenSource? _activeEffectCts;
     private bool _readyIdleActive;
@@ -25,12 +27,14 @@ public sealed class WledShotEffectSink : IShotEventSink
     public WledShotEffectSink(
         IWledOutput output,
         Func<EffectConfig> effects,
-        Func<WledConfig>? wledConfig = null)
+        Func<WledConfig>? wledConfig = null,
+        PreviewHoldKeepalive? keepalive = null)
     {
         _output = output;
         _effects = effects;
         _wledConfig = wledConfig ?? (() => new WledConfig());
         _animationPlayer = new LedAnimationPlayer(output);
+        _keepalive = keepalive ?? new PreviewHoldKeepalive();
     }
 
     public async Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
@@ -52,7 +56,7 @@ public sealed class WledShotEffectSink : IShotEventSink
             async token =>
             {
                 await PlayShotAsync(plan, token).ConfigureAwait(false);
-                await Task.Delay(holdDuration, token).ConfigureAwait(false);
+                await HoldShotColorAsync(plan, holdDuration, token).ConfigureAwait(false);
                 await HoldIdleAsync(token).ConfigureAwait(false);
             },
             cancellationToken).ConfigureAwait(false);
@@ -100,7 +104,13 @@ public sealed class WledShotEffectSink : IShotEventSink
                 if (slot.Mode == EffectMode.Curated)
                 {
                     var dimBrightness = (byte)Math.Max(1, _wledConfig().Brightness / 3);
-                    await _output.SendSolidAsync(slot.Color, dimBrightness, token).ConfigureAwait(false);
+                    await _keepalive.HoldSolidAsync(
+                            _output,
+                            slot.Color,
+                            dimBrightness,
+                            duration: null,
+                            token)
+                        .ConfigureAwait(false);
                 }
             },
             cancellationToken).ConfigureAwait(false);
@@ -124,12 +134,34 @@ public sealed class WledShotEffectSink : IShotEventSink
         return Task.CompletedTask;
     }
 
+    private Task HoldShotColorAsync(
+        ShotLightPlan plan,
+        TimeSpan holdDuration,
+        CancellationToken cancellationToken)
+    {
+        if (plan.Slot.Mode != EffectMode.Curated)
+            return Task.CompletedTask;
+
+        return _keepalive.HoldSolidAsync(
+            _output,
+            plan.Slot.Color,
+            _wledConfig().Brightness,
+            holdDuration,
+            cancellationToken);
+    }
+
     private Task HoldIdleAsync(CancellationToken cancellationToken)
     {
         var idle = _effects().Idle;
-        return idle.Mode == EffectMode.Curated
-            ? _output.SendSolidAsync(idle.Color, _wledConfig().Brightness, cancellationToken)
-            : Task.CompletedTask;
+        if (idle.Mode != EffectMode.Curated)
+            return Task.CompletedTask;
+
+        return _keepalive.HoldSolidAsync(
+            _output,
+            idle.Color,
+            _wledConfig().Brightness,
+            duration: null,
+            cancellationToken);
     }
 
     private async Task RunEffectAsync(
@@ -184,5 +216,4 @@ public sealed class WledShotEffectSink : IShotEventSink
         }
         completed.Dispose();
     }
-
 }

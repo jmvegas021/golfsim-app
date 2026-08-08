@@ -1,7 +1,7 @@
-using GsproLighting.Core.Config;
 using GsproLighting.Core.Contracts;
 using GsproLighting.Core.Logging;
 using GsproLighting.Core.Models;
+using GsproLighting.Ui.Controls;
 using GsproLighting.Ui.Logging;
 using GsproLighting.Ui.Theme;
 
@@ -12,29 +12,40 @@ public sealed class LiveFeedTabPanel : UserControl
     private readonly IShotFeed _feedSource;
     private readonly LogsFolderLauncher _folderLauncher;
     private readonly LogExportService _exportService;
+    private readonly EmptyStateBanner _empty = new()
+    {
+        Dock = DockStyle.Fill,
+        Margin = new Padding(0)
+    };
     private readonly ListBox _feed = new()
     {
         Dock = DockStyle.Fill,
         IntegralHeight = false,
         DrawMode = DrawMode.OwnerDrawFixed,
-        ItemHeight = 25,
-        BorderStyle = BorderStyle.FixedSingle,
+        ItemHeight = 28,
+        BorderStyle = BorderStyle.None,
         AccessibleName = "Live simulator events"
     };
     private readonly NumericUpDown _includeDays = new()
     {
         Minimum = 1,
         Maximum = 30,
-        Width = 62,
+        Width = 72,
         Value = 1
     };
     private readonly Label _status = new()
     {
         Dock = DockStyle.Bottom,
-        Height = 34,
+        Height = 36,
         ForeColor = UiTheme.Muted,
         TextAlign = ContentAlignment.MiddleLeft,
-        Text = "Waiting for simulator events. Ready, shot, player, and diagnostic messages appear here."
+        Text = ProductCopy.LiveFeedWaitingBody
+    };
+    private readonly Panel _feedWell = new()
+    {
+        Dock = DockStyle.Fill,
+        Padding = new Padding(1),
+        BackColor = UiTheme.Border
     };
 
     public LiveFeedTabPanel(
@@ -51,14 +62,18 @@ public sealed class LiveFeedTabPanel : UserControl
 
         _feed.BackColor = UiTheme.Console;
         _feed.ForeColor = UiTheme.Text;
-        _feed.Font = new Font("Cascadia Mono", 9f);
+        _feed.Font = UiTheme.MonoFont(9f);
         _feed.DrawItem += DrawFeedItem;
-        Controls.Add(_feed);
+        _feedWell.Paint += (_, e) => UiTheme.FillInsetWell(e.Graphics, _feedWell.ClientRectangle);
+        _feedWell.Controls.Add(_feed);
+        _feedWell.Controls.Add(_empty);
+        Controls.Add(_feedWell);
         Controls.Add(_status);
         Controls.Add(BuildToolbar());
 
         foreach (var entry in _feedSource.Recent.Reverse())
             _feed.Items.Add(entry);
+        RefreshEmptyState();
         _feedSource.EntryAdded += OnFeedEntry;
         Disposed += (_, _) => _feedSource.EntryAdded -= OnFeedEntry;
     }
@@ -69,22 +84,28 @@ public sealed class LiveFeedTabPanel : UserControl
         set => _includeDays.Value = Math.Clamp(value, (int)_includeDays.Minimum, (int)_includeDays.Maximum);
     }
 
+    protected override void OnPaintBackground(PaintEventArgs e) =>
+        UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
+
     private Control BuildToolbar()
     {
         var toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 50,
+            Height = 56,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false
+            WrapContents = false,
+            BackColor = Color.Transparent,
+            Padding = new Padding(0, 4, 0, 8)
         };
-        var clear = Button("Clear", 78);
-        var open = Button("Open logs folder", 142);
-        var export = Button("Export logs zip…", 142, primary: true);
+        var clear = MakeButton("Clear", 96);
+        var open = MakeButton("Open logs folder", 160);
+        var export = MakeButton("Export logs zip…", 168, primary: true);
         clear.Click += (_, _) => ClearFeed();
         open.Click += (_, _) => OpenLogsFolder();
         export.Click += (_, _) => ExportLogs();
         UiTheme.StyleInput(_includeDays);
+        _includeDays.MinimumSize = new Size(72, UiTheme.TouchMin - 4);
         toolbar.Controls.AddRange([
             CreateToolbarTitle(),
             clear,
@@ -94,10 +115,11 @@ public sealed class LiveFeedTabPanel : UserControl
             {
                 Text = "Include days",
                 AutoSize = false,
-                Width = 92,
-                Height = 36,
+                Width = 100,
+                Height = UiTheme.TouchMin,
                 TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = UiTheme.Muted
+                ForeColor = UiTheme.Muted,
+                BackColor = Color.Transparent
             },
             _includeDays
         ]);
@@ -108,18 +130,20 @@ public sealed class LiveFeedTabPanel : UserControl
     {
         Text = "LIVE FEED",
         AutoSize = false,
-        Width = 92,
-        Height = 36,
+        Width = 100,
+        Height = UiTheme.TouchMin,
         TextAlign = ContentAlignment.MiddleLeft,
-        ForeColor = UiTheme.Text,
-        Font = UiTheme.BodyFont(9f, FontStyle.Bold)
+        ForeColor = UiTheme.Accent,
+        Font = UiTheme.BodyFont(9f, FontStyle.Bold),
+        BackColor = Color.Transparent
     };
 
     private void ClearFeed()
     {
         _feedSource.Clear();
         _feed.Items.Clear();
-        ShowStatus("Live feed cleared.");
+        RefreshEmptyState();
+        ShowStatus("Live feed cleared — waiting for the next Connect event.");
     }
 
     private void OpenLogsFolder()
@@ -170,6 +194,7 @@ public sealed class LiveFeedTabPanel : UserControl
                 _feed.Items.Insert(0, entry);
                 while (_feed.Items.Count > 50)
                     _feed.Items.RemoveAt(_feed.Items.Count - 1);
+                RefreshEmptyState();
             });
         }
         catch (ObjectDisposedException)
@@ -177,11 +202,29 @@ public sealed class LiveFeedTabPanel : UserControl
         }
     }
 
+    private void RefreshEmptyState()
+    {
+        var waiting = _feed.Items.Count == 0;
+        _empty.Visible = waiting;
+        _feed.Visible = !waiting;
+        if (waiting)
+        {
+            _empty.ShowMessage(
+                ProductCopy.LiveFeedWaitingTitle,
+                ProductCopy.WaitingR50Body,
+                waitingAccent: true);
+            _status.Text = ProductCopy.LiveFeedWaitingBody;
+            _status.ForeColor = UiTheme.Muted;
+        }
+    }
+
     private void DrawFeedItem(object? sender, DrawItemEventArgs e)
     {
         if (e.Index < 0 || _feed.Items[e.Index] is not ShotFeedEntry entry)
             return;
-        e.DrawBackground();
+
+        using var bg = new SolidBrush(e.Index % 2 == 0 ? UiTheme.Console : Color.FromArgb(12, 16, 14));
+        e.Graphics.FillRectangle(bg, e.Bounds);
         var color = entry.Kind switch
         {
             "Ready" => UiTheme.Ready,
@@ -193,10 +236,11 @@ public sealed class LiveFeedTabPanel : UserControl
             e.Graphics,
             $"{entry.Timestamp:HH:mm:ss}  [{entry.Kind}]  {entry.Summary}",
             _feed.Font,
-            e.Bounds,
+            new Rectangle(e.Bounds.X + 10, e.Bounds.Y, e.Bounds.Width - 14, e.Bounds.Height),
             color,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-        e.DrawFocusRectangle();
+        if ((e.State & DrawItemState.Focus) != 0)
+            UiTheme.DrawFocusRing(e.Graphics, e.Bounds, focused: true);
     }
 
     private void ShowStatus(string message, bool isError = false)
@@ -205,10 +249,12 @@ public sealed class LiveFeedTabPanel : UserControl
         _status.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
     }
 
-    private static Button Button(string text, int width, bool primary = false)
-    {
-        var button = new Button { Text = text, Width = width };
-        UiTheme.StyleButton(button, primary);
-        return button;
-    }
+    private static NightButton MakeButton(string text, int width, bool primary = false) =>
+        new()
+        {
+            Text = text,
+            Width = width,
+            IsPrimary = primary,
+            Margin = new Padding(0, 0, 8, 0)
+        };
 }

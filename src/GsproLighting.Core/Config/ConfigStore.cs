@@ -33,19 +33,30 @@ public sealed class ConfigStore
             config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
         }
 
-        NormalizePaths(config);
+        Normalize(config);
         return config;
     }
 
     public void Save(AppConfig config)
     {
-        NormalizePaths(config);
+        Normalize(config);
         var directory = System.IO.Path.GetDirectoryName(_path);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
 
         var json = JsonSerializer.Serialize(config, JsonOptions);
         File.WriteAllText(_path, json);
+    }
+
+    /// <summary>
+    /// Paths + product lighting. Legacy/custom EffectSlot RGB from disk is accepted on
+    /// deserialize, then rewritten to authored defaults. Thresholds, WLED, and connection
+    /// settings are kept. Save persists the same normalized lighting.
+    /// </summary>
+    private static void Normalize(AppConfig config)
+    {
+        NormalizePaths(config);
+        config.Effects.ResetLightingSlotsToProductDefaults();
     }
 
     private static void NormalizePaths(AppConfig config)

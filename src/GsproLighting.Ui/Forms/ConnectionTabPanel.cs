@@ -1,10 +1,12 @@
 using GsproLighting.Core.Config;
+using GsproLighting.Ui.Controls;
 using GsproLighting.Ui.Theme;
 
 namespace GsproLighting.Ui.Forms;
 
 public sealed class ConnectionTabPanel : UserControl
 {
+    private readonly EmptyStateBanner _empty = new() { Width = 640, Margin = new Padding(0, 0, 0, 12) };
     private readonly TextBox _wledIp = new() { Width = 220 };
     private readonly NumericUpDown _wledPort = Number(1, 65535);
     private readonly NumericUpDown _ledCount = Number(1, 1000);
@@ -31,8 +33,11 @@ public sealed class ConnectionTabPanel : UserControl
             Dock = DockStyle.Fill,
             AutoScroll = true,
             FlowDirection = FlowDirection.TopDown,
-            WrapContents = false
+            WrapContents = false,
+            BackColor = Color.Transparent
         };
+        flow.Controls.Add(BuildIntro());
+        flow.Controls.Add(_empty);
         flow.Controls.Add(UiTheme.CreateSectionLabel("WLED controller"));
         flow.Controls.Add(Field("Controller IP", _wledIp));
         flow.Controls.Add(Field("UDP port", _wledPort));
@@ -52,7 +57,18 @@ public sealed class ConnectionTabPanel : UserControl
         flow.Controls.Add(_startProxy);
         flow.Controls.Add(_startMinimized);
         Controls.Add(flow);
+
+        _wledIp.TextChanged += (_, _) => RefreshEmptyState();
+        _autoWatch.CheckedChanged += (_, _) => RefreshEmptyState();
+        UiTheme.StyleCheckBox(_invert);
+        UiTheme.StyleCheckBox(_autoWatch);
+        UiTheme.StyleCheckBox(_startProxy);
+        UiTheme.StyleCheckBox(_startMinimized);
+        RefreshEmptyState();
     }
+
+    protected override void OnPaintBackground(PaintEventArgs e) =>
+        UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
 
     public void LoadConfig(AppConfig config)
     {
@@ -70,6 +86,7 @@ public sealed class ConnectionTabPanel : UserControl
         _autoWatch.Checked = config.R50Watch.AutoWatchEnabled;
         _startProxy.Checked = config.Ui.StartProxyOnLaunch;
         _startMinimized.Checked = config.Ui.StartMinimizedToTray;
+        RefreshEmptyState();
     }
 
     public void ApplyTo(AppConfig config)
@@ -90,18 +107,77 @@ public sealed class ConnectionTabPanel : UserControl
         config.Ui.StartMinimizedToTray = _startMinimized.Checked;
     }
 
+    private void RefreshEmptyState()
+    {
+        var ip = _wledIp.Text.Trim();
+        var missingWled = string.IsNullOrWhiteSpace(ip) || ip is "0.0.0.0";
+        if (missingWled)
+        {
+            _empty.ShowMessage(ProductCopy.NoWledTitle, ProductCopy.NoWledBody);
+            return;
+        }
+
+        if (!_autoWatch.Checked)
+        {
+            _empty.ShowMessage(ProductCopy.WaitingR50Title, ProductCopy.WaitingR50Body, waitingAccent: true);
+            return;
+        }
+
+        _empty.HideMessage();
+    }
+
+    private static Control BuildIntro()
+    {
+        var panel = new Panel
+        {
+            Width = 640,
+            Height = 64,
+            Margin = new Padding(0, 0, 0, 8),
+            BackColor = Color.Transparent
+        };
+        panel.Paint += (_, e) =>
+        {
+            using var titleFont = UiTheme.HeadingFont(16f, FontStyle.Bold);
+            using var bodyFont = UiTheme.BodyFont(9.5f);
+            TextRenderer.DrawText(
+                e.Graphics,
+                ProductCopy.ConnectionIntroTitle,
+                titleFont,
+                new Rectangle(0, 0, panel.Width, 28),
+                UiTheme.Text,
+                TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(
+                e.Graphics,
+                ProductCopy.ConnectionIntroBody,
+                bodyFont,
+                new Rectangle(0, 30, panel.Width, 32),
+                UiTheme.Muted,
+                TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+        };
+        return panel;
+    }
+
     private static Control Field(string label, Control input)
     {
         UiTheme.StyleInput(input);
-        var row = new TableLayoutPanel { Width = 520, Height = 42, ColumnCount = 2 };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 230));
+        input.MinimumSize = new Size(0, UiTheme.TouchMin - 4);
+        var row = new TableLayoutPanel
+        {
+            Width = 560,
+            Height = UiTheme.TouchMin + 4,
+            ColumnCount = 2,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0, 0, 0, 6)
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
         row.Controls.Add(new Label
         {
             Text = label,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
-            ForeColor = UiTheme.Text
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent
         }, 0, 0);
         row.Controls.Add(input, 1, 0);
         input.Anchor = AnchorStyles.Left;
@@ -112,9 +188,12 @@ public sealed class ConnectionTabPanel : UserControl
     {
         Text = text,
         AutoSize = false,
-        Width = 520,
-        Height = 38,
-        ForeColor = UiTheme.Text
+        Width = 560,
+        Height = UiTheme.TouchMin,
+        ForeColor = UiTheme.Text,
+        FlatStyle = FlatStyle.Flat,
+        Cursor = Cursors.Hand,
+        Margin = new Padding(0, 2, 0, 2)
     };
 
     private static NumericUpDown Number(
@@ -127,6 +206,7 @@ public sealed class ConnectionTabPanel : UserControl
         Maximum = maximum,
         DecimalPlaces = decimals,
         Increment = increment,
-        Width = 150
+        Width = 160,
+        Height = UiTheme.TouchMin - 4
     };
 }

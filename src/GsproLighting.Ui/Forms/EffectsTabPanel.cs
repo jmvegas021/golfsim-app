@@ -4,11 +4,15 @@ using GsproLighting.Ui.Theme;
 
 namespace GsproLighting.Ui.Forms;
 
+/// <summary>
+/// Live bay status + runtime actions. Lighting colors are product-authored (read-only legend).
+/// </summary>
 public sealed class EffectsTabPanel : UserControl
 {
+    private readonly EffectConfig _productSlots = new();
     private readonly LedStripPreview _stripPreview = new();
-    private readonly Label _readyChip = CreateChip(112);
-    private readonly Label _serviceChip = CreateChip(126);
+    private readonly StatusChip _readyChip = new() { Width = 118, Height = 32 };
+    private readonly StatusChip _serviceChip = new() { Width = 132, Height = 32 };
     private readonly Label _watchSummary = new()
     {
         AutoEllipsis = true,
@@ -16,67 +20,47 @@ public sealed class EffectsTabPanel : UserControl
         TextAlign = ContentAlignment.MiddleLeft,
         Dock = DockStyle.Fill
     };
-    private readonly Button _save = new() { Text = "Save settings", Width = 122 };
-    private readonly Button _test = new() { Text = "Test lights", Width = 106 };
-    private readonly Button _idle = new() { Text = "Idle glow", Width = 96 };
-    private readonly Button _proxy = new() { Text = "Start proxy", Width = 112 };
-    private readonly FlowLayoutPanel _cards;
-    private readonly EffectSlotCard _idleCard = new("Idle / ready", "Ready-state bay glow");
-    private readonly EffectSlotCard _notReadyCard = new("Not ready", "Waiting for the next ball");
-    private readonly EffectSlotCard _pureCard = new("Pure", "Centered, efficient strike");
-    private readonly EffectSlotCard _mishitCard = new("Mishit", "Low-efficiency strike");
-    private readonly EffectSlotCard _puttCard = new("Putt", "Low-speed shot");
-    private readonly EffectSlotCard _celebrateCard = new("Celebrate", "Course outcome", supportsWledPreset: true);
-    private readonly EffectSlotCard _hazardCard = new("Hazard", "Penalty outcome", supportsWledPreset: true);
-    private readonly EffectSlotCard _playerCard = new("Player", "Player and club event");
+    private readonly NightButton _save = new() { Text = "Save settings", Width = 140, IsPrimary = true };
+    private readonly NightButton _test = new() { Text = "Test lights", Width = 118 };
+    private readonly NightButton _idle = new() { Text = "Idle glow", Width = 110 };
+    private readonly NightButton _proxy = new() { Text = "Start proxy", Width = 124 };
+    private readonly EffectStateLegend _legend = new();
+    private string _lastReadyText = string.Empty;
+    private bool _stripOwnedByAction;
 
     public EffectsTabPanel()
     {
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
         Padding = new Padding(18, 12, 18, 14);
-        UiTheme.StyleButton(_save, primary: true);
-        UiTheme.StyleButton(_test);
-        UiTheme.StyleButton(_idle);
-        UiTheme.StyleButton(_proxy);
-
-        _cards = BuildCards();
         Controls.Add(BuildRootLayout());
         WireEvents();
-        _cards.ClientSizeChanged += (_, _) => ResizeCards();
+        SyncStripToReadyState("WAITING");
     }
 
     public event EventHandler? SaveRequested;
     public event EventHandler? TestRequested;
     public event EventHandler? IdleRequested;
     public event EventHandler? ProxyToggleRequested;
-    public event EventHandler<EffectSlotPreviewEventArgs>? PreviewRequested;
 
-    public EffectSlot IdleSlot => _idleCard.SelectedSlot;
-    public EffectSlot PureSlot => _pureCard.SelectedSlot;
+    /// <summary>Kept for SettingsForm wiring; Effects no longer raises per-slot previews.</summary>
+#pragma warning disable CS0067 // Retained for SettingsForm API compatibility.
+    public event EventHandler<EffectSlotPreviewEventArgs>? PreviewRequested;
+#pragma warning restore CS0067
+
+    public EffectSlot IdleSlot => _productSlots.Idle.Clone();
+    public EffectSlot PureSlot => _productSlots.PureStrike.Clone();
 
     public void LoadConfig(EffectConfig config)
     {
-        _idleCard.SelectedSlot = config.Idle;
-        _notReadyCard.SelectedSlot = config.NotReady;
-        _pureCard.SelectedSlot = config.PureStrike;
-        _mishitCard.SelectedSlot = config.Mishit;
-        _puttCard.SelectedSlot = config.Putt;
-        _celebrateCard.SelectedSlot = config.Celebrate;
-        _hazardCard.SelectedSlot = config.Hazard;
-        _playerCard.SelectedSlot = config.Player;
+        // Lighting slots are product-authored; thresholds live on Connection.
+        ArgumentNullException.ThrowIfNull(config);
     }
 
     public void ApplyTo(EffectConfig config)
     {
-        config.Idle = _idleCard.SelectedSlot;
-        config.NotReady = _notReadyCard.SelectedSlot;
-        config.PureStrike = _pureCard.SelectedSlot;
-        config.Mishit = _mishitCard.SelectedSlot;
-        config.Putt = _puttCard.SelectedSlot;
-        config.Celebrate = _celebrateCard.SelectedSlot;
-        config.Hazard = _hazardCard.SelectedSlot;
-        config.Player = _playerCard.SelectedSlot;
+        ArgumentNullException.ThrowIfNull(config);
+        config.ResetLightingSlotsToProductDefaults();
     }
 
     public void UpdateStatus(
@@ -87,28 +71,31 @@ public sealed class EffectsTabPanel : UserControl
         string summary,
         bool proxyRunning)
     {
-        StyleChip(_readyChip, readyText, readyColor);
-        StyleChip(_serviceChip, serviceText, serviceColor);
+        _readyChip.SetStatus(readyText, readyColor);
+        _serviceChip.SetStatus(serviceText, serviceColor);
         _watchSummary.Text = summary;
         _watchSummary.ForeColor = UiTheme.Muted;
         _proxy.Text = proxyRunning ? "Stop proxy" : "Start proxy";
+
+        if (!_stripOwnedByAction &&
+            !string.Equals(readyText, _lastReadyText, StringComparison.Ordinal))
+        {
+            _lastReadyText = readyText;
+            SyncStripToReadyState(readyText);
+        }
     }
 
     public void ShowActionStatus(string message, bool isError = false)
     {
         _watchSummary.Text = message;
         _watchSummary.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
+        if (message.EndsWith("sent.", StringComparison.Ordinal) ||
+            message.Contains("WLED error", StringComparison.Ordinal))
+            _stripOwnedByAction = false;
     }
 
-    protected override void OnHandleCreated(EventArgs e)
-    {
-        base.OnHandleCreated(e);
-        BeginInvoke(() =>
-        {
-            PerformLayout();
-            ResizeCards();
-        });
-    }
+    protected override void OnPaintBackground(PaintEventArgs e) =>
+        UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
 
     private Control BuildRootLayout()
     {
@@ -117,7 +104,7 @@ public sealed class EffectsTabPanel : UserControl
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 6,
-            BackColor = UiTheme.Background
+            BackColor = Color.Transparent
         };
         for (var row = 0; row < 5; row++)
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -126,8 +113,8 @@ public sealed class EffectsTabPanel : UserControl
         root.Controls.Add(BuildStatus(), 0, 1);
         root.Controls.Add(_stripPreview, 0, 2);
         root.Controls.Add(BuildRuntimeActions(), 0, 3);
-        root.Controls.Add(BuildCardsHeading(), 0, 4);
-        root.Controls.Add(_cards, 0, 5);
+        root.Controls.Add(BuildLegendHeading(), 0, 4);
+        root.Controls.Add(_legend, 0, 5);
         return root;
     }
 
@@ -138,17 +125,19 @@ public sealed class EffectsTabPanel : UserControl
             Dock = DockStyle.Top,
             Height = 58,
             ColumnCount = 2,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            BackColor = Color.Transparent
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 134));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
         heading.Controls.Add(new Label
         {
-            Text = "Lighting effects\nChoose a color and animation for each simulator event.",
+            Text = "Bay lighting\nLive status and runtime controls. Colors are product-authored.",
             Dock = DockStyle.Fill,
             ForeColor = UiTheme.Text,
-            Font = UiTheme.BodyFont(11f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
+            Font = UiTheme.HeadingFont(14f, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            BackColor = Color.Transparent
         }, 0, 0);
         heading.Controls.Add(_save, 1, 0);
         _save.Anchor = AnchorStyles.Right;
@@ -160,12 +149,13 @@ public sealed class EffectsTabPanel : UserControl
         var status = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 42,
+            Height = 44,
             ColumnCount = 3,
-            Margin = new Padding(0, 0, 0, 8)
+            Margin = new Padding(0, 0, 0, 10),
+            BackColor = Color.Transparent
         };
-        status.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        status.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 134));
+        status.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 126));
+        status.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
         status.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         status.Controls.Add(_readyChip, 0, 0);
         status.Controls.Add(_serviceChip, 1, 0);
@@ -178,9 +168,10 @@ public sealed class EffectsTabPanel : UserControl
         var row = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 52,
+            Height = 56,
             ColumnCount = 2,
-            Margin = new Padding(0, 8, 0, 0)
+            Margin = new Padding(0, 10, 0, 0),
+            BackColor = Color.Transparent
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -188,109 +179,87 @@ public sealed class EffectsTabPanel : UserControl
         {
             Text = "RUNTIME",
             Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Muted,
+            ForeColor = UiTheme.Accent,
             Font = UiTheme.BodyFont(8.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
+            TextAlign = ContentAlignment.MiddleLeft,
+            BackColor = Color.Transparent
         }, 0, 0);
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false
+            WrapContents = false,
+            BackColor = Color.Transparent
         };
         actions.Controls.AddRange([_test, _idle, _proxy]);
         row.Controls.Add(actions, 1, 0);
         return row;
     }
 
-    private static Control BuildCardsHeading()
+    private static Control BuildLegendHeading()
     {
         var row = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             Height = 36,
             ColumnCount = 2,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            BackColor = Color.Transparent
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
         row.Controls.Add(new Label
         {
-            Text = "EVENT EFFECTS",
+            Text = "STATE LEGEND",
             Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Text,
-            Font = UiTheme.BodyFont(9f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
+            ForeColor = UiTheme.Accent,
+            Font = UiTheme.BodyFont(8.5f, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            BackColor = Color.Transparent
         }, 0, 0);
         row.Controls.Add(new Label
         {
-            Text = "Scroll for more effects ↓",
+            Text = "Authored defaults · not editable",
             Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Accent,
-            TextAlign = ContentAlignment.MiddleRight
+            ForeColor = UiTheme.Muted,
+            TextAlign = ContentAlignment.MiddleRight,
+            BackColor = Color.Transparent
         }, 1, 0);
         return row;
-    }
-
-    private FlowLayoutPanel BuildCards()
-    {
-        var cards = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            BackColor = UiTheme.Background,
-            Margin = new Padding(0)
-        };
-        cards.Controls.AddRange([
-            _idleCard, _notReadyCard, _pureCard, _mishitCard,
-            _puttCard, _celebrateCard, _hazardCard, _playerCard
-        ]);
-        return cards;
     }
 
     private void WireEvents()
     {
         _save.Click += (_, _) => SaveRequested?.Invoke(this, EventArgs.Empty);
-        _test.Click += (_, _) => TestRequested?.Invoke(this, EventArgs.Empty);
-        _idle.Click += (_, _) => IdleRequested?.Invoke(this, EventArgs.Empty);
+        _test.Click += (_, _) =>
+        {
+            _stripOwnedByAction = true;
+            _stripPreview.Play(PureSlot);
+            TestRequested?.Invoke(this, EventArgs.Empty);
+        };
+        _idle.Click += (_, _) =>
+        {
+            _stripOwnedByAction = true;
+            _stripPreview.Play(IdleSlot, holdAfter: true);
+            IdleRequested?.Invoke(this, EventArgs.Empty);
+        };
         _proxy.Click += (_, _) => ProxyToggleRequested?.Invoke(this, EventArgs.Empty);
-        foreach (var card in _cards.Controls.OfType<EffectSlotCard>())
-            card.PreviewRequested += OnCardPreviewRequested;
     }
 
-    private void OnCardPreviewRequested(object? sender, EventArgs _)
+    private void SyncStripToReadyState(string readyText)
     {
-        if (sender is not EffectSlotCard card)
-            return;
-        var slot = card.SelectedSlot;
-        _stripPreview.Play(slot);
-        PreviewRequested?.Invoke(this, new EffectSlotPreviewEventArgs(slot));
-    }
-
-    private void ResizeCards()
-    {
-        var width = Math.Max(1, _cards.ClientSize.Width - 2);
-        foreach (Control card in _cards.Controls)
-            card.Width = width;
-    }
-
-    private static Label CreateChip(int width) => new()
-    {
-        AutoSize = false,
-        Width = width,
-        Height = 32,
-        Margin = new Padding(0, 4, 8, 4),
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = UiTheme.BodyFont(8.5f, FontStyle.Bold)
-    };
-
-    private static void StyleChip(Label chip, string text, Color color)
-    {
-        chip.Text = text;
-        chip.BackColor = color;
-        chip.ForeColor = UiTheme.Background;
+        switch (readyText.ToUpperInvariant())
+        {
+            case "READY":
+                _stripPreview.HoldSolid(_productSlots.Idle.Color, intensity: 0.9, status: "Live · ready / idle");
+                break;
+            case "NOT READY":
+                _stripPreview.HoldSolid(_productSlots.NotReady.Color, intensity: 0.33, status: "Live · not ready (dim)");
+                break;
+            default:
+                _stripPreview.HoldSolid(_productSlots.Waiting.Color, intensity: 0.4, status: "Live · waiting");
+                break;
+        }
     }
 }
 

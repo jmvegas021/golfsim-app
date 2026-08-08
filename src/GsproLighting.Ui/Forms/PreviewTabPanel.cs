@@ -1,0 +1,379 @@
+using GsproLighting.Core.Config;
+using GsproLighting.Core.Preview;
+using GsproLighting.Ui.Controls;
+using GsproLighting.Ui.Preview;
+using GsproLighting.Ui.Theme;
+using GsproLighting.Wled;
+using GsproLighting.Wled.Animations;
+
+namespace GsproLighting.Ui.Forms;
+
+/// <summary>
+/// Preview tab — test each lighting state with hold-after-animation. Never saves config.
+/// Stop returns to held ready/idle green.
+/// </summary>
+public sealed class PreviewTabPanel : UserControl
+{
+    private readonly Func<EffectConfig> _resolveEffects;
+    private readonly Func<WledConfig> _resolveWled;
+    private readonly LedStripPreview _strip = new();
+    private readonly LightingPreviewCatalog _catalog = new();
+    private readonly PreviewPlaybackCoordinator _coordinator;
+    private readonly FlowLayoutPanel _cards = new();
+    private readonly Label _stateLabel = new();
+    private readonly NightComboBox _direction = new();
+    private readonly NightButton _stop = new() { Text = "Stop / hold idle", Width = 150 };
+    private readonly NightButton _playAll = new() { Text = "Play all", Width = 120, IsPrimary = true };
+    private readonly NightButton _skip = new() { Text = "Skip", Width = 88 };
+    private readonly List<PreviewStateCard> _stateCards = [];
+    private int _statusGeneration;
+    private CancellationTokenSource? _previewCts;
+    private bool _playAllActive;
+
+    public PreviewTabPanel(
+        Func<EffectConfig> resolveEffects,
+        Func<WledConfig> resolveWled,
+        WledPreviewPlayer player)
+    {
+        _resolveEffects = resolveEffects;
+        _resolveWled = resolveWled;
+        _coordinator = new PreviewPlaybackCoordinator(player, _strip);
+
+        Dock = DockStyle.Fill;
+        BackColor = UiTheme.Background;
+        Padding = new Padding(18, 12, 18, 14);
+        Font = UiTheme.BodyFont();
+
+        ConfigureChrome();
+        Controls.Add(BuildRoot());
+        ReloadCards();
+        _cards.ClientSizeChanged += (_, _) => ResizeCards();
+        _stop.Click += async (_, _) => await StopAsync();
+        _playAll.Click += async (_, _) => await PlayAllAsync();
+        _skip.Click += (_, _) => _coordinator.SkipCurrent();
+        UpdateToolbarEnabled();
+    }
+
+    public void RefreshFromEffects() => ReloadCards();
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        BeginInvoke(() =>
+        {
+            PerformLayout();
+            ResizeCards();
+        });
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e) =>
+        UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
+
+    private void ConfigureChrome()
+    {
+        _strip.Height = 108;
+        _direction.Items.AddRange(["Center", "Left", "Right"]);
+        _direction.SelectedIndex = 0;
+        _direction.Width = 120;
+        _direction.AccessibleName = "Shot direction for Pure and Mishit";
+
+        _stateLabel.Dock = DockStyle.Fill;
+        _stateLabel.ForeColor = UiTheme.Muted;
+        _stateLabel.Font = UiTheme.BodyFont(9.5f);
+        _stateLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _stateLabel.Text = "Select a state · colors hold after animation · Stop holds ready green";
+        _skip.Enabled = false;
+    }
+
+    private Control BuildRoot()
+    {
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5,
+            BackColor = Color.Transparent
+        };
+        for (var i = 0; i < 4; i++)
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        root.Controls.Add(BuildHeading(), 0, 0);
+        root.Controls.Add(_strip, 0, 1);
+        root.Controls.Add(BuildToolbar(), 0, 2);
+        root.Controls.Add(BuildStatesHeading(), 0, 3);
+
+        _cards.Dock = DockStyle.Fill;
+        _cards.AutoScroll = true;
+        _cards.FlowDirection = FlowDirection.TopDown;
+        _cards.WrapContents = false;
+        _cards.BackColor = Color.Transparent;
+        _cards.Margin = new Padding(0, 4, 0, 0);
+        root.Controls.Add(_cards, 0, 4);
+        return root;
+    }
+
+    private Control BuildHeading()
+    {
+        var heading = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 56,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        heading.Controls.Add(new Label
+        {
+            Text = "Preview lighting states",
+            Dock = DockStyle.Fill,
+            ForeColor = UiTheme.Text,
+            Font = UiTheme.HeadingFont(16f, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 0);
+        heading.Controls.Add(new Label
+        {
+            Text = "Test each bay reaction. Playback holds the end color until you pick another state or Stop.",
+            Dock = DockStyle.Fill,
+            ForeColor = UiTheme.Muted,
+            Font = UiTheme.BodyFont(9f),
+            TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 1);
+        return heading;
+    }
+
+    private Control BuildToolbar()
+    {
+        var row = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 56,
+            ColumnCount = 5,
+            Margin = new Padding(0, 10, 0, 4)
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        var dirField = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+        dirField.RowStyles.Add(new RowStyle(SizeType.Absolute, 16));
+        dirField.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        dirField.Controls.Add(new Label
+        {
+            Text = "DIRECTION",
+            Dock = DockStyle.Fill,
+            ForeColor = UiTheme.Accent,
+            Font = UiTheme.BodyFont(7.5f, FontStyle.Bold)
+        }, 0, 0);
+        dirField.Controls.Add(_direction, 0, 1);
+
+        row.Controls.Add(dirField, 0, 0);
+        row.Controls.Add(_stop, 1, 0);
+        row.Controls.Add(_playAll, 2, 0);
+        row.Controls.Add(_skip, 3, 0);
+        row.Controls.Add(_stateLabel, 4, 0);
+        _stop.Anchor = AnchorStyles.Left;
+        _playAll.Anchor = AnchorStyles.Left;
+        _skip.Anchor = AnchorStyles.Left;
+        return row;
+    }
+
+    private static Control BuildStatesHeading() =>
+        new Label
+        {
+            Text = "STATES",
+            Dock = DockStyle.Top,
+            Height = 28,
+            ForeColor = UiTheme.Accent,
+            Font = UiTheme.BodyFont(8.5f, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+
+    private void ReloadCards()
+    {
+        foreach (var card in _stateCards)
+            card.Selected -= OnCardSelected;
+        _cards.Controls.Clear();
+        _stateCards.Clear();
+
+        foreach (var item in _catalog.Create(_resolveEffects()))
+        {
+            var card = new PreviewStateCard(item) { Width = Math.Max(280, _cards.ClientSize.Width - 2) };
+            card.Selected += OnCardSelected;
+            _stateCards.Add(card);
+            _cards.Controls.Add(card);
+        }
+    }
+
+    private async void OnCardSelected(object? sender, EventArgs _)
+    {
+        if (sender is not PreviewStateCard card)
+            return;
+
+        var generation = BeginStatusGeneration();
+        CancelActivePreviewToken();
+        _previewCts = new CancellationTokenSource();
+        var token = _previewCts.Token;
+
+        SelectOnly(card);
+        _playAllActive = false;
+        UpdateToolbarEnabled();
+        SetState($"Previewing {card.Item.Title}…", generation);
+
+        try
+        {
+            await _coordinator.PreviewAsync(
+                card.Item,
+                _resolveEffects(),
+                _resolveWled(),
+                SelectedDirection(),
+                token,
+                onHoldStarted: () => SetState($"Holding {card.Item.Title}", generation));
+            SetState($"Holding {card.Item.Title}", generation);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by another card, Play all, or Stop — generation guards status.
+        }
+        catch (Exception ex)
+        {
+            SetState($"On-screen holding · WLED: {ex.Message}", generation, isError: true);
+        }
+        finally
+        {
+            UpdateToolbarEnabled();
+        }
+    }
+
+    private async Task PlayAllAsync()
+    {
+        var generation = BeginStatusGeneration();
+        CancelActivePreviewToken();
+        _previewCts = new CancellationTokenSource();
+        var token = _previewCts.Token;
+        _playAllActive = true;
+        UpdateToolbarEnabled();
+
+        var progress = new Progress<PreviewSequenceProgress>(report =>
+        {
+            if (!report.IsComplete)
+                SelectByTitle(report.StateTitle);
+            SetState(report.FormatLabel(), generation);
+        });
+
+        try
+        {
+            await _coordinator.PlayAllAsync(
+                _resolveEffects(),
+                _resolveWled(),
+                SelectedDirection(),
+                progress,
+                token);
+            SetState("Play all complete · last state holding", generation);
+        }
+        catch (OperationCanceledException)
+        {
+            SetState("Play all stopped", generation);
+        }
+        catch (Exception ex)
+        {
+            SetState($"Play all · WLED: {ex.Message}", generation, isError: true);
+        }
+        finally
+        {
+            _playAllActive = false;
+            UpdateToolbarEnabled();
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        var generation = BeginStatusGeneration();
+        CancelActivePreviewToken();
+        _coordinator.CancelSequence();
+        _playAllActive = false;
+        UpdateToolbarEnabled();
+        SetState("Stopping…", generation);
+
+        try
+        {
+            await _coordinator.StopAsync(_resolveEffects(), _resolveWled());
+            foreach (var card in _stateCards)
+                card.IsSelected = false;
+            SetState("Stopped · holding ready / idle green", generation);
+        }
+        catch (Exception ex)
+        {
+            SetState($"Stop failed: {ex.Message}", generation, isError: true);
+        }
+        finally
+        {
+            UpdateToolbarEnabled();
+        }
+    }
+
+    private int BeginStatusGeneration() => Interlocked.Increment(ref _statusGeneration);
+
+    private void CancelActivePreviewToken()
+    {
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
+        _previewCts = null;
+        _coordinator.CancelSequence();
+        // Player cancel happens inside PreviewAsync/Stop via BeginPreview supersede.
+    }
+
+    private void SelectOnly(PreviewStateCard card)
+    {
+        foreach (var other in _stateCards)
+            other.IsSelected = ReferenceEquals(other, card);
+    }
+
+    private void SelectByTitle(string title)
+    {
+        foreach (var card in _stateCards)
+            card.IsSelected = string.Equals(card.Item.Title, title, StringComparison.Ordinal);
+    }
+
+    private void UpdateToolbarEnabled()
+    {
+        _playAll.Enabled = !_playAllActive;
+        _skip.Enabled = _playAllActive || _coordinator.IsPlayAllRunning;
+        _stop.Enabled = true;
+    }
+
+    private AnimationDirection SelectedDirection() =>
+        _direction.SelectedItem?.ToString() switch
+        {
+            "Left" => AnimationDirection.Left,
+            "Right" => AnimationDirection.Right,
+            _ => AnimationDirection.Center
+        };
+
+    private void SetState(string message, int generation, bool isError = false)
+    {
+        if (generation != Volatile.Read(ref _statusGeneration))
+            return;
+
+        if (IsHandleCreated && InvokeRequired)
+        {
+            BeginInvoke(() => SetState(message, generation, isError));
+            return;
+        }
+
+        _stateLabel.Text = message;
+        _stateLabel.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
+    }
+
+    private void ResizeCards()
+    {
+        var width = Math.Max(1, _cards.ClientSize.Width - 2);
+        foreach (Control card in _cards.Controls)
+            card.Width = width;
+    }
+}

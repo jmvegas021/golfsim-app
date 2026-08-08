@@ -27,4 +27,12 @@ public sealed class EffectSlot
         Animation = EffectAnimations.Solid,
         WledFxId = fxId
     };
+
+    public EffectSlot Clone() => new()
+    {
+        Color = RgbColor.FromRgb(Color.R, Color.G, Color.B),
+        Mode = Mode,
+        Animation = Animation,
+        WledFxId = WledFxId
+    };
 }
