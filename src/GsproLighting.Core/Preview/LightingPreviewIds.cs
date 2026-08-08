@@ -11,6 +11,7 @@ public static class LightingPreviewIds
     public const string Putt = "putt";
     public const string Player = "player";
     public const string Celebrate = "celebrate";
+    public const string Hazard = "hazard";
     public const string Water = "water";
     public const string OutOfBounds = "ob";
     public const string TestSweep = "test-sweep";

@@ -20,6 +20,7 @@ public sealed class LightingPreviewCatalogTests
         Assert.Contains(LightingPreviewIds.Putt, ids);
         Assert.Contains(LightingPreviewIds.Player, ids);
         Assert.Contains(LightingPreviewIds.Celebrate, ids);
+        Assert.Contains(LightingPreviewIds.Hazard, ids);
         Assert.Contains(LightingPreviewIds.Water, ids);
         Assert.Contains(LightingPreviewIds.OutOfBounds, ids);
         Assert.Contains(LightingPreviewIds.TestSweep, ids);

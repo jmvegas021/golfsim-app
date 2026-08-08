@@ -63,6 +63,11 @@ public sealed class LightingPreviewCatalog
                 "Gold fireworks (WLED preset) with on-screen sparkle approx",
                 effects.Celebrate),
             Item(
+                LightingPreviewIds.Hazard,
+                "Hazard",
+                "Red sparkle (WLED preset)",
+                effects.Hazard),
+            Item(
                 LightingPreviewIds.Water,
                 "Water hazard",
                 "Teal flash, then hold",
