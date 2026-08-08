@@ -8,7 +8,7 @@ namespace GsproLighting.Wled;
 /// <summary>
 /// WLED realtime UDP using DRGB (protocol 2) — solid fills and full-strip frames.
 /// </summary>
-public sealed class WarlsWledOutput : IWledOutput
+public sealed class DrgbWledOutput : IWledOutput
 {
     private readonly object _gate = new();
     private UdpClient? _udp;

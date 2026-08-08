@@ -20,7 +20,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     private readonly ConfigStore _store;
     private readonly ShotFeedBuffer _feed = new();
     private readonly BallReadyStateResolver _readyStateResolver = new();
-    private readonly WarlsWledOutput _wled = new();
+    private readonly DrgbWledOutput _wled = new();
     private readonly WledShotEffectSink _effectSink;
     private readonly CompositeShotEventSink _shotSink;
     private readonly object _proxyGate = new();
