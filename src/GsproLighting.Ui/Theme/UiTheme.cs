@@ -22,12 +22,16 @@ public static class UiTheme
     public static readonly Color FocusRing = Color.FromArgb(212, 160, 23);
 
     public const int TouchMin = 44;
+    /// <summary>Comfortable control height so Bahnschrift/bold button text never clips.</summary>
+    public const int TouchComfort = 48;
     public const int TransitionMs = 180;
     public const int SpacingXs = 4;
     public const int SpacingSm = 8;
     public const int SpacingMd = 12;
     public const int SpacingLg = 16;
     public const int SpacingXl = 24;
+    public const int SectionTitleRow = 40;
+    public const int SectionHelpRow = 28;
 
     public static Font HeadingFont(float size = 18f, FontStyle style = FontStyle.Bold) =>
         CreateFont(["Bahnschrift SemiBold Condensed", "Bahnschrift", "Segoe UI Variable Display", "Segoe UI"], size, style);
@@ -55,13 +59,13 @@ public static class UiTheme
         button.FlatAppearance.MouseDownBackColor = primary ? AccentPressed : Console;
         button.BackColor = primary ? Accent : Panel;
         button.ForeColor = primary ? Background : Text;
-        button.MinimumSize = new Size(96, TouchMin);
-        button.Height = Math.Max(button.Height, TouchMin);
+        button.MinimumSize = new Size(96, TouchComfort);
+        button.Height = Math.Max(button.Height, TouchComfort);
         button.Cursor = Cursors.Hand;
         button.UseVisualStyleBackColor = false;
         button.TabStop = true;
         button.Font = BodyFont(9.5f, FontStyle.Bold);
-        button.Padding = new Padding(12, 0, 12, 0);
+        button.Padding = new Padding(14, 8, 14, 8);
     }
 
     public static void StyleInput(Control control)
@@ -113,9 +117,24 @@ public static class UiTheme
     {
         Text = text.ToUpperInvariant(),
         AutoSize = true,
+        MinimumSize = new Size(120, SectionTitleRow),
         ForeColor = Accent,
         Font = BodyFont(8.5f, FontStyle.Bold),
-        Margin = new Padding(0, SpacingXl - 4, 0, SpacingSm),
+        TextAlign = ContentAlignment.MiddleLeft,
+        Padding = new Padding(0, 10, 0, 6),
+        Margin = new Padding(0, SpacingMd, 0, SpacingXs),
+        BackColor = Color.Transparent
+    };
+
+    public static Label CreateHelpLabel(string text, int maxWidth = 860) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        MaximumSize = new Size(maxWidth, 0),
+        ForeColor = Muted,
+        Font = BodyFont(9f),
+        Margin = new Padding(0, 0, 0, SpacingMd),
+        Padding = new Padding(0, 2, 0, 2),
         BackColor = Color.Transparent
     };
 

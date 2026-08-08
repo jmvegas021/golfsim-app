@@ -123,24 +123,22 @@ public sealed class EffectsTabPanel : UserControl
         var heading = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 58,
+            AutoSize = true,
             ColumnCount = 2,
-            Margin = new Padding(0),
+            Margin = new Padding(0, 0, 0, 8),
             BackColor = Color.Transparent
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
-        heading.Controls.Add(new Label
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        heading.Controls.Add(new TabSectionHeading
         {
-            Text = "Bay lighting\nLive status and runtime controls. Colors are product-authored.",
-            Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Text,
-            Font = UiTheme.HeadingFont(14f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            BackColor = Color.Transparent
+            Dock = DockStyle.Top,
+            Title = "Bay lighting",
+            Subtitle = "Live status and runtime controls. Colors are product-authored."
         }, 0, 0);
         heading.Controls.Add(_save, 1, 0);
-        _save.Anchor = AnchorStyles.Right;
+        _save.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+        _save.Margin = new Padding(8, 10, 0, 0);
         return heading;
     }
 
@@ -168,9 +166,9 @@ public sealed class EffectsTabPanel : UserControl
         var row = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 56,
+            Height = 64,
             ColumnCount = 2,
-            Margin = new Padding(0, 10, 0, 0),
+            Margin = new Padding(0, 12, 0, 0),
             BackColor = Color.Transparent
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
@@ -201,7 +199,7 @@ public sealed class EffectsTabPanel : UserControl
         var row = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 36,
+            Height = UiTheme.SectionTitleRow,
             ColumnCount = 2,
             Margin = new Padding(0),
             BackColor = Color.Transparent
@@ -215,6 +213,7 @@ public sealed class EffectsTabPanel : UserControl
             ForeColor = UiTheme.Accent,
             Font = UiTheme.BodyFont(8.5f, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(0, 8, 0, 4),
             BackColor = Color.Transparent
         }, 0, 0);
         row.Controls.Add(new Label

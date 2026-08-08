@@ -13,23 +13,24 @@ public sealed class WledCatalogPicker : UserControl
 
     public WledCatalogPicker()
     {
-        Height = 220;
-        MinimumSize = new Size(220, 180);
+        Height = 240;
+        MinimumSize = new Size(200, 200);
         BackColor = Color.Transparent;
 
         UiTheme.StyleInput(_filter);
-        _filter.PlaceholderText = "Filter…";
+        _filter.PlaceholderText = "Search…";
         _filter.Dock = DockStyle.Top;
-        _filter.Height = UiTheme.TouchMin - 4;
+        _filter.Height = UiTheme.TouchComfort - 4;
+        _filter.Margin = new Padding(0, 0, 0, 6);
         _filter.TextChanged += (_, _) => ApplyFilter();
 
         _list.Dock = DockStyle.Fill;
-        _list.BackColor = UiTheme.Panel;
+        _list.BackColor = UiTheme.Console;
         _list.ForeColor = UiTheme.Text;
         _list.BorderStyle = BorderStyle.FixedSingle;
         _list.IntegralHeight = false;
         _list.Font = UiTheme.BodyFont();
-        _list.ItemHeight = 28;
+        _list.ItemHeight = 30;
         _list.SelectedIndexChanged += (_, _) =>
         {
             if (!_suppressSelection)

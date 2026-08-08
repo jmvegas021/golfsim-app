@@ -92,11 +92,11 @@ public sealed class LiveFeedTabPanel : UserControl
         var toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 56,
+            Height = 64,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
+            WrapContents = true,
             BackColor = Color.Transparent,
-            Padding = new Padding(0, 4, 0, 8)
+            Padding = new Padding(0, 6, 0, 8)
         };
         var clear = MakeButton("Clear", 96);
         var open = MakeButton("Open logs folder", 160);

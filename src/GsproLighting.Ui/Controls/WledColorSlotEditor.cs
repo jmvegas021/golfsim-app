@@ -12,7 +12,7 @@ public sealed class WledColorSlotEditor : UserControl
 
     public WledColorSlotEditor()
     {
-        Height = UiTheme.TouchMin + 8;
+        Height = UiTheme.TouchComfort + 12;
         BackColor = Color.Transparent;
         var row = new FlowLayoutPanel
         {
@@ -59,9 +59,9 @@ public sealed class WledColorSlotEditor : UserControl
         public ColorSwatch(string title)
         {
             Text = title;
-            Width = 110;
-            Height = UiTheme.TouchMin;
-            Margin = new Padding(0, 0, 8, 0);
+            Width = 120;
+            Height = UiTheme.TouchComfort;
+            Margin = new Padding(0, 0, 10, 0);
             Cursor = Cursors.Hand;
             TabStop = true;
             DoubleBuffered = true;

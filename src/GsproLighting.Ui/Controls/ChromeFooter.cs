@@ -16,7 +16,7 @@ public sealed class ChromeFooter : Control
 
     public ChromeFooter()
     {
-        Height = 52;
+        Height = 64;
         Dock = DockStyle.Bottom;
         DoubleBuffered = true;
         TabStop = false;
@@ -52,27 +52,27 @@ public sealed class ChromeFooter : Control
 
         using var tipFont = UiTheme.BodyFont(8.5f);
         using var versionFont = UiTheme.BodyFont(8.5f, FontStyle.Bold);
-        var tipBounds = new Rectangle(16, 8, Math.Max(40, Width - 220), 20);
+        var tipBounds = new Rectangle(16, 10, Math.Max(40, Width - 220), 22);
         TextRenderer.DrawText(
             g,
             _tip,
             tipFont,
             tipBounds,
             UiTheme.Muted,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
+            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
-        var versionBounds = new Rectangle(16, 28, Math.Max(40, Width - 220), 18);
+        var versionBounds = new Rectangle(16, 34, Math.Max(40, Width - 220), 20);
         TextRenderer.DrawText(
             g,
             $"GSPro Lighting  v{AppVersionInfo.Current}",
             versionFont,
             versionBounds,
             UiTheme.Accent,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
+            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
     }
 
     private void LayoutAbout()
     {
-        _about.Location = new Point(Math.Max(8, Width - _about.Width - 16), 4);
+        _about.Location = new Point(Math.Max(8, Width - _about.Width - 16), (Height - _about.Height) / 2);
     }
 }

@@ -130,36 +130,14 @@ public sealed class ConnectionTabPanel : UserControl
         _empty.HideMessage();
     }
 
-    private static Control BuildIntro()
-    {
-        var panel = new Panel
+    private static Control BuildIntro() =>
+        new TabSectionHeading
         {
             Width = 640,
-            Height = 64,
-            Margin = new Padding(0, 0, 0, 8),
-            BackColor = Color.Transparent
+            Title = ProductCopy.ConnectionIntroTitle,
+            Subtitle = ProductCopy.ConnectionIntroBody,
+            Margin = new Padding(0, 0, 0, 8)
         };
-        panel.Paint += (_, e) =>
-        {
-            using var titleFont = UiTheme.HeadingFont(16f, FontStyle.Bold);
-            using var bodyFont = UiTheme.BodyFont(9.5f);
-            TextRenderer.DrawText(
-                e.Graphics,
-                ProductCopy.ConnectionIntroTitle,
-                titleFont,
-                new Rectangle(0, 0, panel.Width, 28),
-                UiTheme.Text,
-                TextFormatFlags.EndEllipsis);
-            TextRenderer.DrawText(
-                e.Graphics,
-                ProductCopy.ConnectionIntroBody,
-                bodyFont,
-                new Rectangle(0, 30, panel.Width, 32),
-                UiTheme.Muted,
-                TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
-        };
-        return panel;
-    }
 
     private static Control Field(string label, Control input)
     {

@@ -15,8 +15,10 @@ public sealed class NightButton : Button
         UseVisualStyleBackColor = false;
         Cursor = Cursors.Hand;
         TabStop = true;
-        MinimumSize = new Size(108, UiTheme.TouchMin);
-        Height = UiTheme.TouchMin;
+        MinimumSize = new Size(108, UiTheme.TouchComfort);
+        if (Height < UiTheme.TouchComfort)
+            Height = UiTheme.TouchComfort;
+        Padding = new Padding(14, 8, 14, 8);
         Font = UiTheme.BodyFont(9.5f, FontStyle.Bold);
         ForeColor = UiTheme.Text;
         BackColor = UiTheme.Panel;
@@ -29,6 +31,9 @@ public sealed class NightButton : Button
     }
 
     public bool IsPrimary { get; set; }
+
+    /// <summary>When true, long labels wrap inside the button instead of clipping.</summary>
+    public bool WrapText { get; set; }
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -76,6 +81,7 @@ public sealed class NightButton : Button
     {
         var g = e.Graphics;
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         var bounds = ClientRectangle;
         var fill = ResolveFill();
         using (var brush = new SolidBrush(fill))
@@ -89,13 +95,18 @@ public sealed class NightButton : Button
         var textColor = IsPrimary
             ? UiTheme.Background
             : (Enabled ? UiTheme.Text : UiTheme.Muted);
-        TextRenderer.DrawText(
-            g,
-            Text,
-            Font,
-            bounds,
-            textColor,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        var textBounds = new Rectangle(
+            bounds.X + Padding.Left,
+            bounds.Y + Padding.Top,
+            Math.Max(8, bounds.Width - Padding.Horizontal),
+            Math.Max(8, bounds.Height - Padding.Vertical));
+        var flags = TextFormatFlags.HorizontalCenter
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.NoPrefix
+            | TextFormatFlags.EndEllipsis;
+        if (WrapText)
+            flags |= TextFormatFlags.WordBreak;
+        TextRenderer.DrawText(g, Text, Font, textBounds, textColor, flags);
     }
 
     private Color ResolveFill()

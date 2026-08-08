@@ -41,8 +41,13 @@ public sealed class PreviewTabPanel : UserControl
 
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
-        Padding = new Padding(18, 12, 18, 14);
+        Padding = new Padding(18, 14, 18, 14);
         Font = UiTheme.BodyFont();
+
+        _stop.Width = 168;
+        _stop.WrapText = true;
+        _playAll.Width = 120;
+        _skip.Width = 96;
 
         ConfigureChrome();
         Controls.Add(BuildRoot());
@@ -113,61 +118,40 @@ public sealed class PreviewTabPanel : UserControl
         return root;
     }
 
-    private Control BuildHeading()
-    {
-        var heading = new TableLayoutPanel
+    private static Control BuildHeading() =>
+        new TabSectionHeading
         {
             Dock = DockStyle.Top,
-            Height = 56,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = new Padding(0, 0, 0, 8)
+            Title = "Preview lighting states",
+            Subtitle = "Test each bay reaction. Playback holds the end color until you pick another state or Stop."
         };
-        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        heading.Controls.Add(new Label
-        {
-            Text = "Preview lighting states",
-            Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Text,
-            Font = UiTheme.HeadingFont(16f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
-        heading.Controls.Add(new Label
-        {
-            Text = "Test each bay reaction. Playback holds the end color until you pick another state or Stop.",
-            Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Muted,
-            Font = UiTheme.BodyFont(9f),
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 1);
-        return heading;
-    }
 
     private Control BuildToolbar()
     {
         var row = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 56,
+            Height = 64,
             ColumnCount = 5,
-            Margin = new Padding(0, 10, 0, 4)
+            Margin = new Padding(0, 12, 0, 6)
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         var dirField = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-        dirField.RowStyles.Add(new RowStyle(SizeType.Absolute, 16));
+        dirField.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         dirField.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         dirField.Controls.Add(new Label
         {
             Text = "DIRECTION",
             Dock = DockStyle.Fill,
             ForeColor = UiTheme.Accent,
-            Font = UiTheme.BodyFont(7.5f, FontStyle.Bold)
+            Font = UiTheme.BodyFont(7.5f, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(0, 2, 0, 0)
         }, 0, 0);
         dirField.Controls.Add(_direction, 0, 1);
 
@@ -176,9 +160,9 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(_playAll, 2, 0);
         row.Controls.Add(_skip, 3, 0);
         row.Controls.Add(_stateLabel, 4, 0);
-        _stop.Anchor = AnchorStyles.Left;
-        _playAll.Anchor = AnchorStyles.Left;
-        _skip.Anchor = AnchorStyles.Left;
+        _stop.Dock = DockStyle.Fill;
+        _playAll.Dock = DockStyle.Fill;
+        _skip.Dock = DockStyle.Fill;
         return row;
     }
 
@@ -187,10 +171,11 @@ public sealed class PreviewTabPanel : UserControl
         {
             Text = "STATES",
             Dock = DockStyle.Top,
-            Height = 28,
+            Height = UiTheme.SectionTitleRow,
             ForeColor = UiTheme.Accent,
             Font = UiTheme.BodyFont(8.5f, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(0, 8, 0, 4),
             Margin = new Padding(0, 8, 0, 0)
         };
 

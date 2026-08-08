@@ -31,6 +31,33 @@ public static class ProductCopy
     public const string WledTabTip =
         "Refresh loads effects/palettes/state. Apply writes the editor. Sync ambient restores Ripple + Red Reef. Open full WLED for advanced setup.";
 
+    public const string WledConnectionHelp =
+        "Set the controller IP on the Connection tab, then Refresh to load live catalogs.";
+
+    public const string WledQuickActionsHelp =
+        "Sync ambient restores Ripple + Red Reef at 15% timing. Open full WLED for Wi‑Fi and advanced editors.";
+
+    public const string WledLookHelp =
+        "Pick an effect and palette from the controller lists. Filter to find names quickly.";
+
+    public const string WledMotionHelp =
+        "Speed and intensity match WLED sx / ix (0–255). Values show as percent.";
+
+    public const string WledColorsHelp =
+        "Primary, secondary, and tertiary colors for the selected segment.";
+
+    public const string WledOptionsHelp =
+        "Layered keeps golf flashes over ambient. Option 2 / 3 map to WLED o2 / o3 for the active effect.";
+
+    public const string WledBrightnessHelp =
+        "Power and brightness are global. Segment chooses which strip range Look / Motion / Colors edits apply to. Press Apply to send.";
+
+    public const string WledPresetsHelp =
+        "Apply a saved WLED preset, or advance the active playlist.";
+
+    public const string WledEmptyBeforeRefresh =
+        "Nothing loaded yet. Enter the WLED IP on Connection, then press Refresh.";
+
     public const string WledDrgbNote =
         "Shot flashes use DRGB realtime. After each event the bay returns to WLED effect ambient (HTTP apply with live:false). Wi‑Fi, security, 2D matrix editors, audio config, and firmware stay in the full WLED UI.";
 

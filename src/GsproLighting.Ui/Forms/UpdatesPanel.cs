@@ -56,25 +56,12 @@ public sealed class UpdatesPanel : UserControl
             BackColor = Color.Transparent
         };
 
-        layout.Controls.Add(new Label
+        layout.Controls.Add(new TabSectionHeading
         {
-            Text = "Updates",
-            AutoSize = true,
-            ForeColor = UiTheme.Text,
-            Font = UiTheme.HeadingFont(16f, FontStyle.Bold),
-            Margin = new Padding(0, 8, 0, 6),
-            BackColor = Color.Transparent
-        });
-        layout.Controls.Add(new Label
-        {
-            Text = ProductCopy.UpdatesIntro,
-            AutoSize = false,
             Width = 420,
-            Height = 36,
-            ForeColor = UiTheme.Muted,
-            Font = UiTheme.BodyFont(9f),
-            Margin = new Padding(0, 0, 0, 8),
-            BackColor = Color.Transparent
+            Title = "Updates",
+            Subtitle = ProductCopy.UpdatesIntro,
+            Margin = new Padding(0, 4, 0, 8)
         });
         layout.Controls.Add(_versionLabel);
         layout.Controls.Add(_modeLabel);

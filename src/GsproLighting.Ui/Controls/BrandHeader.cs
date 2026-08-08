@@ -8,7 +8,7 @@ public sealed class BrandHeader : Control
     public BrandHeader()
     {
         Dock = DockStyle.Top;
-        Height = 96;
+        Height = 118;
         DoubleBuffered = true;
         TabStop = false;
         AccessibleName = "GSPro Lighting";
@@ -30,7 +30,7 @@ public sealed class BrandHeader : Control
 
     private void DrawMark(Graphics g)
     {
-        var mark = new Rectangle(22, 22, 44, 44);
+        var mark = new Rectangle(22, 28, 44, 44);
         using var fill = new System.Drawing.Drawing2D.LinearGradientBrush(
             mark,
             UiTheme.Accent,
@@ -47,22 +47,23 @@ public sealed class BrandHeader : Control
 
     private void DrawCopy(Graphics g)
     {
-        using var titleFont = UiTheme.HeadingFont(26f, FontStyle.Bold);
+        // Bahnschrift needs generous vertical room — tight rects clip ascenders on Ally/150% DPI.
+        using var titleFont = UiTheme.HeadingFont(24f, FontStyle.Bold);
         using var subtitleFont = UiTheme.BodyFont(10f);
         TextRenderer.DrawText(
             g,
             "GSPro Lighting",
             titleFont,
-            new Rectangle(78, 16, Width - 100, 36),
+            new Rectangle(78, 22, Math.Max(40, Width - 100), 44),
             UiTheme.Text,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
+            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         TextRenderer.DrawText(
             g,
             ProductCopy.BrandSubtitle,
             subtitleFont,
-            new Rectangle(80, 54, Width - 100, 24),
+            new Rectangle(80, 68, Math.Max(40, Width - 100), 28),
             UiTheme.Muted,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
+            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
     }
 
     private void DrawStripe(Graphics g)

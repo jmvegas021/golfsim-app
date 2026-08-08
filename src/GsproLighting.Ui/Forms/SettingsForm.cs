@@ -27,7 +27,7 @@ public sealed class SettingsForm : Form
         _app = app;
         Text = "GSPro Lighting — Settings";
         AutoScaleMode = AutoScaleMode.Dpi;
-        MinimumSize = new Size(860, 720);
+        MinimumSize = new Size(820, 640);
         BackColor = UiTheme.Background;
         ForeColor = UiTheme.Text;
         Font = UiTheme.BodyFont();
