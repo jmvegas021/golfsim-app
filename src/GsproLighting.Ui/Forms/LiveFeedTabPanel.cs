@@ -47,6 +47,7 @@ public sealed class LiveFeedTabPanel : UserControl
         Padding = new Padding(1),
         BackColor = UiTheme.Border
     };
+    private readonly ToolTip _toolTip = new();
 
     public LiveFeedTabPanel(
         IShotFeed feedSource,
@@ -75,7 +76,11 @@ public sealed class LiveFeedTabPanel : UserControl
             _feed.Items.Add(entry);
         RefreshEmptyState();
         _feedSource.EntryAdded += OnFeedEntry;
-        Disposed += (_, _) => _feedSource.EntryAdded -= OnFeedEntry;
+        Disposed += (_, _) =>
+        {
+            _feedSource.EntryAdded -= OnFeedEntry;
+            _toolTip.Dispose();
+        };
     }
 
     public int ExportIncludeDays
@@ -104,6 +109,11 @@ public sealed class LiveFeedTabPanel : UserControl
         clear.Click += (_, _) => ClearFeed();
         open.Click += (_, _) => OpenLogsFolder();
         export.Click += (_, _) => ExportLogs();
+        _toolTip.SetToolTip(
+            export,
+            "Zips the raw GSPro/Connect logs for the selected day range. Turn on " +
+            "Connection → Capture full diagnostics before a round if you're gathering data " +
+            "on an event not yet wired to lighting (e.g. water hazard, OB, made putt).");
         UiTheme.StyleInput(_includeDays);
         _includeDays.MinimumSize = new Size(72, UiTheme.TouchMin - 4);
         toolbar.Controls.AddRange([

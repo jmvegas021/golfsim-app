@@ -21,6 +21,8 @@ public sealed class ConnectionTabPanel : UserControl
     private readonly CheckBox _autoWatch = Check("Auto-watch R50 / Connect logs (recommended)");
     private readonly CheckBox _startProxy = Check("Start Open Connect proxy on launch");
     private readonly CheckBox _startMinimized = Check("Start minimized to tray");
+    private readonly CheckBox _captureDiagnostics = Check("Capture full diagnostics (includes heartbeats)");
+    private readonly ToolTip _toolTip = new();
 
     public ConnectionTabPanel()
     {
@@ -56,6 +58,8 @@ public sealed class ConnectionTabPanel : UserControl
         flow.Controls.Add(_autoWatch);
         flow.Controls.Add(_startProxy);
         flow.Controls.Add(_startMinimized);
+        flow.Controls.Add(UiTheme.CreateSectionLabel("Diagnostics"));
+        flow.Controls.Add(_captureDiagnostics);
         Controls.Add(flow);
 
         _wledIp.TextChanged += (_, _) => RefreshEmptyState();
@@ -64,11 +68,26 @@ public sealed class ConnectionTabPanel : UserControl
         UiTheme.StyleCheckBox(_autoWatch);
         UiTheme.StyleCheckBox(_startProxy);
         UiTheme.StyleCheckBox(_startMinimized);
+        UiTheme.StyleCheckBox(_captureDiagnostics);
+        _toolTip.SetToolTip(
+            _captureDiagnostics,
+            "Logs every raw GSPro/Connect message (including keepalive heartbeats) to the logs " +
+            "folder. Off by default to keep log files small. Turn this on before a round you want " +
+            "to capture for future analysis (e.g. water hazard / OB / made-putt signals), then use " +
+            "Live feed → Export logs zip… afterward. Restart the Open Connect proxy for the " +
+            "change to take effect.");
         RefreshEmptyState();
     }
 
     protected override void OnPaintBackground(PaintEventArgs e) =>
         UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _toolTip.Dispose();
+        base.Dispose(disposing);
+    }
 
     public string ControllerIp => _wledIp.Text.Trim();
 
@@ -90,6 +109,7 @@ public sealed class ConnectionTabPanel : UserControl
         _autoWatch.Checked = config.R50Watch.AutoWatchEnabled;
         _startProxy.Checked = config.Ui.StartProxyOnLaunch;
         _startMinimized.Checked = config.Ui.StartMinimizedToTray;
+        _captureDiagnostics.Checked = config.Logging.LogHeartbeats;
         RefreshEmptyState();
     }
 
@@ -109,6 +129,7 @@ public sealed class ConnectionTabPanel : UserControl
         config.R50Watch.AutoWatchEnabled = _autoWatch.Checked;
         config.Ui.StartProxyOnLaunch = _startProxy.Checked;
         config.Ui.StartMinimizedToTray = _startMinimized.Checked;
+        config.Logging.LogHeartbeats = _captureDiagnostics.Checked;
     }
 
     private void RefreshEmptyState()
