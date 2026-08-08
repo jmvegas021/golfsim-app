@@ -168,6 +168,60 @@ public sealed class WledShotEffectSinkHoldTests
     }
 
     [Fact]
+    public async Task HoldWaitingAsync_KeepaliveResendsWaitingSolid_NotIdle()
+    {
+        var output = new RecordingWledOutput();
+        var keepalive = new PreviewHoldKeepalive { Interval = TimeSpan.FromMilliseconds(40) };
+        var effects = FastHoldEffects();
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            keepalive);
+
+        using var cts = new CancellationTokenSource();
+        var waitingTask = sink.HoldWaitingAsync(cts.Token);
+
+        await Task.Delay(200);
+        Assert.True(
+            output.SolidCountFor(212, 160, 23) >= 3,
+            $"Expected waiting keepalive resends, got {output.SolidCountFor(212, 160, 23)}");
+        Assert.Equal(0, output.SolidCountFor(61, 220, 132));
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await waitingTask);
+    }
+
+    [Fact]
+    public async Task OnBallReadyAsync_SupersedesWaitingHold()
+    {
+        var output = new RecordingWledOutput();
+        var keepalive = new PreviewHoldKeepalive { Interval = TimeSpan.FromMilliseconds(30) };
+        var effects = FastHoldEffects();
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            keepalive);
+
+        var waitingTask = sink.HoldWaitingAsync();
+        await Task.Delay(90);
+        var waitingCountBefore = output.SolidCountFor(212, 160, 23);
+
+        using var cts = new CancellationTokenSource();
+        var readyTask = sink.OnBallReadyAsync(new ShotPayload(), cts.Token);
+        await Task.Delay(450);
+
+        Assert.True(output.SolidCountFor(61, 220, 132) >= 1);
+        await Task.Delay(90);
+        Assert.Equal(waitingCountBefore, output.SolidCountFor(212, 160, 23));
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await readyTask);
+        await waitingTask; // superseded by ready — completes without throw
+    }
+
+    [Fact]
     public async Task OnShotAsync_HoldsShotColorThenIdleKeepalive()
     {
         var output = new RecordingWledOutput();
@@ -220,6 +274,9 @@ public sealed class WledShotEffectSinkHoldTests
             EffectAnimations.Solid);
         effects.NotReady = EffectSlot.Curated(
             RgbColor.FromRgb(229, 83, 61),
+            EffectAnimations.Solid);
+        effects.Waiting = EffectSlot.Curated(
+            RgbColor.FromRgb(212, 160, 23),
             EffectAnimations.Solid);
         return effects;
     }

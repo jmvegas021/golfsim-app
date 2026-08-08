@@ -99,6 +99,19 @@ public sealed class WledShotEffectSink : IShotEventSink
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Holds the Waiting slot — used before any Connect ready/not-ready signal has arrived
+    /// (Connect state genuinely unknown), as distinct from the Idle hold used once ready.
+    /// </summary>
+    public async Task HoldWaitingAsync(CancellationToken cancellationToken = default)
+    {
+        await RunEffectAsync(
+            isReady: null,
+            debounceReady: false,
+            token => HoldSlotAsync(_effects().Waiting, token),
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task OnBallNotReadyAsync(CancellationToken cancellationToken = default)
     {
         await RunEffectAsync(
@@ -169,18 +182,20 @@ public sealed class WledShotEffectSink : IShotEventSink
             cancellationToken);
     }
 
-    private Task HoldIdleAsync(CancellationToken cancellationToken)
-    {
-        var idle = _effects().Idle;
-        if (idle.Mode == EffectMode.WledPreset)
-            return HoldPresetAsync(idle, duration: null, cancellationToken);
+    private Task HoldIdleAsync(CancellationToken cancellationToken) =>
+        HoldSlotAsync(_effects().Idle, cancellationToken);
 
-        if (idle.Mode != EffectMode.Curated)
+    private Task HoldSlotAsync(EffectSlot slot, CancellationToken cancellationToken)
+    {
+        if (slot.Mode == EffectMode.WledPreset)
+            return HoldPresetAsync(slot, duration: null, cancellationToken);
+
+        if (slot.Mode != EffectMode.Curated)
             return Task.CompletedTask;
 
         return _keepalive.HoldSolidAsync(
             _output,
-            idle.Color,
+            slot.Color,
             _wledConfig().Brightness,
             duration: null,
             cancellationToken);

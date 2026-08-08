@@ -43,6 +43,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
             () => Config.Wled,
             logFailure: msg => _feed.AddRaw("WLED", msg));
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
+        TryHoldWaitingIfUnknown();
     }
 
     public AppConfig Config { get; private set; }
@@ -92,6 +93,8 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         if (_r50Watch is not null)
             return;
 
+        TryHoldWaitingIfUnknown();
+
         try
         {
             Directory.CreateDirectory(Config.Logging.RawLogDirectory);
@@ -125,6 +128,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
             return;
         await watch.DisposeAsync().ConfigureAwait(false);
         RaiseR50StatusChanged();
+        TryHoldWaitingIfUnknown();
     }
 
     public void StartProxy()
@@ -133,6 +137,8 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         {
             if (_proxyTask is { IsCompleted: false })
                 return;
+
+            TryHoldWaitingIfUnknown();
 
             _lastProxyError = null;
             _proxyCts = new CancellationTokenSource();
@@ -194,6 +200,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
 
         cts.Dispose();
         RaiseProxyStateChanged();
+        TryHoldWaitingIfUnknown();
     }
 
     public string BuildStatusText()
@@ -286,6 +293,19 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         {
             CrashLog.Write("R50StatusChanged", ex);
         }
+    }
+
+    /// <summary>
+    /// Forces the strip to the Waiting hold (not Idle) whenever Connect readiness is genuinely
+    /// unknown — i.e. no Ready/Not-ready signal has ever landed in the feed this session.
+    /// Fire-and-forget: <see cref="WledShotEffectSink"/> already contains WLED failures.
+    /// </summary>
+    private void TryHoldWaitingIfUnknown()
+    {
+        if (BallReadyState != BallReadyState.Unknown)
+            return;
+
+        _ = _effectSink.HoldWaitingAsync();
     }
 
     private static void NormalizePaths(AppConfig config)
