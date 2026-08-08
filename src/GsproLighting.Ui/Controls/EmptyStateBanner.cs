@@ -26,6 +26,7 @@ public sealed class EmptyStateBanner : Control
         _accentWaiting = waitingAccent;
         AccessibleName = $"{title}. {body}";
         Visible = true;
+        RecalcHeight();
         Invalidate();
     }
 
@@ -34,6 +35,29 @@ public sealed class EmptyStateBanner : Control
         Visible = false;
         _title = string.Empty;
         _body = string.Empty;
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        RecalcHeight();
+    }
+
+    private void RecalcHeight()
+    {
+        if (string.IsNullOrEmpty(_body))
+            return;
+
+        var width = Math.Max(160, Width - 28);
+        using var bodyFont = UiTheme.BodyFont(9f);
+        var measured = TextRenderer.MeasureText(
+            _body,
+            bodyFont,
+            new Size(width, int.MaxValue),
+            TextFormatFlags.WordBreak);
+        var next = Math.Max(72, 48 + measured.Height + 12);
+        if (Height != next)
+            Height = next;
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -53,7 +77,7 @@ public sealed class EmptyStateBanner : Control
         using var bodyBrush = new SolidBrush(UiTheme.Muted);
 
         var titleBounds = new Rectangle(16, 12, Width - 28, 22);
-        var bodyBounds = new Rectangle(16, 36, Width - 28, Height - 48);
+        var bodyBounds = new Rectangle(16, 36, Width - 28, Math.Max(24, Height - 48));
         TextRenderer.DrawText(g, _title, titleFont, titleBounds, titleBrush.Color, TextFormatFlags.EndEllipsis);
         TextRenderer.DrawText(
             g,
@@ -61,6 +85,6 @@ public sealed class EmptyStateBanner : Control
             bodyFont,
             bodyBounds,
             bodyBrush.Color,
-            TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            TextFormatFlags.WordBreak);
     }
 }

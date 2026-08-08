@@ -13,23 +13,13 @@ public sealed class UpdatesPanel : UserControl
     private readonly Label _versionLabel = new() { AutoSize = true, ForeColor = UiTheme.Text };
     private readonly Label _statusLabel = new()
     {
-        AutoSize = false,
-        Width = 420,
-        Height = 56,
+        AutoSize = true,
+        MaximumSize = new Size(420, 0),
         ForeColor = UiTheme.Muted
     };
-    private readonly NightButton _checkButton = new()
-    {
-        Text = "Check for updates",
-        Width = 168
-    };
-    private readonly NightButton _installButton = new()
-    {
-        Text = "Install update & restart",
-        Width = 200,
-        IsPrimary = true,
-        Enabled = false
-    };
+    private readonly NightButton _checkButton = NightButton.Create("Check for updates", 168);
+    private readonly NightButton _installButton =
+        NightButton.Create("Install update & restart", 200, isPrimary: true, enabled: false);
     private readonly Label _modeLabel = new()
     {
         AutoSize = true,

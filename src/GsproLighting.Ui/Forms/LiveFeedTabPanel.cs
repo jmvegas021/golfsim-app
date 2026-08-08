@@ -259,12 +259,10 @@ public sealed class LiveFeedTabPanel : UserControl
         _status.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
     }
 
-    private static NightButton MakeButton(string text, int width, bool primary = false) =>
-        new()
-        {
-            Text = text,
-            Width = width,
-            IsPrimary = primary,
-            Margin = new Padding(0, 0, 8, 0)
-        };
+    private static NightButton MakeButton(string text, int width, bool primary = false)
+    {
+        var button = NightButton.Create(text, width, isPrimary: primary);
+        button.Margin = new Padding(0, 0, 8, 0);
+        return button;
+    }
 }

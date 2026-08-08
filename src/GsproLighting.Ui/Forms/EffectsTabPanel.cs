@@ -20,10 +20,10 @@ public sealed class EffectsTabPanel : UserControl
         TextAlign = ContentAlignment.MiddleLeft,
         Dock = DockStyle.Fill
     };
-    private readonly NightButton _save = new() { Text = "Save settings", Width = 140, IsPrimary = true };
-    private readonly NightButton _test = new() { Text = "Test lights", Width = 118 };
-    private readonly NightButton _idle = new() { Text = "Idle glow", Width = 110 };
-    private readonly NightButton _proxy = new() { Text = "Start proxy", Width = 124 };
+    private readonly NightButton _save = NightButton.Create("Save settings", 140, isPrimary: true);
+    private readonly NightButton _test = NightButton.Create("Test lights", 118);
+    private readonly NightButton _idle = NightButton.Create("Idle glow", 110);
+    private readonly NightButton _proxy = NightButton.Create("Start proxy", 124);
     private readonly EffectStateLegend _legend = new();
     private string _lastReadyText = string.Empty;
     private bool _stripOwnedByAction;

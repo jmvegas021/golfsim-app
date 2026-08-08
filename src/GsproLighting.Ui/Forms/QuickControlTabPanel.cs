@@ -198,13 +198,11 @@ public sealed class QuickControlTabPanel : UserControl
                 continue;
 
             var isPreviewOnly = PreviewOnlyIds.Contains(item.Id);
-            var button = new NightButton
-            {
-                Text = isPreviewOnly ? $"{item.Title} · preview only" : item.Title,
-                Width = 200,
-                Margin = new Padding(0, 0, 10, 10),
-                Tag = item
-            };
+            var button = NightButton.Create(
+                isPreviewOnly ? $"{item.Title} · preview only" : item.Title,
+                200);
+            button.Margin = new Padding(0, 0, 10, 10);
+            button.Tag = item;
             button.Click += OnStateButtonClick;
             _stateButtons.Add(button);
             _stateGrid.Controls.Add(button);
@@ -294,13 +292,9 @@ public sealed class QuickControlTabPanel : UserControl
         _presetsEmpty.HideMessage();
         foreach (var preset in presets)
         {
-            var button = new NightButton
-            {
-                Text = preset.Name,
-                Width = 200,
-                Margin = new Padding(0, 0, 10, 10),
-                Tag = preset
-            };
+            var button = NightButton.Create(preset.Name, 200);
+            button.Margin = new Padding(0, 0, 10, 10);
+            button.Tag = preset;
             button.Click += async (_, _) => await ApplyPresetAsync(preset, ip);
             _presetGrid.Controls.Add(button);
         }

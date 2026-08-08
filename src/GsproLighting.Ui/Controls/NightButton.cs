@@ -35,6 +35,53 @@ public sealed class NightButton : Button
     /// <summary>When true, long labels wrap inside the button instead of clipping.</summary>
     public bool WrapText { get; set; }
 
+    /// <summary>
+    /// Builds a button that auto-grows to fit its own text (via <see cref="GetPreferredSize"/>) —
+    /// <paramref name="width"/>/<paramref name="height"/> are floors, not caps. Only use this for
+    /// buttons living in a FlowLayoutPanel or otherwise-unconstrained cell; a fixed-column
+    /// TableLayoutPanel can visually overlap a sibling if the button grows past its cell.
+    /// </summary>
+    public static NightButton Create(
+        string text,
+        int width,
+        int? height = null,
+        bool isPrimary = false,
+        bool wrapText = false,
+        bool enabled = true) => new()
+    {
+        Text = text,
+        MinimumSize = new Size(width, height ?? UiTheme.TouchComfort),
+        IsPrimary = isPrimary,
+        WrapText = wrapText,
+        Enabled = enabled,
+        AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink
+    };
+
+    /// <summary>
+    /// Text-driven size floor so a caller opting into <see cref="Control.AutoSize"/> never gets a
+    /// button narrower/shorter than its own label needs (avoids silent EndEllipsis truncation).
+    /// </summary>
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        if (string.IsNullOrEmpty(Text))
+            return base.GetPreferredSize(proposedSize);
+
+        var constraintWidth = WrapText && proposedSize.Width > 0
+            ? Math.Max(1, proposedSize.Width - Padding.Horizontal)
+            : int.MaxValue;
+        var flags = TextFormatFlags.NoPrefix | (WrapText ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine);
+        var textSize = TextRenderer.MeasureText(
+            Text,
+            Font,
+            new Size(constraintWidth, int.MaxValue),
+            flags);
+
+        var width = Math.Max(MinimumSize.Width, textSize.Width + Padding.Horizontal);
+        var height = Math.Max(MinimumSize.Height, textSize.Height + Padding.Vertical);
+        return new Size(width, height);
+    }
+
     protected override void OnMouseEnter(EventArgs e)
     {
         _hovered = true;

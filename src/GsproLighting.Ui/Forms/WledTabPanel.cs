@@ -32,25 +32,15 @@ public sealed partial class WledTabPanel : UserControl
     private readonly WledColorSlotEditor _colors = new();
     private readonly NightComboBox _segments = new() { Width = 220 };
     private readonly NightComboBox _presets = new() { Width = 280 };
-    private readonly NightButton _refresh = new() { Text = "Refresh", Width = 120 };
-    private readonly NightButton _apply = new() { Text = "Apply changes", IsPrimary = true, Width = 150 };
-    private readonly NightButton _revert = new() { Text = "Revert", Width = 120 };
-    private readonly NightButton _ambient = new()
-    {
-        Text = "Sync ambient\n(Ripple + Red Reef)",
-        Width = 168,
-        Height = 56,
-        WrapText = true
-    };
-    private readonly NightButton _openWled = new()
-    {
-        Text = "Open full WLED",
-        Width = 148,
-        Height = 56,
-        WrapText = true
-    };
-    private readonly NightButton _applyPreset = new() { Text = "Apply preset", Width = 140 };
-    private readonly NightButton _playlistNext = new() { Text = "Playlist next", Width = 140 };
+    private readonly NightButton _refresh = NightButton.Create("Refresh", 120);
+    private readonly NightButton _apply = NightButton.Create("Apply changes", 150, isPrimary: true);
+    private readonly NightButton _revert = NightButton.Create("Revert", 120);
+    private readonly NightButton _ambient = NightButton.Create(
+        "Sync ambient\n(Ripple + Red Reef)", 168, height: 56, wrapText: true);
+    private readonly NightButton _openWled =
+        NightButton.Create("Open full WLED", 148, height: 56, wrapText: true);
+    private readonly NightButton _applyPreset = NightButton.Create("Apply preset", 140);
+    private readonly NightButton _playlistNext = NightButton.Create("Playlist next", 140);
     private readonly Label _playlistLabel = new();
     private readonly Panel _editorHost = new() { AutoSize = true, BackColor = Color.Transparent };
 

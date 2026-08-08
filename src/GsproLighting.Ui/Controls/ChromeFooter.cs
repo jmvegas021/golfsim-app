@@ -6,12 +6,7 @@ namespace GsproLighting.Ui.Controls;
 /// <summary>Bottom chrome — tab tip, version, About entry.</summary>
 public sealed class ChromeFooter : Control
 {
-    private readonly NightButton _about = new()
-    {
-        Text = "About",
-        Width = 96,
-        IsPrimary = false
-    };
+    private readonly NightButton _about = NightButton.Create("About", 96);
     private string _tip = ProductCopy.PreviewHint;
 
     public ChromeFooter()
@@ -22,6 +17,7 @@ public sealed class ChromeFooter : Control
         TabStop = false;
         _about.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _about.Click += (_, _) => AboutRequested?.Invoke(this, EventArgs.Empty);
+        _about.SizeChanged += (_, _) => LayoutAbout();
         Controls.Add(_about);
         LayoutAbout();
     }
