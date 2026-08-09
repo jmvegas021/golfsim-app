@@ -49,21 +49,37 @@ internal sealed class SettingsFormActions
     {
         await RunPreviewAsync(
             "Test lights",
-            () => _app.Preview.PreviewEffectAsync(_effects.PureSlot, _app.Config.Wled));
+            () => _app.Preview.PreviewEffectAsync(_effects.PureSlot, ResolveWledLive()));
     }
 
     public async Task TestIdleAsync()
     {
         await RunPreviewAsync(
             "Idle glow",
-            () => _app.Preview.PreviewEffectAsync(_effects.IdleSlot, _app.Config.Wled));
+            () => _app.Preview.PreviewEffectAsync(_effects.IdleSlot, ResolveWledLive()));
     }
 
     public async Task PreviewEffectAsync(EffectSlot slot)
     {
         await RunPreviewAsync(
             "Effect preview",
-            () => _app.Preview.PreviewEffectAsync(slot, _app.Config.Wled));
+            () => _app.Preview.PreviewEffectAsync(slot, ResolveWledLive()));
+    }
+
+    /// <summary>
+    /// Syncs the Connection tab's current (possibly unsaved) IP/port/LED count/brightness into
+    /// the live WLED output before Test lights/Idle glow/effect preview — see
+    /// LightingAppCoordinator.SyncWledConnectionLive for why this matters.
+    /// </summary>
+    private WledConfig ResolveWledLive()
+    {
+        _app.SyncWledConnectionLive(
+            _connection.ControllerIp,
+            _connection.UdpPort,
+            _connection.LedCount,
+            _connection.Brightness,
+            _connection.InvertLeftRight);
+        return _app.Config.Wled;
     }
 
     public async Task ToggleProxyAsync()

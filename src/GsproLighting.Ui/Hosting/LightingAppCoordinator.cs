@@ -90,6 +90,28 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         _wled.Configure(config.Wled);
     }
 
+    /// <summary>
+    /// Pushes the Connection tab's current (possibly unsaved) field values into the live WLED
+    /// config and re-points the shared DRGB/UDP output at them — without writing to disk. The
+    /// DRGB output caches its target IP/port from whatever WledConfig was last passed to
+    /// Configure(), which previously only happened on Save/Reload/construction; every live
+    /// action (Test lights, Idle glow, Preview, Quick Control, and actual GSPro shot reactions)
+    /// shares that same cached target, so editing the IP without hitting Save silently left them
+    /// pointed at the old value even though the WLED tab (which reads the field directly) worked.
+    /// </summary>
+    public void SyncWledConnectionLive(string controllerIp, int udpPort, int ledCount, byte brightness, bool invertLeftRight)
+    {
+        if (string.IsNullOrWhiteSpace(controllerIp))
+            return;
+
+        Config.Wled.ControllerIp = controllerIp;
+        Config.Wled.UdpPort = udpPort;
+        Config.Wled.LedCount = ledCount;
+        Config.Wled.Brightness = brightness;
+        Config.Wled.InvertLeftRight = invertLeftRight;
+        _wled.Configure(Config.Wled);
+    }
+
     public void ReloadConfig()
     {
         Config = _store.Load();

@@ -46,10 +46,10 @@ public sealed class SettingsForm : Form
         _effects = new EffectsTabPanel();
         _quickControl = new QuickControlTabPanel(
             ResolveEffectsForPreview,
-            () => _app.Config.Wled,
+            ResolveWledForPreview,
             ResolveControllerIp,
             app.Preview);
-        _preview = new PreviewTabPanel(ResolveEffectsForPreview, () => _app.Config.Wled, app.Preview);
+        _preview = new PreviewTabPanel(ResolveEffectsForPreview, ResolveWledForPreview, app.Preview);
         _wled = new WledTabPanel(ResolveControllerIp, () => _connection.Brightness);
         _updatesPanel = new UpdatesPanel(updates);
         _liveFeed = new LiveFeedTabPanel(
@@ -275,6 +275,23 @@ public sealed class SettingsForm : Form
         var working = _app.Config.Effects.Clone();
         _effects.ApplyTo(working);
         return working;
+    }
+
+    /// <summary>
+    /// Syncs the Connection tab's current (possibly unsaved) IP/port/LED count/brightness into
+    /// the live WLED output before any preview/test action — matching what the WLED tab already
+    /// does by reading the field directly, so Quick Control/Preview/Test lights/Idle glow don't
+    /// silently use a stale saved IP just because Save wasn't clicked yet.
+    /// </summary>
+    private WledConfig ResolveWledForPreview()
+    {
+        _app.SyncWledConnectionLive(
+            _connection.ControllerIp,
+            _connection.UdpPort,
+            _connection.LedCount,
+            _connection.Brightness,
+            _connection.InvertLeftRight);
+        return _app.Config.Wled;
     }
 
     private string ResolveControllerIp() =>

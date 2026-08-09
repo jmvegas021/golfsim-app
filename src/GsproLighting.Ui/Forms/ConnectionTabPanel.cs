@@ -169,6 +169,12 @@ public sealed class ConnectionTabPanel : UserControl
 
     public byte Brightness => (byte)_brightness.Value;
 
+    public int UdpPort => (int)_wledPort.Value;
+
+    public int LedCount => (int)_ledCount.Value;
+
+    public bool InvertLeftRight => _invert.Checked;
+
     public void LoadConfig(AppConfig config)
     {
         _wledIp.Text = config.Wled.ControllerIp;
