@@ -5,14 +5,25 @@ namespace GsproLighting.Ui.Controls;
 /// <summary>Hero chrome — GSPro Lighting as the dominant brand signal.</summary>
 public sealed class BrandHeader : Control
 {
+    private const int TopPadding = 20;
+    private const int BottomPadding = 18;
+    private const int StripeHeight = 5;
+    private const int MarkSize = 44;
+    private const int ContentLeft = 22;
+    private const int TextLeft = 78;
+    private const int TitleSubtitleGap = 4;
+
+    private int _titleHeight;
+    private int _subtitleHeight;
+
     public BrandHeader()
     {
         Dock = DockStyle.Top;
-        Height = 118;
         DoubleBuffered = true;
         TabStop = false;
         AccessibleName = "GSPro Lighting";
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw, true);
+        RecalcHeight();
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -28,9 +39,37 @@ public sealed class BrandHeader : Control
         DrawStripe(g);
     }
 
+    /// <summary>
+    /// Measures the actual title/subtitle font metrics instead of guessing fixed pixel rect
+    /// heights — a hardcoded 44px rect for 24pt bold Bahnschrift clipped descenders on some
+    /// DPI/font-rendering combinations even with generous-looking numbers.
+    /// </summary>
+    private void RecalcHeight()
+    {
+        using var titleFont = UiTheme.HeadingFont(24f, FontStyle.Bold);
+        using var subtitleFont = UiTheme.BodyFont(10f);
+        _titleHeight = MeasureLineHeight("GSPro Lighting", titleFont);
+        _subtitleHeight = MeasureLineHeight(ProductCopy.BrandSubtitle, subtitleFont);
+
+        var textBlockHeight = _titleHeight + TitleSubtitleGap + _subtitleHeight;
+        var contentHeight = Math.Max(MarkSize, textBlockHeight);
+        var next = TopPadding + contentHeight + BottomPadding + StripeHeight;
+        if (Height != next)
+            Height = next;
+    }
+
+    private static int MeasureLineHeight(string text, Font font) =>
+        TextRenderer.MeasureText(
+            text,
+            font,
+            new Size(int.MaxValue, int.MaxValue),
+            TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine).Height;
+
     private void DrawMark(Graphics g)
     {
-        var mark = new Rectangle(22, 28, 44, 44);
+        var textBlockHeight = _titleHeight + TitleSubtitleGap + _subtitleHeight;
+        var markY = TopPadding + Math.Max(0, (textBlockHeight - MarkSize) / 2);
+        var mark = new Rectangle(ContentLeft, markY, MarkSize, MarkSize);
         using var fill = new System.Drawing.Drawing2D.LinearGradientBrush(
             mark,
             UiTheme.Accent,
@@ -47,28 +86,37 @@ public sealed class BrandHeader : Control
 
     private void DrawCopy(Graphics g)
     {
-        // Bahnschrift needs generous vertical room — tight rects clip ascenders on Ally/150% DPI.
         using var titleFont = UiTheme.HeadingFont(24f, FontStyle.Bold);
         using var subtitleFont = UiTheme.BodyFont(10f);
+        var textWidth = Math.Max(40, Width - TextLeft - 20);
+
+        // NoClipping is defense-in-depth: even measured heights can be off by a hair across
+        // DPI/font-rendering combinations, and GDI hard-clips to the rect by default otherwise.
+        var flags = TextFormatFlags.Left
+            | TextFormatFlags.Top
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.NoPrefix
+            | TextFormatFlags.NoClipping;
+
         TextRenderer.DrawText(
             g,
             "GSPro Lighting",
             titleFont,
-            new Rectangle(78, 22, Math.Max(40, Width - 100), 44),
+            new Rectangle(TextLeft, TopPadding, textWidth, _titleHeight),
             UiTheme.Text,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            flags);
         TextRenderer.DrawText(
             g,
             ProductCopy.BrandSubtitle,
             subtitleFont,
-            new Rectangle(80, 68, Math.Max(40, Width - 100), 28),
+            new Rectangle(TextLeft, TopPadding + _titleHeight + TitleSubtitleGap, textWidth, _subtitleHeight),
             UiTheme.Muted,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            flags);
     }
 
     private void DrawStripe(Graphics g)
     {
-        var stripe = new Rectangle(0, Height - 5, Width, 5);
+        var stripe = new Rectangle(0, Height - StripeHeight, Width, StripeHeight);
         using var gradient = new System.Drawing.Drawing2D.LinearGradientBrush(
             stripe,
             UiTheme.Accent,
