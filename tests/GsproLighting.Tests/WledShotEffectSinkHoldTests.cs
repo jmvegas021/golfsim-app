@@ -35,6 +35,37 @@ public sealed class WledShotEffectSinkHoldTests
     }
 
     [Fact]
+    public async Task HoldWaitingAsync_HttpKeepalive_FollowsControllerIpChange()
+    {
+        var output = new RecordingWledOutput();
+        var handler = new RecordingHttpHandler();
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var keepalive = new PreviewHoldKeepalive { Interval = TimeSpan.FromMilliseconds(40) };
+        var effects = new EffectConfig();
+        var wled = new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.1.50" };
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => wled,
+            keepalive,
+            http);
+
+        using var cts = new CancellationTokenSource();
+        var waitingTask = sink.HoldWaitingAsync(cts.Token);
+
+        await Task.Delay(90);
+        Assert.Contains("192.168.1.50", handler.Hosts);
+
+        wled.ControllerIp = "192.168.86.89";
+        await Task.Delay(200);
+
+        Assert.Contains("192.168.86.89", handler.Hosts);
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await waitingTask);
+    }
+
+    [Fact]
     public async Task OnBallReadyAsync_RippleIdle_ReappliesHttpPreset()
     {
         var output = new RecordingWledOutput();
@@ -60,6 +91,7 @@ public sealed class WledShotEffectSinkHoldTests
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await readyTask);
     }
+
 
     [Fact]
     public async Task OnBallReadyAsync_HttpIdleFailure_DoesNotThrow_AndLogs()
@@ -285,12 +317,15 @@ public sealed class WledShotEffectSinkHoldTests
     {
         public int PostCount { get; private set; }
         public List<string> Bodies { get; } = [];
+        public List<string> Hosts { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             PostCount++;
+            if (request.RequestUri?.Host is { } host)
+                Hosts.Add(host);
             if (request.Content is not null)
                 Bodies.Add(await request.Content.ReadAsStringAsync(cancellationToken));
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK)

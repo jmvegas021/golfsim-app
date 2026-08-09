@@ -182,8 +182,18 @@ public sealed class WledShotEffectSink : IShotEventSink
             cancellationToken);
     }
 
-    private Task HoldIdleAsync(CancellationToken cancellationToken) =>
+    private Task HoldIdleAsync(CancellationToken cancellationToken = default) =>
         HoldSlotAsync(_effects().Idle, cancellationToken);
+
+    /// <summary>
+    /// Re-holds Idle ambient after the live controller IP changes while Connect is already Ready.
+    /// </summary>
+    public Task HoldIdleForConnectionChangeAsync(CancellationToken cancellationToken = default) =>
+        RunEffectAsync(
+            isReady: true,
+            debounceReady: false,
+            HoldIdleAsync,
+            cancellationToken);
 
     private Task HoldSlotAsync(EffectSlot slot, CancellationToken cancellationToken)
     {
@@ -204,15 +214,20 @@ public sealed class WledShotEffectSink : IShotEventSink
     private Task HoldPresetAsync(
         EffectSlot slot,
         TimeSpan? duration,
-        CancellationToken cancellationToken)
-    {
-        var request = WledPresetRequest.FromSlot(slot, _wledConfig().Brightness);
-        var ip = _wledConfig().ControllerIp;
-        return _keepalive.HoldWhileAsync(
-            ct => _httpClient.ApplyPresetAsync(ip, request, ct),
+        CancellationToken cancellationToken) =>
+        _keepalive.HoldWhileAsync(
+            ct =>
+            {
+                // Resolve IP/brightness on every keepalive tick — not once at hold start.
+                // App launch begins HoldWaiting against the placeholder IP; when Connection
+                // later commits the real controller, an in-flight hold must follow the new
+                // address instead of hammering 192.168.1.50 forever.
+                var config = _wledConfig();
+                var request = WledPresetRequest.FromSlot(slot, config.Brightness);
+                return _httpClient.ApplyPresetAsync(config.ControllerIp, request, ct);
+            },
             duration,
             cancellationToken);
-    }
 
     private async Task RunEffectAsync(
         bool? isReady,
