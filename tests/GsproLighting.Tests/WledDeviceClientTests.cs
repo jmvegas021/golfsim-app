@@ -36,6 +36,53 @@ public sealed class WledDeviceClientTests
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task ApplyStateAsync_RetriesOnceOnTimeout_ThenSucceeds()
+    {
+        var handler = new TimeoutThenOkHandler(failCount: 1);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
+        using var client = new WledDeviceClient(http);
+
+        await client.ApplyStateAsync("192.168.1.50", new WledStatePatch { On = true });
+
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ApplyStateAsync_TimeoutTwice_ThrowsFriendlyMessage()
+    {
+        var handler = new TimeoutThenOkHandler(failCount: 99);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
+        using var client = new WledDeviceClient(http);
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(
+            () => client.ApplyStateAsync("192.168.1.50", new WledStatePatch { On = true }));
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains("didn't respond", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Simulates the caller's own internal request-timeout CTS firing (not the
+    /// passed-in cancellationToken) by throwing TaskCanceledException directly.</summary>
+    private sealed class TimeoutThenOkHandler : HttpMessageHandler
+    {
+        private readonly int _failCount;
+
+        public TimeoutThenOkHandler(int failCount) => _failCount = failCount;
+
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            if (RequestCount <= _failCount)
+                throw new TaskCanceledException("Simulated request timeout");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
+        }
+    }
+
     private sealed class SequencedStatusHandler : HttpMessageHandler
     {
         private readonly Queue<HttpStatusCode> _statuses;

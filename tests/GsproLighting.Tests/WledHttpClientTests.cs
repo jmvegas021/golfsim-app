@@ -34,6 +34,30 @@ public sealed class WledHttpClientTests
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task ApplyPresetAsync_RetriesOnceOnTimeout_ThenSucceeds()
+    {
+        var handler = new TimeoutThenOkHandler(failCount: 1);
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+
+        await http.ApplyPresetAsync("192.168.1.50", new WledPresetRequest { FxId = 79 });
+
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ApplyPresetAsync_TimeoutTwice_ThrowsFriendlyMessage()
+    {
+        var handler = new TimeoutThenOkHandler(failCount: 99);
+        using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(
+            () => http.ApplyPresetAsync("192.168.1.50", new WledPresetRequest { FxId = 79 }));
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains("didn't respond", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class SequencedStatusHandler : HttpMessageHandler
     {
         private readonly Queue<HttpStatusCode> _statuses;
@@ -50,6 +74,27 @@ public sealed class WledHttpClientTests
             RequestCount++;
             var status = _statuses.Count > 0 ? _statuses.Dequeue() : HttpStatusCode.OK;
             return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("{}") });
+        }
+    }
+
+    /// <summary>Simulates the caller's own internal request-timeout CTS firing (not the
+    /// passed-in cancellationToken) by throwing TaskCanceledException directly.</summary>
+    private sealed class TimeoutThenOkHandler : HttpMessageHandler
+    {
+        private readonly int _failCount;
+
+        public TimeoutThenOkHandler(int failCount) => _failCount = failCount;
+
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            if (RequestCount <= _failCount)
+                throw new TaskCanceledException("Simulated request timeout");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
         }
     }
 

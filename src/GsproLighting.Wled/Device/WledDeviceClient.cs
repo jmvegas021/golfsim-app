@@ -19,7 +19,7 @@ public sealed class WledDeviceClient : IDisposable
     {
         _httpClient = httpClient ?? new HttpClient();
         _ownsClient = httpClient is null;
-        _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(4);
+        _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(5);
     }
 
     public Task<IReadOnlyList<WledNamedEntry>> GetEffectsAsync(
@@ -162,8 +162,9 @@ public sealed class WledDeviceClient : IDisposable
         PostJsonAsync(controllerIp, path, body, cancellationToken, isRetry: false);
 
     /// <summary>
-    /// Posts a JSON body, retrying once on 413 — memory-constrained WLED controllers
-    /// (e.g. ESP8266 boards) can transiently reject even small requests under heap pressure.
+    /// Posts a JSON body, retrying once on 413 (memory-constrained WLED controllers can
+    /// transiently reject even small requests under heap pressure) and once on a genuine
+    /// timeout (the controller just didn't respond in time — common over flaky Wi-Fi).
     /// </summary>
     private async Task PostJsonAsync(
         string controllerIp,
@@ -179,29 +180,54 @@ public sealed class WledDeviceClient : IDisposable
         };
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_requestTimeout);
-        using var response = await _httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            timeout.Token).ConfigureAwait(false);
 
-        if (response.StatusCode == HttpStatusCode.RequestEntityTooLarge)
+        HttpResponseMessage response;
+        try
         {
+            response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Our own timeout fired, not the caller's cancellation (e.g. superseded by a
+            // newer shot event) — the controller just didn't answer within _requestTimeout.
             if (!isRetry)
             {
-                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
                 await PostJsonAsync(controllerIp, path, body, cancellationToken, isRetry: true)
                     .ConfigureAwait(false);
                 return;
             }
 
             throw new HttpRequestException(
-                "WLED controller is low on memory and rejected the request twice (413). " +
-                "Try again, or power-cycle the controller if this keeps happening.",
-                inner: null,
-                HttpStatusCode.RequestEntityTooLarge);
+                $"WLED controller at {endpoint.Host} didn't respond within " +
+                $"{_requestTimeout.TotalSeconds:0.#}s (twice) — check it's powered on and " +
+                "reachable at that IP.",
+                inner: null);
         }
 
-        await EnsureSuccessWithBodyAsync(response, timeout.Token).ConfigureAwait(false);
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.RequestEntityTooLarge)
+            {
+                if (!isRetry)
+                {
+                    await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                    await PostJsonAsync(controllerIp, path, body, cancellationToken, isRetry: true)
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                throw new HttpRequestException(
+                    "WLED controller is low on memory and rejected the request twice (413). " +
+                    "Try again, or power-cycle the controller if this keeps happening.",
+                    inner: null,
+                    HttpStatusCode.RequestEntityTooLarge);
+            }
+
+            await EnsureSuccessWithBodyAsync(response, timeout.Token).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

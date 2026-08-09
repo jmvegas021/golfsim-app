@@ -25,11 +25,24 @@ internal static class Program
         // proxy port and both send commands to the same WLED device — the proxy fails with
         // "Only one usage of each socket address..." and WLED updates race/contend, which can
         // look like "nothing reaches the lights" even though ball data is flowing fine.
-        using var singleInstance = new Mutex(
-            initiallyOwned: true,
-            "Local\\GsproLighting-SingleInstance",
-            out var createdNewInstance);
-        if (!createdNewInstance)
+        //
+        // Use WaitOne with a grace period rather than failing immediately on contention:
+        // Velopack's own "Install & restart" flow launches the new version while the previous
+        // one is still shutting down for a moment, and that legitimate handoff must not be
+        // mistaken for a real duplicate launch.
+        using var singleInstance = new Mutex(initiallyOwned: false, "Local\\GsproLighting-SingleInstance");
+        bool acquiredInstance;
+        try
+        {
+            acquiredInstance = singleInstance.WaitOne(TimeSpan.FromSeconds(5));
+        }
+        catch (AbandonedMutexException)
+        {
+            // Previous instance crashed without releasing — we now own it; treat as acquired.
+            acquiredInstance = true;
+        }
+
+        if (!acquiredInstance)
         {
             MessageBox.Show(
                 "GSPro Lighting is already running — check your system tray icon.",
