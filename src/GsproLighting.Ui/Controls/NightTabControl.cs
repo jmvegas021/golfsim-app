@@ -13,6 +13,10 @@ public sealed class NightTabControl : TabControl
         DrawMode = TabDrawMode.OwnerDrawFixed;
         ItemSize = new Size(128, UiTheme.TouchMin);
         SizeMode = TabSizeMode.Fixed;
+        // Wrap to a second row instead of running tabs off the edge of the window on
+        // narrower/smaller-DPI displays — 7 tabs at 128px fixed width (896px) can exceed the
+        // available width on compact bay-mounted screens.
+        Multiline = true;
         Padding = new Point(14, 8);
         BackColor = UiTheme.Background;
         ForeColor = UiTheme.Text;
@@ -64,7 +68,10 @@ public sealed class NightTabControl : TabControl
             font,
             bounds,
             isSelected ? UiTheme.Text : (isHot ? UiTheme.Text : UiTheme.Muted),
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextFormatFlags.HorizontalCenter
+                | TextFormatFlags.VerticalCenter
+                | TextFormatFlags.EndEllipsis
+                | TextFormatFlags.NoPrefix);
 
         if (isSelected)
         {

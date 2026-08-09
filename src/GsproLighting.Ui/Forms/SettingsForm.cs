@@ -35,7 +35,13 @@ public sealed class SettingsForm : Form
         FormBorderStyle = FormBorderStyle.Sizable;
         Icon = AppIconLoader.AppIcon;
         KeyPreview = true;
-        ApplyInitialBounds();
+        // Defer sizing to OnLoad: the handle (and its resolved PerMonitorV2 DPI) doesn't exist
+        // yet here, so Bounds computed now from Screen.WorkingArea (already real screen pixels)
+        // would get auto-scaled a second time by AutoScaleMode.Dpi once the handle is created —
+        // the window ends up DPI-factor-times too large and runs off the right edge of the
+        // screen (title bar controls included) on any display above 100% scaling.
+        StartPosition = FormStartPosition.Manual;
+        Bounds = new Rectangle(0, 0, 1080, 800);
 
         _effects = new EffectsTabPanel();
         _quickControl = new QuickControlTabPanel(
@@ -71,6 +77,26 @@ public sealed class SettingsForm : Form
             _preview.PerformLayout();
             UpdateFooterTip();
         };
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        FitToScreen();
+    }
+
+    /// <summary>
+    /// Clamps/centers the window against the actual working area of the monitor it landed on.
+    /// Must run after the handle exists (post-DPI-scale-pass) — see the constructor comment.
+    /// </summary>
+    private void FitToScreen()
+    {
+        var workingArea = Screen.FromHandle(Handle).WorkingArea;
+        var width = Math.Min(Width, workingArea.Width);
+        var height = Math.Min(Height, workingArea.Height);
+        var left = workingArea.Left + Math.Max(0, (workingArea.Width - width) / 2);
+        var top = workingArea.Top + Math.Max(0, (workingArea.Height - height) / 2);
+        Bounds = new Rectangle(left, top, width, height);
     }
 
     public async Task FocusUpdatesAndCheckAsync()
@@ -113,17 +139,6 @@ public sealed class SettingsForm : Form
 
         _footer.AboutRequested += (_, _) => ShowAbout();
         _tabs.SelectedIndexChanged += (_, _) => UpdateFooterTip();
-    }
-
-    private void ApplyInitialBounds()
-    {
-        var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1080, 800);
-        var width = Math.Min(1080, workingArea.Width);
-        var height = Math.Min(800, workingArea.Height);
-        var left = workingArea.Left + Math.Max(0, (workingArea.Width - width) / 2);
-        var top = workingArea.Top + Math.Max(0, (workingArea.Height - height) / 2);
-        StartPosition = FormStartPosition.Manual;
-        Bounds = new Rectangle(left, top, width, height);
     }
 
     private void AddTab(string title, Control content)
