@@ -54,6 +54,31 @@ public sealed class WledErrorLoggerTests
     }
 
     [Fact]
+    public void LogDetailed_WritesStructuredFields()
+    {
+        using var directory = new TestDirectory();
+        var logsDirectory = Directory.CreateDirectory(directory.GetPath("logs")).FullName;
+        var logger = new WledErrorLogger(logsDirectory);
+
+        logger.LogDetailed(
+            "effect-sink",
+            "full message",
+            ip: "192.168.86.89",
+            url: "http://192.168.86.89/json/state",
+            request: """{"on":true}""",
+            response: "(empty response body)",
+            hint: "empty 400 usually means Content-Type");
+
+        var line = File.ReadAllText(Directory.GetFiles(logsDirectory, "wled-errors-*.jsonl")[0]).TrimEnd();
+        Assert.Contains("\"ip\":\"192.168.86.89\"", line, StringComparison.Ordinal);
+        Assert.Contains("\"url\":\"http://192.168.86.89/json/state\"", line, StringComparison.Ordinal);
+        Assert.Contains("\"request\":\"{\\\"on\\\":true}\"", line, StringComparison.Ordinal);
+        Assert.Contains("\"response\":\"(empty response body)\"", line, StringComparison.Ordinal);
+        Assert.Contains("\"hint\":\"empty 400 usually means Content-Type\"", line, StringComparison.Ordinal);
+        Assert.Contains("\"message\":\"full message\"", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Constructor_RejectsBlankDirectory()
     {
         Assert.ThrowsAny<ArgumentException>(() => new WledErrorLogger(" "));

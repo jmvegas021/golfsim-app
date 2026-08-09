@@ -235,6 +235,10 @@ public sealed class WledShotEffectSink : IShotEventSink
         Func<CancellationToken, Task> playEffect,
         CancellationToken cancellationToken)
     {
+        // Never open DRGB/HTTP against the shipped placeholder / blank IP.
+        if (!_wledConfig().HasConfiguredController)
+            return;
+
         var linked = BeginEffect(isReady, debounceReady, cancellationToken);
         if (linked is null)
             return;

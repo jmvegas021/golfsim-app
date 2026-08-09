@@ -20,10 +20,13 @@ public sealed class GsproConfig
 
 public sealed class WledConfig
 {
-    /// <summary>Untouched placeholder — used to detect a first-run/never-configured install.</summary>
+    /// <summary>
+    /// Legacy shipped placeholder — treated as "not configured" so we never keep POSTing to a
+    /// dead/wrong host after an upgrade. Prefer an empty IP until Connection sets a real one.
+    /// </summary>
     public const string DefaultControllerIp = "192.168.1.50";
 
-    public string ControllerIp { get; set; } = DefaultControllerIp;
+    public string ControllerIp { get; set; } = string.Empty;
     public int UdpPort { get; set; } = 21324;
     public int LedCount { get; set; } = 60;
     public byte Brightness { get; set; } = 180;
@@ -33,6 +36,20 @@ public sealed class WledConfig
     /// When true, swap left/right marker mapping (LED 0 treated as golfer's right).
     /// </summary>
     public bool InvertLeftRight { get; set; }
+
+    /// <summary>
+    /// False until the user (or scan) sets a real controller address — also false for the
+    /// legacy placeholder <see cref="DefaultControllerIp"/>.
+    /// </summary>
+    public bool HasConfiguredController => IsConfiguredController(ControllerIp);
+
+    public static bool IsConfiguredController(string? controllerIp)
+    {
+        var host = controllerIp?.Trim();
+        if (string.IsNullOrEmpty(host) || host is "0.0.0.0")
+            return false;
+        return !string.Equals(host, DefaultControllerIp, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 public sealed class LoggingConfig

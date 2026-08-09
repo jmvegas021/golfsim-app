@@ -100,19 +100,25 @@ public sealed class WledHttpClient : IDisposable
                     HttpStatusCode.RequestEntityTooLarge);
             }
 
-            await EnsureSuccessWithBodyAsync(response, endpoint, requestJson, timeout.Token)
+            await EnsureSuccessWithBodyAsync(
+                    response,
+                    HttpMethod.Post.Method,
+                    endpoint,
+                    WledJsonPostContent.MediaType,
+                    requestJson,
+                    timeout.Token)
                 .ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Like EnsureSuccessStatusCode, but includes the response body (and the request we sent)
-    /// in the exception — WLED's /json/state endpoint often returns a JSON error explaining a
-    /// 400, and empty 400s are usually a rejected Content-Type.
+    /// Like EnsureSuccessStatusCode, but formats IP/URL/request/response/hint into the exception.
     /// </summary>
     internal static async Task EnsureSuccessWithBodyAsync(
         HttpResponseMessage response,
+        string method,
         Uri endpoint,
+        string? contentType,
         string requestJson,
         CancellationToken cancellationToken)
     {
@@ -126,16 +132,18 @@ public sealed class WledHttpClient : IDisposable
         }
         catch
         {
-            // Best-effort — fall back to the plain status code message below.
+            // Best-effort — fall back to empty-body messaging below.
         }
 
-        var detail = string.IsNullOrWhiteSpace(body)
-            ? " — empty body (often Content-Type rejected before JSON parse)"
-            : $" — {body.Trim()}";
-        var requestSnippet = Truncate(requestJson, 240);
         throw new HttpRequestException(
-            $"WLED at {endpoint.Host} returned {(int)response.StatusCode} ({response.ReasonPhrase})" +
-            $"{detail}; sent {requestSnippet}",
+            WledHttpFailureFormatter.Format(
+                method,
+                endpoint,
+                contentType,
+                requestJson,
+                (int)response.StatusCode,
+                response.ReasonPhrase,
+                body),
             inner: null,
             response.StatusCode);
     }
@@ -183,8 +191,6 @@ public sealed class WledHttpClient : IDisposable
 
     private static int ClampByte(int value) => Math.Clamp(value, 0, 255);
 
-    private static string Truncate(string value, int maxChars) =>
-        value.Length <= maxChars ? value : value[..maxChars] + "…";
 
     private static Uri BuildStateEndpoint(string controllerIp)
     {

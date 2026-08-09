@@ -289,7 +289,7 @@ public sealed class SettingsForm : Form
     /// <summary>
     /// Pushes the Connection-tab IP into the live effect sink (and disk) as soon as the user
     /// leaves the field or picks a scan result — without requiring a full Save click. That was
-    /// the gap behind live shots still targeting the shipped default 192.168.1.50 while the WLED
+    /// the gap behind live shots still targeting a stale/placeholder IP while the WLED
     /// tab (which reads the text box directly) already talked to the real controller.
     /// </summary>
     private void PersistControllerIpLive()

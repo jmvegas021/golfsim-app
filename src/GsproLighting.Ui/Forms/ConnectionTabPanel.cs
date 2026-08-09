@@ -125,7 +125,7 @@ public sealed partial class ConnectionTabPanel : UserControl
         UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
 
     /// <summary>True when the WLED IP has never been changed from its untouched placeholder.</summary>
-    public bool LooksLikeFirstRun => ControllerIp == WledConfig.DefaultControllerIp;
+    public bool LooksLikeFirstRun => !WledConfig.IsConfiguredController(ControllerIp);
 
     /// <summary>
     /// Raised after the controller IP is committed and (best-effort) LED count / brightness have

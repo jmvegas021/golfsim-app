@@ -40,6 +40,9 @@ public sealed partial class LightingAppCoordinator
     /// </summary>
     private void RestartAmbientAfterConnectionChange()
     {
+        if (!Config.Wled.HasConfiguredController)
+            return;
+
         try
         {
             _ = BallReadyState switch

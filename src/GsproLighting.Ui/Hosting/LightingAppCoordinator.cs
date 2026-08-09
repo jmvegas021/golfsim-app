@@ -10,6 +10,7 @@ using GsproLighting.Gspro.Proxy;
 using GsproLighting.Gspro.Watchers;
 using GsproLighting.Wled;
 using GsproLighting.Wled.Contracts;
+using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Ui.Hosting;
 
@@ -56,12 +57,30 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     /// their own status text.
     /// </summary>
     public void ReportWledFailure(string source, string message) =>
-        _wledErrors.Log(source, message);
+        PersistWledFailure(source, message);
 
     private void ReportEffectSinkFailure(string message)
     {
         _feed.AddRaw("WLED", message);
-        _wledErrors.Log("effect-sink", message);
+        PersistWledFailure("effect-sink", message);
+    }
+
+    private void PersistWledFailure(string source, string message)
+    {
+        if (WledHttpFailureFormatter.TryExtract(message, out var details))
+        {
+            _wledErrors.LogDetailed(
+                source,
+                message,
+                details.Ip,
+                details.Url,
+                details.Request,
+                details.Response,
+                details.Hint);
+            return;
+        }
+
+        _wledErrors.Log(source, message);
     }
 
     public AppConfig Config { get; private set; }
@@ -336,6 +355,8 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     private void TryHoldWaitingIfUnknown()
     {
         if (BallReadyState != BallReadyState.Unknown)
+            return;
+        if (!Config.Wled.HasConfiguredController)
             return;
 
         _ = _effectSink.HoldWaitingAsync();

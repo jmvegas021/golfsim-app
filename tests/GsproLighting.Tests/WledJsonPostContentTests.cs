@@ -58,8 +58,10 @@ public sealed class WledJsonPostContentTests
             () => http.ApplyPresetAsync("192.168.86.89", new WledPresetRequest { FxId = 79 }));
 
         Assert.Contains("192.168.86.89", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("empty body", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("empty response body", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"fx\":79", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("hint=", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("content-type=application/json", ex.Message, StringComparison.Ordinal);
     }
 
     private sealed class CaptureHandler : HttpMessageHandler

@@ -148,8 +148,13 @@ public sealed class WledDeviceClient : IDisposable
             request,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
-        await EnsureSuccessWithBodyAsync(response, endpoint, requestJson: "", timeout.Token)
-            .ConfigureAwait(false);
+        await EnsureSuccessWithBodyAsync(
+                response,
+                HttpMethod.Get.Method,
+                endpoint,
+                contentType: null,
+                requestJson: "",
+                timeout.Token).ConfigureAwait(false);
         return await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
     }
 
@@ -226,19 +231,25 @@ public sealed class WledDeviceClient : IDisposable
                     HttpStatusCode.RequestEntityTooLarge);
             }
 
-            await EnsureSuccessWithBodyAsync(response, endpoint, requestJson, timeout.Token)
+            await EnsureSuccessWithBodyAsync(
+                    response,
+                    HttpMethod.Post.Method,
+                    endpoint,
+                    WledJsonPostContent.MediaType,
+                    requestJson,
+                    timeout.Token)
                 .ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Like EnsureSuccessStatusCode, but includes the response body (and the request we sent)
-    /// in the exception — empty 400s usually mean the firmware rejected Content-Type before
-    /// parsing JSON.
+    /// Like EnsureSuccessStatusCode, but formats IP/URL/request/response/hint into the exception.
     /// </summary>
     private static async Task EnsureSuccessWithBodyAsync(
         HttpResponseMessage response,
+        string method,
         Uri endpoint,
+        string? contentType,
         string requestJson,
         CancellationToken cancellationToken)
     {
@@ -252,16 +263,18 @@ public sealed class WledDeviceClient : IDisposable
         }
         catch
         {
-            // Best-effort — fall back to the plain status code message below.
+            // Best-effort — fall back to empty-body messaging below.
         }
 
-        var detail = string.IsNullOrWhiteSpace(body)
-            ? " — empty body (often Content-Type rejected before JSON parse)"
-            : $" — {body.Trim()}";
-        var requestSnippet = requestJson.Length <= 240 ? requestJson : requestJson[..240] + "…";
         throw new HttpRequestException(
-            $"WLED at {endpoint.Host} returned {(int)response.StatusCode} ({response.ReasonPhrase})" +
-            $"{detail}; sent {requestSnippet}",
+            WledHttpFailureFormatter.Format(
+                method,
+                endpoint,
+                contentType,
+                requestJson,
+                (int)response.StatusCode,
+                response.ReasonPhrase,
+                body),
             inner: null,
             response.StatusCode);
     }

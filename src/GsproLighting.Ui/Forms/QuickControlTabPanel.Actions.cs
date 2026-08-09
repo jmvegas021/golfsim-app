@@ -76,7 +76,7 @@ public sealed partial class QuickControlTabPanel
     private async Task RefreshPresetsAndPowerAsync()
     {
         var ip = (_getControllerIp() ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(ip) || ip is "0.0.0.0")
+        if (!WledConfig.IsConfiguredController(ip))
         {
             _presetsEmpty.ShowMessage("Set a WLED IP", "Configure the controller on the Connection tab first.");
             _presetGrid.Controls.Clear();
@@ -154,7 +154,7 @@ public sealed partial class QuickControlTabPanel
             return;
 
         var ip = (_getControllerIp() ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(ip) || ip is "0.0.0.0")
+        if (!WledConfig.IsConfiguredController(ip))
             return;
 
         var generation = BeginStatusGeneration();
@@ -179,7 +179,7 @@ public sealed partial class QuickControlTabPanel
             return;
 
         var ip = (_getControllerIp() ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(ip) || ip is "0.0.0.0")
+        if (!WledConfig.IsConfiguredController(ip))
             return;
 
         var generation = BeginStatusGeneration();

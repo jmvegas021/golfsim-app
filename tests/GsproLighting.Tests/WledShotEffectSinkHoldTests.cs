@@ -18,7 +18,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive);
 
         using var cts = new CancellationTokenSource();
@@ -42,7 +42,7 @@ public sealed class WledShotEffectSinkHoldTests
         using var http = new WledHttpClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
         var keepalive = new PreviewHoldKeepalive { Interval = TimeSpan.FromMilliseconds(40) };
         var effects = new EffectConfig();
-        var wled = new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.1.50" };
+        var wled = new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.86.40" };
         var sink = new WledShotEffectSink(
             output,
             () => effects,
@@ -54,7 +54,7 @@ public sealed class WledShotEffectSinkHoldTests
         var waitingTask = sink.HoldWaitingAsync(cts.Token);
 
         await Task.Delay(90);
-        Assert.Contains("192.168.1.50", handler.Hosts);
+        Assert.Contains("192.168.86.40", handler.Hosts);
 
         wled.ControllerIp = "192.168.86.89";
         await Task.Delay(200);
@@ -76,7 +76,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.1.50" },
+            () => new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive,
             http);
 
@@ -104,7 +104,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.1.50" },
+            () => new WledConfig { Brightness = 200, LedCount = 8, ControllerIp = "192.168.86.40" },
             httpClient: http,
             logFailure: logs.Add);
 
@@ -129,7 +129,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.1.50" },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             httpClient: http);
 
         await sink.OnShotAsync(
@@ -155,7 +155,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive);
 
         using var cts = new CancellationTokenSource();
@@ -179,7 +179,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive);
 
         var readyTask = sink.OnBallReadyAsync(new ShotPayload());
@@ -208,7 +208,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive);
 
         using var cts = new CancellationTokenSource();
@@ -233,7 +233,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive);
 
         var waitingTask = sink.HoldWaitingAsync();
@@ -265,7 +265,7 @@ public sealed class WledShotEffectSinkHoldTests
         var sink = new WledShotEffectSink(
             output,
             () => effects,
-            () => new WledConfig { Brightness = 180, LedCount = 8 },
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
             keepalive);
 
         using var cts = new CancellationTokenSource();

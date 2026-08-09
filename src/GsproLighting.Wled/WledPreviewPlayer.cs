@@ -232,15 +232,17 @@ public sealed class WledPreviewPlayer : IDisposable
         byte brightness,
         TimeSpan? duration,
         CancellationToken cancellationToken,
-        bool sendInitialFrame = true)
-    {
-        var request = WledPresetRequest.FromSlot(slot, brightness);
-        return _keepalive.HoldWhileAsync(
-            ct => _httpClient.ApplyPresetAsync(config.ControllerIp, request, ct),
+        bool sendInitialFrame = true) =>
+        _keepalive.HoldWhileAsync(
+            ct =>
+            {
+                // Re-read ControllerIp each keepalive tick (same WledConfig instance mutates live).
+                var request = WledPresetRequest.FromSlot(slot, brightness);
+                return _httpClient.ApplyPresetAsync(config.ControllerIp, request, ct);
+            },
             duration,
             cancellationToken,
             sendInitialFrame);
-    }
 
     private async Task FadeFromHeldAsync(CancellationToken cancellationToken)
     {

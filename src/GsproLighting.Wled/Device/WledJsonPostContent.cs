@@ -14,12 +14,14 @@ public static class WledJsonPostContent
 {
     private static readonly JsonSerializerOptions SerializerOptions = new();
 
+    public const string MediaType = "application/json";
+
     public static HttpContent Create(object body, out string json)
     {
         ArgumentNullException.ThrowIfNull(body);
         json = JsonSerializer.Serialize(body, SerializerOptions);
         var content = new ByteArrayContent(Encoding.UTF8.GetBytes(json));
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        content.Headers.ContentType = new MediaTypeHeaderValue(MediaType);
         return content;
     }
 }

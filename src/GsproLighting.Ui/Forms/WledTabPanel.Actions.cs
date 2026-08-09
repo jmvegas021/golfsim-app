@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GsproLighting.Core.Config;
 using GsproLighting.Ui.Theme;
 using GsproLighting.Ui.Wled;
 using GsproLighting.Wled.Device;
@@ -290,7 +291,7 @@ public sealed partial class WledTabPanel
         _applyPreset.Enabled = enabled;
         _playlistNext.Enabled = enabled;
         _power.Enabled = enabled;
-        var ipReady = !string.IsNullOrWhiteSpace(_getControllerIp());
+        var ipReady = WledConfig.IsConfiguredController(_getControllerIp());
         _ambient.Enabled = ipReady;
         _openWled.Enabled = ipReady;
         _refresh.Enabled = true;
