@@ -1,3 +1,4 @@
+using GsproLighting.Core.Config;
 using GsproLighting.Core.Preview;
 using GsproLighting.Ui.Controls;
 using GsproLighting.Ui.Theme;
