@@ -20,7 +20,10 @@ public sealed class GsproConfig
 
 public sealed class WledConfig
 {
-    public string ControllerIp { get; set; } = "192.168.1.50";
+    /// <summary>Untouched placeholder — used to detect a first-run/never-configured install.</summary>
+    public const string DefaultControllerIp = "192.168.1.50";
+
+    public string ControllerIp { get; set; } = DefaultControllerIp;
     public int UdpPort { get; set; } = 21324;
     public int LedCount { get; set; } = 60;
     public byte Brightness { get; set; } = 180;
@@ -47,6 +50,12 @@ public sealed class UiConfig
 {
     public bool StartMinimizedToTray { get; set; }
     public bool StartProxyOnLaunch { get; set; } = true;
+
+    /// <summary>
+    /// Registers/unregisters a per-user Windows Run-key autostart entry. Applied as an OS-level
+    /// side effect on save, not just persisted — see WindowsStartupManager.
+    /// </summary>
+    public bool StartWithWindows { get; set; }
 }
 
 /// <summary>

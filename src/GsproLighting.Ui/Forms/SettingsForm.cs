@@ -76,7 +76,23 @@ public sealed class SettingsForm : Form
             _quickControl.PerformLayout();
             _preview.PerformLayout();
             UpdateFooterTip();
+            TriggerFirstRunOnboarding();
         };
+    }
+
+    /// <summary>
+    /// Guides a never-configured install straight to the Connection tab and starts a network
+    /// scan for WLED devices, instead of leaving the user to discover Connection → IP field on
+    /// their own. Runs every time Settings opens while the IP is still the untouched placeholder
+    /// — harmless (a few-second scan) and stops once a real IP is saved.
+    /// </summary>
+    private void TriggerFirstRunOnboarding()
+    {
+        if (!_connection.LooksLikeFirstRun)
+            return;
+
+        SelectTab("Connection");
+        _ = _connection.TriggerScanAsync();
     }
 
     protected override void OnLoad(EventArgs e)
@@ -168,6 +184,55 @@ public sealed class SettingsForm : Form
         return wrapper;
     }
 
+    private void ExportConfig()
+    {
+        // Export exactly what's on screen, not just the last-saved state.
+        if (!_actions.Save())
+            return;
+
+        using var dialog = new SaveFileDialog
+        {
+            Title = "Export GSPro Lighting settings",
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            FileName = "gspro-lighting-settings.json"
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        try
+        {
+            new ConfigStore(dialog.FileName).Save(_app.Config);
+            _connection.SetBackupStatus($"Exported to {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            _connection.SetBackupStatus($"Export failed: {ex.Message}", isError: true);
+        }
+    }
+
+    private void ImportConfig()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Import GSPro Lighting settings",
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        try
+        {
+            var imported = new ConfigStore(dialog.FileName).Load();
+            _app.SaveConfig(imported);
+            LoadFromConfig();
+            _connection.SetBackupStatus($"Imported from {dialog.FileName} — settings applied.");
+        }
+        catch (Exception ex)
+        {
+            _connection.SetBackupStatus($"Import failed: {ex.Message}", isError: true);
+        }
+    }
+
     private void LoadFromConfig()
     {
         _effects.LoadConfig(_app.Config.Effects);
@@ -191,6 +256,8 @@ public sealed class SettingsForm : Form
         _effects.IdleRequested += async (_, _) => await _actions.TestIdleAsync();
         _effects.ProxyToggleRequested += async (_, _) => await _actions.ToggleProxyAsync();
         _effects.PreviewRequested += async (_, args) => await _actions.PreviewEffectAsync(args.Slot);
+        _connection.ExportRequested += (_, _) => ExportConfig();
+        _connection.ImportRequested += (_, _) => ImportConfig();
         _statusTimer.Tick += (_, _) => _actions.UpdateStatus();
         _app.ProxyStateChanged += OnAppStatusChanged;
         _app.R50StatusChanged += OnAppStatusChanged;

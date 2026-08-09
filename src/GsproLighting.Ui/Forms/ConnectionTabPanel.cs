@@ -1,6 +1,8 @@
 using GsproLighting.Core.Config;
 using GsproLighting.Ui.Controls;
+using GsproLighting.Ui.Hosting;
 using GsproLighting.Ui.Theme;
+using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Ui.Forms;
 
@@ -8,6 +10,16 @@ public sealed class ConnectionTabPanel : UserControl
 {
     private readonly EmptyStateBanner _empty = new() { Width = 640, Margin = new Padding(0, 0, 0, 12) };
     private readonly TextBox _wledIp = new() { Width = 220 };
+    private readonly NightButton _scan = NightButton.Create("Scan for WLED devices", 200);
+    private readonly NightComboBox _scanResults = new() { Width = 260, Visible = false };
+    private readonly Label _scanStatus = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(560, 0),
+        ForeColor = UiTheme.Muted,
+        Margin = new Padding(0, 8, 0, 4)
+    };
+    private CancellationTokenSource? _scanCts;
     private readonly NumericUpDown _wledPort = Number(1, 65535);
     private readonly NumericUpDown _ledCount = Number(1, 1000);
     private readonly NumericUpDown _brightness = Number(1, 255);
@@ -21,7 +33,17 @@ public sealed class ConnectionTabPanel : UserControl
     private readonly CheckBox _autoWatch = Check("Auto-watch R50 / Connect logs (recommended)");
     private readonly CheckBox _startProxy = Check("Start Open Connect proxy on launch");
     private readonly CheckBox _startMinimized = Check("Start minimized to tray");
+    private readonly CheckBox _startWithWindows = Check("Start GSPro Lighting when Windows starts");
     private readonly CheckBox _captureDiagnostics = Check("Capture full diagnostics (includes heartbeats)");
+    private readonly NightButton _exportConfig = NightButton.Create("Export settings…", 160);
+    private readonly NightButton _importConfig = NightButton.Create("Import settings…", 160);
+    private readonly Label _backupStatus = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(560, 0),
+        ForeColor = UiTheme.Muted,
+        Margin = new Padding(0, 8, 0, 4)
+    };
     private readonly ToolTip _toolTip = new();
 
     public ConnectionTabPanel()
@@ -42,6 +64,8 @@ public sealed class ConnectionTabPanel : UserControl
         flow.Controls.Add(_empty);
         flow.Controls.Add(UiTheme.CreateSectionLabel("WLED controller"));
         flow.Controls.Add(Field("Controller IP", _wledIp));
+        flow.Controls.Add(BuildScanRow());
+        flow.Controls.Add(_scanStatus);
         flow.Controls.Add(Field("UDP port", _wledPort));
         flow.Controls.Add(Field("LED count", _ledCount));
         flow.Controls.Add(Field("Brightness", _brightness));
@@ -58,17 +82,38 @@ public sealed class ConnectionTabPanel : UserControl
         flow.Controls.Add(_autoWatch);
         flow.Controls.Add(_startProxy);
         flow.Controls.Add(_startMinimized);
+        flow.Controls.Add(_startWithWindows);
         flow.Controls.Add(UiTheme.CreateSectionLabel("Diagnostics"));
         flow.Controls.Add(_captureDiagnostics);
+        flow.Controls.Add(UiTheme.CreateSectionLabel("Backup & restore"));
+        flow.Controls.Add(BuildBackupRow());
+        flow.Controls.Add(_backupStatus);
         Controls.Add(flow);
 
         _wledIp.TextChanged += (_, _) => RefreshEmptyState();
         _autoWatch.CheckedChanged += (_, _) => RefreshEmptyState();
+        _scan.Click += async (_, _) => await ScanForWledDevicesAsync();
+        _scanResults.SelectedIndexChanged += (_, _) =>
+        {
+            if (_scanResults.SelectedItem is WledDiscoveredDevice device)
+                _wledIp.Text = device.IpAddress;
+        };
         UiTheme.StyleCheckBox(_invert);
         UiTheme.StyleCheckBox(_autoWatch);
         UiTheme.StyleCheckBox(_startProxy);
         UiTheme.StyleCheckBox(_startMinimized);
+        UiTheme.StyleCheckBox(_startWithWindows);
         UiTheme.StyleCheckBox(_captureDiagnostics);
+        _toolTip.SetToolTip(
+            _scan,
+            "Probes every device on your local network (/24 subnet) for a WLED controller — " +
+            "takes a few seconds. Works on the typical flat home/bay network; if your WLED " +
+            "device is on a different subnet or VLAN, enter its IP manually instead.");
+        _toolTip.SetToolTip(
+            _startWithWindows,
+            "Adds GSPro Lighting to your Windows user startup so it's already watching for " +
+            "GSPro/R50 before you open the sim — combine with \"Start minimized to tray\" for " +
+            "zero manual steps.");
         _toolTip.SetToolTip(
             _captureDiagnostics,
             "Logs every raw GSPro/Connect message (including keepalive heartbeats) to the logs " +
@@ -76,16 +121,47 @@ public sealed class ConnectionTabPanel : UserControl
             "to capture for future analysis (e.g. water hazard / OB / made-putt signals), then use " +
             "Live feed → Export logs zip… afterward. Restart the Open Connect proxy for the " +
             "change to take effect.");
+        _toolTip.SetToolTip(
+            _exportConfig,
+            "Saves all current settings (WLED IP, thresholds, startup options) to a JSON file " +
+            "you can copy to another bay/machine.");
+        _toolTip.SetToolTip(
+            _importConfig,
+            "Loads settings from a previously exported JSON file, replacing your current setup.");
+        _exportConfig.Click += (_, _) => ExportRequested?.Invoke(this, EventArgs.Empty);
+        _importConfig.Click += (_, _) => ImportRequested?.Invoke(this, EventArgs.Empty);
         RefreshEmptyState();
+    }
+
+    /// <summary>Raised when the user clicks Export settings — the actual file I/O is handled by
+    /// SettingsForm, which owns the full AppConfig and can reload every tab after an import.</summary>
+    public event EventHandler? ExportRequested;
+
+    public event EventHandler? ImportRequested;
+
+    public void SetBackupStatus(string message, bool isError = false)
+    {
+        _backupStatus.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
+        _backupStatus.Text = message;
     }
 
     protected override void OnPaintBackground(PaintEventArgs e) =>
         UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
 
+    /// <summary>True when the WLED IP has never been changed from its untouched placeholder.</summary>
+    public bool LooksLikeFirstRun => ControllerIp == WledConfig.DefaultControllerIp;
+
+    /// <summary>Kicks off the network scan programmatically (first-run onboarding).</summary>
+    public Task TriggerScanAsync() => ScanForWledDevicesAsync();
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _toolTip.Dispose();
+            _scanCts?.Cancel();
+            _scanCts?.Dispose();
+        }
         base.Dispose(disposing);
     }
 
@@ -109,6 +185,9 @@ public sealed class ConnectionTabPanel : UserControl
         _autoWatch.Checked = config.R50Watch.AutoWatchEnabled;
         _startProxy.Checked = config.Ui.StartProxyOnLaunch;
         _startMinimized.Checked = config.Ui.StartMinimizedToTray;
+        // Reconcile with the actual OS state rather than the last-saved config value — the user
+        // may have removed this via Windows' own Startup Apps settings since we last ran.
+        _startWithWindows.Checked = WindowsStartupManager.IsRegistered();
         _captureDiagnostics.Checked = config.Logging.LogHeartbeats;
         RefreshEmptyState();
     }
@@ -129,6 +208,8 @@ public sealed class ConnectionTabPanel : UserControl
         config.R50Watch.AutoWatchEnabled = _autoWatch.Checked;
         config.Ui.StartProxyOnLaunch = _startProxy.Checked;
         config.Ui.StartMinimizedToTray = _startMinimized.Checked;
+        config.Ui.StartWithWindows = _startWithWindows.Checked;
+        WindowsStartupManager.Apply(_startWithWindows.Checked);
         config.Logging.LogHeartbeats = _captureDiagnostics.Checked;
     }
 
@@ -149,6 +230,94 @@ public sealed class ConnectionTabPanel : UserControl
         }
 
         _empty.HideMessage();
+    }
+
+    private Control BuildScanRow()
+    {
+        var row = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = true,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0, 0, 0, 4)
+        };
+        _scan.Margin = new Padding(0, 0, 10, 0);
+        _scanResults.Margin = new Padding(0, 0, 0, 0);
+        row.Controls.Add(_scan);
+        row.Controls.Add(_scanResults);
+        return row;
+    }
+
+    private Control BuildBackupRow()
+    {
+        var row = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = true,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0, 0, 0, 4)
+        };
+        _exportConfig.Margin = new Padding(0, 0, 10, 0);
+        _importConfig.Margin = new Padding(0, 0, 0, 0);
+        row.Controls.Add(_exportConfig);
+        row.Controls.Add(_importConfig);
+        return row;
+    }
+
+    private async Task ScanForWledDevicesAsync()
+    {
+        _scanCts?.Cancel();
+        _scanCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _scanCts = cts;
+
+        _scan.Enabled = false;
+        _scanResults.Visible = false;
+        _scanStatus.ForeColor = UiTheme.Muted;
+        _scanStatus.Text = "Scanning your network for WLED devices…";
+
+        var progress = new Progress<(int Scanned, int Total)>(p =>
+        {
+            if (cts.IsCancellationRequested)
+                return;
+            _scanStatus.Text = $"Scanning your network for WLED devices… {p.Scanned}/{p.Total}";
+        });
+
+        using var discovery = new WledNetworkDiscovery();
+        try
+        {
+            var found = await discovery.ScanAsync(progress, cts.Token).ConfigureAwait(true);
+            if (cts.IsCancellationRequested)
+                return;
+
+            if (found.Count == 0)
+            {
+                _scanStatus.Text = "No WLED devices found on this network — enter the IP manually.";
+                return;
+            }
+
+            _scanResults.Items.Clear();
+            foreach (var device in found)
+                _scanResults.Items.Add(device);
+            _scanResults.SelectedIndex = 0;
+            _scanResults.Visible = true;
+            _scanStatus.Text = found.Count == 1
+                ? "Found 1 device — select it to fill in the IP."
+                : $"Found {found.Count} devices — select one to fill in the IP.";
+        }
+        catch (Exception ex)
+        {
+            if (!cts.IsCancellationRequested)
+            {
+                _scanStatus.ForeColor = UiTheme.NotReady;
+                _scanStatus.Text = $"Scan failed: {ex.Message}";
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_scanCts, cts))
+                _scan.Enabled = true;
+        }
     }
 
     private static Control BuildIntro() =>
