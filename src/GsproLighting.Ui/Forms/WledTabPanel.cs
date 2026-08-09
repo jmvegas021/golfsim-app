@@ -11,6 +11,7 @@ public sealed partial class WledTabPanel : UserControl
 {
     private readonly Func<string> _getControllerIp;
     private readonly Func<byte> _getBrightness;
+    private readonly Action<string, string>? _logWledFailure;
     private readonly WledTabManager _manager = new();
 
     private readonly Label _connectionStatus = new();
@@ -48,10 +49,14 @@ public sealed partial class WledTabPanel : UserControl
     private bool _hasLoaded;
     private int _selectedSegmentId;
 
-    public WledTabPanel(Func<string> getControllerIp, Func<byte> getBrightness)
+    public WledTabPanel(
+        Func<string> getControllerIp,
+        Func<byte> getBrightness,
+        Action<string, string>? logWledFailure = null)
     {
         _getControllerIp = getControllerIp ?? throw new ArgumentNullException(nameof(getControllerIp));
         _getBrightness = getBrightness ?? throw new ArgumentNullException(nameof(getBrightness));
+        _logWledFailure = logWledFailure;
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
         Padding = new Padding(18, 12, 18, 12);

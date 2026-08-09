@@ -135,6 +135,7 @@ internal sealed class SettingsFormActions
         }
         catch (Exception ex)
         {
+            _app.ReportWledFailure("effects-test", $"{label}: {ex.Message}");
             _effects.ShowActionStatus(
                 $"On-screen preview played. WLED error: {ex.Message}",
                 isError: true);

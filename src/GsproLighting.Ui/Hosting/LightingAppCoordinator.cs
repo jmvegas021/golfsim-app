@@ -1,5 +1,6 @@
 using GsproLighting.Core.Config;
 using GsproLighting.Core.Contracts;
+using GsproLighting.Core.Logging;
 using GsproLighting.Core.Models;
 using GsproLighting.Core.Services;
 using GsproLighting.Gspro.Discovery;
@@ -21,6 +22,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     private readonly ShotFeedBuffer _feed = new();
     private readonly BallReadyStateResolver _readyStateResolver = new();
     private readonly DrgbWledOutput _wled = new();
+    private readonly WledErrorLogger _wledErrors;
     private readonly WledShotEffectSink _effectSink;
     private readonly CompositeShotEventSink _shotSink;
     private readonly object _proxyGate = new();
@@ -38,13 +40,28 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
         NormalizePaths(Config);
         _wled.Configure(Config.Wled);
         Preview = new WledPreviewPlayer(_wled);
+        _wledErrors = new WledErrorLogger(Config.Logging.RawLogDirectory);
         _effectSink = new WledShotEffectSink(
             _wled,
             () => Config.Effects,
             () => Config.Wled,
-            logFailure: msg => _feed.AddRaw("WLED", msg));
+            logFailure: ReportEffectSinkFailure);
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
         TryHoldWaitingIfUnknown();
+    }
+
+    /// <summary>
+    /// Persists a WLED failure to <c>wled-errors-*.jsonl</c> (included in log export).
+    /// Live-feed lines are only written for the effect-sink path — UI callers already show
+    /// their own status text.
+    /// </summary>
+    public void ReportWledFailure(string source, string message) =>
+        _wledErrors.Log(source, message);
+
+    private void ReportEffectSinkFailure(string message)
+    {
+        _feed.AddRaw("WLED", message);
+        _wledErrors.Log("effect-sink", message);
     }
 
     public AppConfig Config { get; private set; }

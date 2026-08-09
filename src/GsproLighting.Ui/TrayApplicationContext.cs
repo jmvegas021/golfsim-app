@@ -218,6 +218,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
+            _app.ReportWledFailure("tray-test-lights", ex.Message);
             _tray.ShowBalloonTip(4000, "GSPro Lighting", ex.Message, ToolTipIcon.Error);
             CrashLog.Write("TestLights", ex);
         }

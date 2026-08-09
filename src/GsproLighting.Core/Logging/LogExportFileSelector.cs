@@ -7,7 +7,8 @@ internal sealed class LogExportFileSelector
     private static readonly string[] LogPatterns =
     [
         "gspro-raw-*.jsonl",
-        "r50-*.jsonl"
+        "r50-*.jsonl",
+        "wled-errors-*.jsonl"
     ];
 
     private readonly string _logsDirectory;

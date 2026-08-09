@@ -52,6 +52,7 @@ public sealed partial class WledTabPanel
             _hasLoaded = false;
             SetEditorEnabled(false);
             ShowEmptyState();
+            LogWledFailure($"Refresh: {ex.Message}");
             RefreshConnectionStatus(error: ex.Message);
         }
     }
@@ -128,6 +129,7 @@ public sealed partial class WledTabPanel
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Apply: {ex.Message}");
             RefreshConnectionStatus(error: ex.Message);
         }
     }
@@ -145,6 +147,7 @@ public sealed partial class WledTabPanel
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Revert: {ex.Message}");
             RefreshConnectionStatus(error: ex.Message);
         }
     }
@@ -163,6 +166,7 @@ public sealed partial class WledTabPanel
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Sync ambient: {ex.Message}");
             RefreshConnectionStatus(error: ex.Message);
         }
     }
@@ -188,6 +192,7 @@ public sealed partial class WledTabPanel
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Apply preset: {ex.Message}");
             RefreshConnectionStatus(error: ex.Message);
         }
     }
@@ -205,6 +210,7 @@ public sealed partial class WledTabPanel
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Playlist next: {ex.Message}");
             RefreshConnectionStatus(error: ex.Message);
         }
     }
@@ -221,6 +227,9 @@ public sealed partial class WledTabPanel
             RefreshConnectionStatus(error: ex.Message);
         }
     }
+
+    private void LogWledFailure(string message) =>
+        _logWledFailure?.Invoke("wled-tab", message);
 
     private WledStatePatch BuildPatchFromEditor() =>
         new()

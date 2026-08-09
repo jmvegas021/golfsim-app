@@ -30,6 +30,21 @@ public sealed class LogExportServiceTests
     }
 
     [Fact]
+    public void Export_IncludesWledErrorLogs()
+    {
+        using var directory = new TestDirectory();
+        var logsDirectory = Directory.CreateDirectory(directory.GetPath("logs")).FullName;
+        var crashLogPath = directory.Write("crash.log", "crash");
+        WriteLog(logsDirectory, "wled-errors-20260807.jsonl");
+        var destinationPath = directory.GetPath("logs.zip");
+        var service = CreateService(logsDirectory, crashLogPath);
+
+        var result = service.Export(destinationPath);
+
+        Assert.Contains("wled-errors-20260807.jsonl", result.ExportedFileNames);
+    }
+
+    [Fact]
     public void Export_ExcludesDestinationWhenItMatchesLogPattern()
     {
         using var directory = new TestDirectory();

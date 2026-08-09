@@ -16,6 +16,7 @@ public sealed class PreviewTabPanel : UserControl
 {
     private readonly Func<EffectConfig> _resolveEffects;
     private readonly Func<WledConfig> _resolveWled;
+    private readonly Action<string, string>? _logWledFailure;
     private readonly LedStripPreview _strip = new();
     private readonly LightingPreviewCatalog _catalog = new();
     private readonly PreviewPlaybackCoordinator _coordinator;
@@ -33,10 +34,12 @@ public sealed class PreviewTabPanel : UserControl
     public PreviewTabPanel(
         Func<EffectConfig> resolveEffects,
         Func<WledConfig> resolveWled,
-        WledPreviewPlayer player)
+        WledPreviewPlayer player,
+        Action<string, string>? logWledFailure = null)
     {
         _resolveEffects = resolveEffects;
         _resolveWled = resolveWled;
+        _logWledFailure = logWledFailure;
         _coordinator = new PreviewPlaybackCoordinator(player, _strip);
 
         Dock = DockStyle.Fill;
@@ -230,6 +233,7 @@ public sealed class PreviewTabPanel : UserControl
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Preview {card.Item.Title}: {ex.Message}");
             SetState($"On-screen holding · WLED: {ex.Message}", generation, isError: true);
         }
         finally
@@ -270,6 +274,7 @@ public sealed class PreviewTabPanel : UserControl
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Play all: {ex.Message}");
             SetState($"Play all · WLED: {ex.Message}", generation, isError: true);
         }
         finally
@@ -297,6 +302,7 @@ public sealed class PreviewTabPanel : UserControl
         }
         catch (Exception ex)
         {
+            LogWledFailure($"Stop: {ex.Message}");
             SetState($"Stop failed: {ex.Message}", generation, isError: true);
         }
         finally
@@ -304,6 +310,9 @@ public sealed class PreviewTabPanel : UserControl
             UpdateToolbarEnabled();
         }
     }
+
+    private void LogWledFailure(string message) =>
+        _logWledFailure?.Invoke("preview", message);
 
     private int BeginStatusGeneration() => Interlocked.Increment(ref _statusGeneration);
 

@@ -48,9 +48,17 @@ public sealed class SettingsForm : Form
             ResolveEffectsForPreview,
             ResolveWledForPreview,
             ResolveControllerIp,
-            app.Preview);
-        _preview = new PreviewTabPanel(ResolveEffectsForPreview, ResolveWledForPreview, app.Preview);
-        _wled = new WledTabPanel(ResolveControllerIp, () => _connection.Brightness);
+            app.Preview,
+            app.ReportWledFailure);
+        _preview = new PreviewTabPanel(
+            ResolveEffectsForPreview,
+            ResolveWledForPreview,
+            app.Preview,
+            app.ReportWledFailure);
+        _wled = new WledTabPanel(
+            ResolveControllerIp,
+            () => _connection.Brightness,
+            app.ReportWledFailure);
         _updatesPanel = new UpdatesPanel(updates);
         _liveFeed = new LiveFeedTabPanel(
             app.Feed,
