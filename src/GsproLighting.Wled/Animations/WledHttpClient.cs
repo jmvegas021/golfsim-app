@@ -1,6 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
 using GsproLighting.Core.Config;
+using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Wled.Animations;
 
@@ -48,9 +48,10 @@ public sealed class WledHttpClient : IDisposable
         CancellationToken cancellationToken,
         bool isRetry = false)
     {
+        using var content = WledJsonPostContent.Create(body, out var requestJson);
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
-            Content = JsonContent.Create(body)
+            Content = content
         };
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_requestTimeout);
@@ -99,17 +100,20 @@ public sealed class WledHttpClient : IDisposable
                     HttpStatusCode.RequestEntityTooLarge);
             }
 
-            await EnsureSuccessWithBodyAsync(response, timeout.Token).ConfigureAwait(false);
+            await EnsureSuccessWithBodyAsync(response, endpoint, requestJson, timeout.Token)
+                .ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Like EnsureSuccessStatusCode, but includes the response body in the exception — WLED's
-    /// /json/state endpoint returns a JSON error explaining a 400 (e.g. an invalid segment/effect
-    /// id), which EnsureSuccessStatusCode alone silently discards.
+    /// Like EnsureSuccessStatusCode, but includes the response body (and the request we sent)
+    /// in the exception — WLED's /json/state endpoint often returns a JSON error explaining a
+    /// 400, and empty 400s are usually a rejected Content-Type.
     /// </summary>
-    private static async Task EnsureSuccessWithBodyAsync(
+    internal static async Task EnsureSuccessWithBodyAsync(
         HttpResponseMessage response,
+        Uri endpoint,
+        string requestJson,
         CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
@@ -125,9 +129,13 @@ public sealed class WledHttpClient : IDisposable
             // Best-effort — fall back to the plain status code message below.
         }
 
-        var detail = string.IsNullOrWhiteSpace(body) ? string.Empty : $" — {body.Trim()}";
+        var detail = string.IsNullOrWhiteSpace(body)
+            ? " — empty body (often Content-Type rejected before JSON parse)"
+            : $" — {body.Trim()}";
+        var requestSnippet = Truncate(requestJson, 240);
         throw new HttpRequestException(
-            $"WLED returned {(int)response.StatusCode} ({response.ReasonPhrase}){detail}",
+            $"WLED at {endpoint.Host} returned {(int)response.StatusCode} ({response.ReasonPhrase})" +
+            $"{detail}; sent {requestSnippet}",
             inner: null,
             response.StatusCode);
     }
@@ -174,6 +182,9 @@ public sealed class WledHttpClient : IDisposable
     private static int[] ToRgbArray(RgbColor color) => [color.R, color.G, color.B];
 
     private static int ClampByte(int value) => Math.Clamp(value, 0, 255);
+
+    private static string Truncate(string value, int maxChars) =>
+        value.Length <= maxChars ? value : value[..maxChars] + "…";
 
     private static Uri BuildStateEndpoint(string controllerIp)
     {
