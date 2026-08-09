@@ -59,6 +59,16 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     public string? LastR50NetworkEvent => _r50Watch?.LastNetworkEvent;
     public BallReadyState BallReadyState => _readyStateResolver.Resolve(_feed.Recent);
 
+    /// <summary>
+    /// True once GSPro/Connect is actually reachable — an R50 log file or network peer was
+    /// found, or the Open Connect proxy has a live session — as distinct from "no shot/ready
+    /// signal has arrived yet." Lets the UI say "connected, waiting for a shot" instead of a
+    /// blanket "waiting for connection" that's misleading once a real connection exists.
+    /// </summary>
+    public bool IsConnectSourceActive =>
+        (R50Snapshot is { } snapshot && (snapshot.LogFiles.Count > 0 || snapshot.Peers.Count > 0)) ||
+        IsProxyRunning;
+
     public bool IsProxyRunning
     {
         get

@@ -22,6 +22,10 @@ public static class ProductCopy
     public const string LiveFeedWaitingBody =
         "Ready, shot, putt, and player events show here once Connect is live. Clear, open the logs folder, or export a zip for support.";
 
+    public const string LiveFeedConnectedTitle = "Connected — waiting for a shot";
+    public const string LiveFeedConnectedBody =
+        "GSPro/R50 is connected. Ready, shot, putt, and player events will appear here as soon as one happens.";
+
     public const string PreviewHint =
         "Preview plays on-screen and on WLED without saving. Colors hold after each animation — Stop holds ready Ripple ambient.";
 

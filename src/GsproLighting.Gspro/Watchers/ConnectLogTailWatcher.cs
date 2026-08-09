@@ -1,6 +1,7 @@
 using System.Text;
 using GsproLighting.Core.Contracts;
 using GsproLighting.Core.Services;
+using GsproLighting.Gspro.Dispatch;
 using GsproLighting.Gspro.Parsing;
 
 namespace GsproLighting.Gspro.Watchers;
@@ -186,11 +187,17 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
                 break;
             if (line.Length == 0)
                 continue;
-            await HandleLineAsync(line, token).ConfigureAwait(false);
+            HandleLine(line, token);
         }
     }
 
-    private async Task HandleLineAsync(string line, CancellationToken token)
+    /// <summary>
+    /// Parses a line and dispatches the matching sink call. The dispatch is fire-and-forget
+    /// (via SinkCallDispatcher) — WledShotEffectSink's Idle/Waiting/NotReady holds run
+    /// indefinitely until superseded by the next call, and synchronously awaiting one here
+    /// would block this read loop from ever reaching the next line that's needed to end it.
+    /// </summary>
+    private void HandleLine(string line, CancellationToken token)
     {
         ConnectParseResult parsed;
         try
@@ -210,27 +217,22 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
         Interlocked.Increment(ref _interestingCount);
         AppendCapture("log", line);
 
-        try
+        void OnError(string message) => _feed.AddRaw("LOG", $"Shot emit error: {message}");
+
+        switch (parsed.Kind)
         {
-            switch (parsed.Kind)
-            {
-                case ConnectParseKind.Shot when parsed.Shot is not null:
-                    await _sink.OnShotAsync(parsed.Shot, token).ConfigureAwait(false);
-                    break;
-                case ConnectParseKind.Ready when parsed.Shot is not null:
-                    await _sink.OnBallReadyAsync(parsed.Shot, token).ConfigureAwait(false);
-                    break;
-                case ConnectParseKind.NotReady:
-                    await _sink.OnBallNotReadyAsync(token).ConfigureAwait(false);
-                    break;
-                default:
-                    _feed.AddRaw("LOG", parsed.RawLine ?? line);
-                    break;
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _feed.AddRaw("LOG", $"Shot emit error: {ex.Message}");
+            case ConnectParseKind.Shot when parsed.Shot is not null:
+                SinkCallDispatcher.Fire(() => _sink.OnShotAsync(parsed.Shot, token), OnError);
+                break;
+            case ConnectParseKind.Ready when parsed.Shot is not null:
+                SinkCallDispatcher.Fire(() => _sink.OnBallReadyAsync(parsed.Shot, token), OnError);
+                break;
+            case ConnectParseKind.NotReady:
+                SinkCallDispatcher.Fire(() => _sink.OnBallNotReadyAsync(token), OnError);
+                break;
+            default:
+                _feed.AddRaw("LOG", parsed.RawLine ?? line);
+                break;
         }
     }
 

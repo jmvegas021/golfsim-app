@@ -55,7 +55,8 @@ public sealed class SettingsForm : Form
         _liveFeed = new LiveFeedTabPanel(
             app.Feed,
             new LogsFolderLauncher(app.Config.Logging.RawLogDirectory),
-            new LogExportService(app.Config.Logging.RawLogDirectory, AppPaths.CrashLogPath));
+            new LogExportService(app.Config.Logging.RawLogDirectory, AppPaths.CrashLogPath),
+            () => _app.IsConnectSourceActive);
         _actions = new SettingsFormActions(app, _effects, _connection, _liveFeed);
 
         // Thin theme apply for workstream A/B panels without rewriting internals.
@@ -258,7 +259,11 @@ public sealed class SettingsForm : Form
         _effects.PreviewRequested += async (_, args) => await _actions.PreviewEffectAsync(args.Slot);
         _connection.ExportRequested += (_, _) => ExportConfig();
         _connection.ImportRequested += (_, _) => ImportConfig();
-        _statusTimer.Tick += (_, _) => _actions.UpdateStatus();
+        _statusTimer.Tick += (_, _) =>
+        {
+            _actions.UpdateStatus();
+            _liveFeed.RefreshEmptyState();
+        };
         _app.ProxyStateChanged += OnAppStatusChanged;
         _app.R50StatusChanged += OnAppStatusChanged;
         FormClosed += (_, _) => UnwireEvents();
@@ -292,7 +297,11 @@ public sealed class SettingsForm : Form
 
         try
         {
-            BeginInvoke(_actions.UpdateStatus);
+            BeginInvoke(() =>
+            {
+                _actions.UpdateStatus();
+                _liveFeed.RefreshEmptyState();
+            });
         }
         catch (ObjectDisposedException)
         {

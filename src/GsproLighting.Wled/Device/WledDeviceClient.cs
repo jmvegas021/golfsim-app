@@ -150,7 +150,7 @@ public sealed class WledDeviceClient : IDisposable
             request,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithBodyAsync(response, timeout.Token).ConfigureAwait(false);
         return await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
     }
 
@@ -201,7 +201,36 @@ public sealed class WledDeviceClient : IDisposable
                 HttpStatusCode.RequestEntityTooLarge);
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithBodyAsync(response, timeout.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Like EnsureSuccessStatusCode, but includes the response body in the exception — WLED's
+    /// /json/state endpoint returns a JSON error explaining a 400 (e.g. an invalid segment/effect
+    /// id), which EnsureSuccessStatusCode alone silently discards.
+    /// </summary>
+    private static async Task EnsureSuccessWithBodyAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        string? body = null;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Best-effort — fall back to the plain status code message below.
+        }
+
+        var detail = string.IsNullOrWhiteSpace(body) ? string.Empty : $" — {body.Trim()}";
+        throw new HttpRequestException(
+            $"WLED returned {(int)response.StatusCode} ({response.ReasonPhrase}){detail}",
+            inner: null,
+            response.StatusCode);
     }
 
     private static Uri BuildEndpoint(string controllerIp, string path)

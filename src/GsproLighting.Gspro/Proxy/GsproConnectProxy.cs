@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using GsproLighting.Core.Config;
 using GsproLighting.Core.Contracts;
 using GsproLighting.Core.Models;
+using GsproLighting.Gspro.Dispatch;
 using GsproLighting.Gspro.Framing;
 using GsproLighting.Gspro.Parsing;
 
@@ -153,24 +154,22 @@ public sealed class GsproConnectProxy
             Console.WriteLine(
                 $"  ! UNKNOWN KEYS (spike hit?): {string.Join(", ", parsed.UnknownFields.Keys)}");
 
-        try
-        {
-            if (parsed.Shot is { } shot)
-            {
-                if (shot.HasBallData)
-                    await _shotSink.OnShotAsync(shot, cancellationToken);
-                else if (shot.IsBallDetected)
-                    await _shotSink.OnBallReadyAsync(shot, cancellationToken);
-            }
+        // Fire-and-forget: WledShotEffectSink's Idle/Waiting/NotReady holds run indefinitely
+        // until superseded by the next sink call. Awaiting one synchronously here would block
+        // this same loop from reading the next LM/GSPro message — including the very message
+        // that would supersede/end the hold — permanently stalling the proxy pipe.
+        void OnError(string message) => Console.WriteLine($"[proxy] shot sink error: {message}");
 
-            if (parsed.Response is { } response)
-                await _shotSink.OnPlayerInfoAsync(response, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        if (parsed.Shot is { } shot)
         {
-            // Backstop: sink/HTTP failures must not tear down LM↔GSPro TCP pipes.
-            Console.WriteLine($"[proxy] shot sink error: {ex.Message}");
+            if (shot.HasBallData)
+                SinkCallDispatcher.Fire(() => _shotSink.OnShotAsync(shot, cancellationToken), OnError);
+            else if (shot.IsBallDetected)
+                SinkCallDispatcher.Fire(() => _shotSink.OnBallReadyAsync(shot, cancellationToken), OnError);
         }
+
+        if (parsed.Response is { } response)
+            SinkCallDispatcher.Fire(() => _shotSink.OnPlayerInfoAsync(response, cancellationToken), OnError);
     }
 
     private static string Truncate(string value, int max) =>

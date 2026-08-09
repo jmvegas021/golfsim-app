@@ -49,14 +49,18 @@ public sealed class LiveFeedTabPanel : UserControl
     };
     private readonly ToolTip _toolTip = new();
 
+    private readonly Func<bool> _isConnected;
+
     public LiveFeedTabPanel(
         IShotFeed feedSource,
         LogsFolderLauncher folderLauncher,
-        LogExportService exportService)
+        LogExportService exportService,
+        Func<bool>? isConnected = null)
     {
         _feedSource = feedSource;
         _folderLauncher = folderLauncher;
         _exportService = exportService;
+        _isConnected = isConnected ?? (() => false);
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
         Padding = new Padding(18);
@@ -212,20 +216,34 @@ public sealed class LiveFeedTabPanel : UserControl
         }
     }
 
-    private void RefreshEmptyState()
+    /// <summary>Re-evaluates the empty-state message — call when connection status changes too,
+    /// not just when a feed entry arrives, so "connected, no shots yet" doesn't lag behind.</summary>
+    public void RefreshEmptyState()
     {
         var waiting = _feed.Items.Count == 0;
         _empty.Visible = waiting;
         _feed.Visible = !waiting;
-        if (waiting)
+        if (!waiting)
+            return;
+
+        if (_isConnected())
+        {
+            _empty.ShowMessage(
+                ProductCopy.LiveFeedConnectedTitle,
+                ProductCopy.LiveFeedConnectedBody,
+                waitingAccent: true);
+            _status.Text = ProductCopy.LiveFeedConnectedBody;
+        }
+        else
         {
             _empty.ShowMessage(
                 ProductCopy.LiveFeedWaitingTitle,
                 ProductCopy.WaitingR50Body,
                 waitingAccent: true);
             _status.Text = ProductCopy.LiveFeedWaitingBody;
-            _status.ForeColor = UiTheme.Muted;
         }
+
+        _status.ForeColor = UiTheme.Muted;
     }
 
     private void DrawFeedItem(object? sender, DrawItemEventArgs e)
