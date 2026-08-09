@@ -8,11 +8,12 @@ public static class ProductCopy
 
     public const string ConnectionIntroTitle = "Connection";
     public const string ConnectionIntroBody =
-        "Point the strip at your WLED controller, set Open Connect ports if you use a proxy, then tune shot thresholds.";
+        "Scan or enter your WLED IP — LED count and brightness come from the controller. " +
+        "Save settings on this tab (or Effects). Tune Open Connect ports and shot thresholds below.";
 
     public const string NoWledTitle = "No WLED controller yet";
     public const string NoWledBody =
-        "Enter your controller IP below, then open Effects → Test lights. The strip stays dark until an address is set.";
+        "Scan for devices or enter the controller IP below. Strip length and brightness fill in from WLED automatically.";
 
     public const string WaitingR50Title = "Waiting for R50 / Connect";
     public const string WaitingR50Body =

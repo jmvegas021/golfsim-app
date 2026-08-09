@@ -115,6 +115,8 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     /// action (Test lights, Idle glow, Preview, Quick Control, and actual GSPro shot reactions)
     /// shares that same cached target, so editing the IP without hitting Save silently left them
     /// pointed at the old value even though the WLED tab (which reads the field directly) worked.
+    /// Settings also auto-persists when the Connection IP is committed (field leave / scan pick)
+    /// so the effect sink and next launch keep the new address.
     /// </summary>
     public void SyncWledConnectionLive(string controllerIp, int udpPort, int ledCount, byte brightness, bool invertLeftRight)
     {

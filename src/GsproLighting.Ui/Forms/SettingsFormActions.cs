@@ -35,7 +35,10 @@ internal sealed class SettingsFormActions
             _app.SaveConfig(config);
             if (config.R50Watch.AutoWatchEnabled && !_app.IsR50WatchRunning)
                 _app.StartR50AutoWatch();
-            _effects.ShowActionStatus($"Saved {config.Wled.ControllerIp} · {DateTime.Now:t}");
+            var summary = $"Saved {config.Wled.ControllerIp} · {DateTime.Now:t}";
+            _effects.ShowActionStatus(summary);
+            _connection.SetBackupStatus(
+                $"{summary} · {config.Wled.LedCount} LEDs · brightness {config.Wled.Brightness}");
             return true;
         }
         catch (Exception ex)

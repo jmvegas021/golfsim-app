@@ -11,8 +11,12 @@ public sealed class WledDiscoveredDevice
     public required string IpAddress { get; init; }
     public required string Name { get; init; }
     public required string Version { get; init; }
+    public int LedCount { get; init; }
 
-    public override string ToString() => $"{Name} ({IpAddress})";
+    public override string ToString() =>
+        LedCount > 0
+            ? $"{Name} ({IpAddress}) · {LedCount} LEDs"
+            : $"{Name} ({IpAddress})";
 }
 
 /// <summary>
@@ -54,7 +58,13 @@ public sealed class WledNetworkDiscovery : IDisposable
             {
                 var info = await _client.GetInfoAsync(ip, cancellationToken).ConfigureAwait(false);
                 if (!string.IsNullOrEmpty(info.Version))
-                    found.Add(new WledDiscoveredDevice { IpAddress = ip, Name = info.Name, Version = info.Version });
+                    found.Add(new WledDiscoveredDevice
+                    {
+                        IpAddress = ip,
+                        Name = info.Name,
+                        Version = info.Version,
+                        LedCount = info.LedCount
+                    });
             }
             catch
             {

@@ -267,6 +267,15 @@ public sealed class SettingsForm : Form
         _effects.PreviewRequested += async (_, args) => await _actions.PreviewEffectAsync(args.Slot);
         _connection.ExportRequested += (_, _) => ExportConfig();
         _connection.ImportRequested += (_, _) => ImportConfig();
+        _connection.ControllerIpCommitted += PersistControllerIpLive;
+        _connection.SaveRequested += (_, _) =>
+        {
+            if (_actions.Save())
+            {
+                _preview.RefreshFromEffects();
+                _quickControl.RefreshFromEffects();
+            }
+        };
         _statusTimer.Tick += (_, _) =>
         {
             _actions.UpdateStatus();
@@ -275,6 +284,29 @@ public sealed class SettingsForm : Form
         _app.ProxyStateChanged += OnAppStatusChanged;
         _app.R50StatusChanged += OnAppStatusChanged;
         FormClosed += (_, _) => UnwireEvents();
+    }
+
+    /// <summary>
+    /// Pushes the Connection-tab IP into the live effect sink (and disk) as soon as the user
+    /// leaves the field or picks a scan result — without requiring a full Save click. That was
+    /// the gap behind live shots still targeting the shipped default 192.168.1.50 while the WLED
+    /// tab (which reads the text box directly) already talked to the real controller.
+    /// </summary>
+    private void PersistControllerIpLive()
+    {
+        var ip = _connection.ControllerIp;
+        if (string.IsNullOrWhiteSpace(ip))
+            return;
+
+        _app.SyncWledConnectionLive(
+            ip,
+            _connection.UdpPort,
+            _connection.LedCount,
+            _connection.Brightness,
+            _connection.InvertLeftRight);
+        _app.SaveConfig(_app.Config);
+        _connection.SetBackupStatus(
+            $"Saved {_connection.LedCount} LEDs · brightness {_connection.Brightness} · live lighting uses {ip}.");
     }
 
     private EffectConfig ResolveEffectsForPreview()
@@ -311,6 +343,7 @@ public sealed class SettingsForm : Form
     {
         _statusTimer.Stop();
         _statusTimer.Dispose();
+        _connection.ControllerIpCommitted -= PersistControllerIpLive;
         _app.ProxyStateChanged -= OnAppStatusChanged;
         _app.R50StatusChanged -= OnAppStatusChanged;
     }
