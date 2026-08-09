@@ -29,7 +29,10 @@ public sealed class QuickControlTabPanel : UserControl
     private readonly Func<EffectConfig> _resolveEffects;
     private readonly Func<WledConfig> _resolveWled;
     private readonly Func<string> _getControllerIp;
-    private readonly LedStripPreview _strip = new() { Height = 64 };
+    // LedStripPreview's drawing layout is hardcoded for its own default Height (108) — header,
+    // pixel bar, legend, and status text are all placed at fixed Y offsets, so shrinking it
+    // clips the status line. Do not override Height here.
+    private readonly LedStripPreview _strip = new();
     private readonly LightingPreviewCatalog _catalog = new();
     private readonly PreviewPlaybackCoordinator _coordinator;
     private readonly WledDeviceClient _deviceClient = new();

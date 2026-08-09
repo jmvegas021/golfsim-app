@@ -29,6 +29,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     private string? _lastProxyError;
     private R50AutoWatchManager? _r50Watch;
     private bool _firstShotBalloonShown;
+    private bool _r50WasConnected;
 
     public LightingAppCoordinator(ConfigStore store)
     {
@@ -111,7 +112,11 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
             Config.R50Watch.DiscoveryRefreshSeconds);
         _r50Watch.StatusChanged += () =>
         {
-            try { R50StatusChanged?.Invoke(); }
+            try
+            {
+                HandleR50ConnectionTransition();
+                R50StatusChanged?.Invoke();
+            }
             catch (Exception ex) { CrashLog.Write("R50StatusChanged", ex); }
         };
         _feed.EntryAdded += OnFeedEntryForBalloon;
@@ -123,6 +128,7 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
     {
         var watch = _r50Watch;
         _r50Watch = null;
+        _r50WasConnected = false;
         _feed.EntryAdded -= OnFeedEntryForBalloon;
         if (watch is null)
             return;
@@ -306,6 +312,21 @@ public sealed class LightingAppCoordinator : IAsyncDisposable
             return;
 
         _ = _effectSink.HoldWaitingAsync();
+    }
+
+    /// <summary>
+    /// Turns the strip on the moment GSPro/Connect is first discovered (log file found or an
+    /// R50 peer seen) after not being found — e.g. the golfer just launched GSPro. Catches the
+    /// case where the WLED device was powered off/reset while this app sat idly watching, since
+    /// otherwise nothing re-applies the ambient until a real Ready/Not-ready shot signal arrives.
+    /// </summary>
+    private void HandleR50ConnectionTransition()
+    {
+        var snapshot = _r50Watch?.Snapshot;
+        var isConnected = snapshot is { } s && (s.LogFiles.Count > 0 || s.Peers.Count > 0);
+        if (isConnected && !_r50WasConnected)
+            TryHoldWaitingIfUnknown();
+        _r50WasConnected = isConnected;
     }
 
     private static void NormalizePaths(AppConfig config)

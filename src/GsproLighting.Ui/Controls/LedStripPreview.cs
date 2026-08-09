@@ -22,7 +22,9 @@ public sealed class LedStripPreview : Control
     public LedStripPreview()
     {
         Height = 108;
-        MinimumSize = new Size(200, 96);
+        // Drawing layout (header/pixels/legend/status) uses fixed Y offsets sized for 108 —
+        // enforce it as a floor so a caller can't silently clip the status line via Height=.
+        MinimumSize = new Size(200, 108);
         Dock = DockStyle.Top;
         DoubleBuffered = true;
         TabStop = false;

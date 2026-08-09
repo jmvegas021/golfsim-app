@@ -22,9 +22,9 @@ public sealed class PreviewTabPanel : UserControl
     private readonly FlowLayoutPanel _cards = new();
     private readonly Label _stateLabel = new();
     private readonly NightComboBox _direction = new();
-    private readonly NightButton _stop = new() { Text = "Stop / hold idle", Width = 150 };
-    private readonly NightButton _playAll = new() { Text = "Play all", Width = 120, IsPrimary = true };
-    private readonly NightButton _skip = new() { Text = "Skip", Width = 88 };
+    private readonly NightButton _stop = NightButton.Create("Stop / hold idle", 150);
+    private readonly NightButton _playAll = NightButton.Create("Play all", 120, isPrimary: true);
+    private readonly NightButton _skip = NightButton.Create("Skip", 88);
     private readonly List<PreviewStateCard> _stateCards = [];
     private int _statusGeneration;
     private CancellationTokenSource? _previewCts;
@@ -43,11 +43,6 @@ public sealed class PreviewTabPanel : UserControl
         BackColor = UiTheme.Background;
         Padding = new Padding(18, 14, 18, 14);
         Font = UiTheme.BodyFont();
-
-        _stop.Width = 168;
-        _stop.WrapText = true;
-        _playAll.Width = 120;
-        _skip.Width = 96;
 
         ConfigureChrome();
         Controls.Add(BuildRoot());
@@ -82,10 +77,12 @@ public sealed class PreviewTabPanel : UserControl
         _direction.Width = 120;
         _direction.AccessibleName = "Shot direction for Pure and Mishit";
 
-        _stateLabel.Dock = DockStyle.Fill;
+        _stateLabel.AutoSize = true;
+        _stateLabel.MaximumSize = new Size(360, 0);
         _stateLabel.ForeColor = UiTheme.Muted;
         _stateLabel.Font = UiTheme.BodyFont(9.5f);
         _stateLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _stateLabel.Margin = new Padding(8, 14, 0, 0);
         _stateLabel.Text = "Select a state · colors hold after animation · Stop holds ready green";
         _skip.Enabled = false;
     }
@@ -128,41 +125,47 @@ public sealed class PreviewTabPanel : UserControl
 
     private Control BuildToolbar()
     {
-        var row = new TableLayoutPanel
+        var row = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 64,
-            ColumnCount = 5,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            BackColor = Color.Transparent,
             Margin = new Padding(0, 12, 0, 6)
         };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        var dirField = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-        dirField.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
-        dirField.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var dirField = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            RowCount = 2,
+            Margin = new Padding(0, 0, 12, 0)
+        };
+        dirField.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        dirField.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         dirField.Controls.Add(new Label
         {
             Text = "DIRECTION",
-            Dock = DockStyle.Fill,
+            AutoSize = true,
             ForeColor = UiTheme.Accent,
             Font = UiTheme.BodyFont(7.5f, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(0, 2, 0, 0)
+            Padding = new Padding(0, 2, 0, 2)
         }, 0, 0);
+        _direction.Margin = new Padding(0);
         dirField.Controls.Add(_direction, 0, 1);
 
-        row.Controls.Add(dirField, 0, 0);
-        row.Controls.Add(_stop, 1, 0);
-        row.Controls.Add(_playAll, 2, 0);
-        row.Controls.Add(_skip, 3, 0);
-        row.Controls.Add(_stateLabel, 4, 0);
-        _stop.Dock = DockStyle.Fill;
-        _playAll.Dock = DockStyle.Fill;
-        _skip.Dock = DockStyle.Fill;
+        _stop.Margin = new Padding(0, 0, 8, 0);
+        _playAll.Margin = new Padding(0, 0, 8, 0);
+        _skip.Margin = new Padding(0, 0, 8, 0);
+
+        row.Controls.Add(dirField);
+        row.Controls.Add(_stop);
+        row.Controls.Add(_playAll);
+        row.Controls.Add(_skip);
+        row.Controls.Add(_stateLabel);
         return row;
     }
 

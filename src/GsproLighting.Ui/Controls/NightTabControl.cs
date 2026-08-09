@@ -11,7 +11,9 @@ public sealed class NightTabControl : TabControl
     {
         Dock = DockStyle.Fill;
         DrawMode = TabDrawMode.OwnerDrawFixed;
-        ItemSize = new Size(128, UiTheme.TouchMin);
+        // 128px was too tight for "Quick control"/"Connection" at bold 10pt — even with
+        // EndEllipsis as a fallback, the label should actually fit, not truncate to "…".
+        ItemSize = new Size(152, UiTheme.TouchMin);
         SizeMode = TabSizeMode.Fixed;
         // Wrap to a second row instead of running tabs off the edge of the window on
         // narrower/smaller-DPI displays — 7 tabs at 128px fixed width (896px) can exceed the
