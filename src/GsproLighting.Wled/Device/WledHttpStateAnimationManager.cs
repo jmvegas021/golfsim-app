@@ -119,12 +119,13 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         var target = WledHttpAnimationFrameFactory.ReadyGreen;
         if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
         {
-            // Morph current solid into green, then chase-collapse to the center hold band.
+            // Morph on a full-strip solid, then chase-collapse to the center hold band.
             var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
                 fromColor,
                 fromBrightness,
                 target,
-                brightness);
+                brightness,
+                ledCount);
             await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
                 .ConfigureAwait(false);
             var chase = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(
@@ -149,11 +150,13 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         var target = WledHttpAnimationFrameFactory.NotReadyRed;
         if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
         {
+            // Full-strip morph overwrites Ready's green center-band segments before breathe.
             var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
                 fromColor,
                 fromBrightness,
                 target,
-                brightness);
+                brightness,
+                ledCount);
             await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -166,7 +169,8 @@ public sealed class WledHttpStateAnimationManager : IDisposable
                 .ConfigureAwait(false);
         }
 
-        var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingTracked(brightness);
+        // Breathe bri only on full-strip solid red (fx 0) — never partial center bands.
+        var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingTracked(brightness, ledCount);
         while (true)
             await RunTrackedFramesAsync(controllerIp, cycle, cancellationToken)
                 .ConfigureAwait(false);

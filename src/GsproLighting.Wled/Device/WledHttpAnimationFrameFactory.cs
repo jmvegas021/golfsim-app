@@ -6,15 +6,17 @@ namespace GsproLighting.Wled.Device;
 /// <summary>Builds compact, deterministic Solid FX 0 frames for HTTP state animations.</summary>
 public static class WledHttpAnimationFrameFactory
 {
-    /// <summary>Caps expand POSTs so long strips stay smooth without spamming HTTP.</summary>
-    public const int MaximumExpandStepCount = 16;
+    /// <summary>
+    /// Caps expand POSTs for very long strips. Prefer ~1 LED/side per frame below this.
+    /// </summary>
+    public const int MaximumExpandStepCount = 48;
 
     /// <summary>HTTP frames when morphing from one solid color/brightness to another.</summary>
     public const int ColorTransitionStepCount = 10;
 
-    public const int ExpandCadenceMilliseconds = 42;
+    public const int ExpandCadenceMilliseconds = 28;
     public const int BreathingCadenceMilliseconds = 72;
-    public const int ColorTransitionCadenceMilliseconds = 40;
+    public const int ColorTransitionCadenceMilliseconds = 36;
 
     public static readonly RgbColor ReadyGreen = RgbColor.FromRgb(0, 220, 0);
     public static readonly RgbColor NotReadyRed = RgbColor.FromRgb(180, 30, 30);
@@ -37,24 +39,35 @@ public static class WledHttpAnimationFrameFactory
     private static readonly TimeSpan ColorTransitionCadence =
         TimeSpan.FromMilliseconds(ColorTransitionCadenceMilliseconds);
 
-    public static IReadOnlyList<WledHttpAnimationFrame> CreateRedBreathingCycle(byte brightness) =>
-        CreateRedBreathingTracked(brightness).Select(step => step.Frame).ToArray();
+    public static IReadOnlyList<WledHttpAnimationFrame> CreateRedBreathingCycle(
+        byte brightness,
+        int ledCount = 1) =>
+        CreateRedBreathingTracked(brightness, ledCount).Select(step => step.Frame).ToArray();
 
     public static IReadOnlyList<WledHttpAnimationFrame> CreateColorTransitionSequence(
         RgbColor fromColor,
         byte fromBrightness,
         RgbColor toColor,
-        byte toBrightness) =>
-        CreateColorTransitionTracked(fromColor, fromBrightness, toColor, toBrightness)
+        byte toBrightness,
+        int ledCount) =>
+        CreateColorTransitionTracked(fromColor, fromBrightness, toColor, toBrightness, ledCount)
             .Select(step => step.Frame)
             .ToArray();
 
+    /// <summary>
+    /// Morphs color/brightness on a full-strip solid so prior Ready center-band segments
+    /// cannot leave a green remnant.
+    /// </summary>
     public static IReadOnlyList<WledHttpTrackedFrame> CreateColorTransitionTracked(
         RgbColor fromColor,
         byte fromBrightness,
         RgbColor toColor,
-        byte toBrightness)
+        byte toBrightness,
+        int ledCount)
     {
+        if (ledCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(ledCount));
+
         var frames = new List<WledHttpTrackedFrame>(ColorTransitionStepCount);
         for (var step = 1; step <= ColorTransitionStepCount; step++)
         {
@@ -63,7 +76,9 @@ public static class WledHttpAnimationFrameFactory
             var brightness = LerpBrightness(fromBrightness, toBrightness, t);
             var duration = step == ColorTransitionStepCount ? TimeSpan.Zero : ColorTransitionCadence;
             frames.Add(new WledHttpTrackedFrame(
-                new WledHttpAnimationFrame(WledHttpSegmentBodies.CreateSolid(color, brightness), duration),
+                new WledHttpAnimationFrame(
+                    WledHttpSegmentBodies.CreateFullStrip(ledCount, color, brightness),
+                    duration),
                 color,
                 brightness));
         }
@@ -71,19 +86,27 @@ public static class WledHttpAnimationFrameFactory
         return frames;
     }
 
-    public static IReadOnlyList<WledHttpTrackedFrame> CreateRedBreathingTracked(byte brightness) =>
-        BreathingLevels
+    /// <summary>Breathe brightness on a full-strip solid red (fx 0); never touches partial bands.</summary>
+    public static IReadOnlyList<WledHttpTrackedFrame> CreateRedBreathingTracked(
+        byte brightness,
+        int ledCount)
+    {
+        if (ledCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(ledCount));
+
+        return BreathingLevels
             .Select(level =>
             {
                 var frameBrightness = ScaleBrightness(brightness, level);
                 return new WledHttpTrackedFrame(
                     new WledHttpAnimationFrame(
-                        WledHttpSegmentBodies.CreateSolid(NotReadyRed, frameBrightness),
+                        WledHttpSegmentBodies.CreateFullStrip(ledCount, NotReadyRed, frameBrightness),
                         BreathingCadence),
                     NotReadyRed,
                     frameBrightness);
             })
             .ToArray();
+    }
 
     public static IReadOnlyList<WledHttpAnimationFrame> CreateNotReadyExpandSequence(
         int ledCount,
@@ -117,6 +140,16 @@ public static class WledHttpAnimationFrameFactory
             _ => ReadyGreen
         };
 
+    /// <summary>
+    /// Unique growth frames for center-out: ~1 LED per side per step when under the cap.
+    /// </summary>
+    public static int ResolveCenterOutStepCount(int ledCount) =>
+        Math.Clamp((ledCount + 1) / 2, 1, MaximumExpandStepCount);
+
+    /// <summary>Unique unilateral growth frames: 1 LED per step when under the cap.</summary>
+    public static int ResolveUnilateralStepCount(int maxLit) =>
+        Math.Clamp(maxLit, 1, MaximumExpandStepCount);
+
     private static IReadOnlyList<WledHttpAnimationFrame> CreateLeftHalfSequence(
         int ledCount,
         byte brightness,
@@ -128,7 +161,7 @@ public static class WledHttpAnimationFrameFactory
         // Left half ends at the first right-half index (exclusive): even 12 → 6, odd 11 → 5.
         var rightEdge = (ledCount + 1) / 2;
         var maxLit = Math.Max(1, rightEdge);
-        var stepCount = Math.Min(ledCount, MaximumExpandStepCount);
+        var stepCount = ResolveUnilateralStepCount(maxLit);
         var frames = new List<WledHttpAnimationFrame>(stepCount + 1);
         for (var step = 1; step <= stepCount; step++)
         {
@@ -155,7 +188,7 @@ public static class WledHttpAnimationFrameFactory
 
         var leftEdge = ledCount / 2;
         var maxLit = Math.Max(1, ledCount - leftEdge);
-        var stepCount = Math.Min(ledCount, MaximumExpandStepCount);
+        var stepCount = ResolveUnilateralStepCount(maxLit);
         var frames = new List<WledHttpAnimationFrame>(stepCount + 1);
         for (var step = 1; step <= stepCount; step++)
         {
@@ -181,7 +214,7 @@ public static class WledHttpAnimationFrameFactory
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
-        var stepCount = Math.Min(ledCount, MaximumExpandStepCount);
+        var stepCount = ResolveCenterOutStepCount(ledCount);
         var frames = new List<WledHttpAnimationFrame>(stepCount + (includeHoldFrame ? 1 : 0));
         for (var step = 1; step <= stepCount; step++)
         {
@@ -203,16 +236,24 @@ public static class WledHttpAnimationFrameFactory
 
     private static int ResolveSymmetricLitCount(int ledCount, int step, int stepCount)
     {
+        var parity = ledCount % 2 == 0 ? 2 : 1;
+        var fineSteps = (ledCount + 1) / 2;
+        if (stepCount >= fineSteps)
+            return Math.Min(ledCount, parity + ((step - 1) * 2));
+
         var litCount = (int)Math.Ceiling((double)(step * ledCount) / stepCount);
         if (ledCount % 2 == 0 && litCount % 2 == 1)
             litCount = Math.Min(ledCount, litCount + 1);
         else if (ledCount % 2 == 1 && litCount % 2 == 0)
             litCount = Math.Min(ledCount, litCount + 1);
-        return litCount;
+        return Math.Clamp(litCount, parity, ledCount);
     }
 
     private static int ResolveUnilateralLitCount(int maxLit, int step, int stepCount)
     {
+        if (stepCount >= maxLit)
+            return Math.Clamp(step, 1, maxLit);
+
         var litCount = (int)Math.Ceiling((double)(step * maxLit) / stepCount);
         return Math.Clamp(litCount, 1, maxLit);
     }

@@ -54,12 +54,24 @@ public static class WledHttpReadyAnimationBuilder
         return hold;
     }
 
+    /// <summary>Unique edges-in frames: ~1 LED per edge per step when under the cap.</summary>
+    public static int ResolveEdgesInStepCount(int ledCount) =>
+        WledHttpAnimationFrameFactory.ResolveCenterOutStepCount(ledCount);
+
+    /// <summary>Unique chase frames shrinking by ~1 LED per side when under the cap.</summary>
+    public static int ResolveChaseStepCount(int ledCount)
+    {
+        var holdLit = ResolveHoldLitCount(ledCount);
+        var shrinkEachSide = Math.Max(0, (ledCount - holdLit) / 2);
+        return Math.Clamp(Math.Max(1, shrinkEachSide), 1, WledHttpAnimationFrameFactory.MaximumExpandStepCount);
+    }
+
     private static IReadOnlyList<WledHttpAnimationFrame> CreateEdgesInFrames(
         int ledCount,
         byte brightness,
         RgbColor color)
     {
-        var stepCount = Math.Min(ledCount, WledHttpAnimationFrameFactory.MaximumExpandStepCount);
+        var stepCount = ResolveEdgesInStepCount(ledCount);
         var maxFromEdge = (ledCount + 1) / 2;
         var frames = new List<WledHttpAnimationFrame>(stepCount);
         for (var step = 1; step <= stepCount; step++)
@@ -94,7 +106,7 @@ public static class WledHttpReadyAnimationBuilder
         bool includeFullStart)
     {
         var holdLit = ResolveHoldLitCount(ledCount);
-        var stepCount = Math.Min(ledCount, WledHttpAnimationFrameFactory.MaximumExpandStepCount);
+        var stepCount = ResolveChaseStepCount(ledCount);
         var frames = new List<WledHttpAnimationFrame>(stepCount + 1);
         if (includeFullStart)
         {
@@ -119,18 +131,28 @@ public static class WledHttpReadyAnimationBuilder
 
     private static int ResolveStepLit(int maxLit, int step, int stepCount)
     {
+        if (stepCount >= maxLit)
+            return Math.Clamp(step, 1, maxLit);
+
         var litCount = (int)Math.Ceiling((double)(step * maxLit) / stepCount);
         return Math.Clamp(litCount, 1, maxLit);
     }
 
     private static int ResolveChaseLitCount(int ledCount, int holdLit, int step, int stepCount)
     {
-        var litCount = (int)Math.Round(ledCount + ((holdLit - ledCount) * ((double)step / stepCount)));
-        litCount = Math.Clamp(litCount, holdLit, ledCount);
-        if (ledCount % 2 == 0 && litCount % 2 == 1)
-            litCount = Math.Max(holdLit, litCount - 1);
-        else if (ledCount % 2 == 1 && litCount % 2 == 0)
-            litCount = Math.Max(holdLit, litCount - 1);
-        return litCount;
+        var fineShrink = Math.Max(0, (ledCount - holdLit) / 2);
+        if (stepCount >= fineShrink && fineShrink > 0)
+        {
+            var litCount = ledCount - (step * 2);
+            return Math.Clamp(litCount, holdLit, ledCount);
+        }
+
+        var litCountCoarse = (int)Math.Round(ledCount + ((holdLit - ledCount) * ((double)step / stepCount)));
+        litCountCoarse = Math.Clamp(litCountCoarse, holdLit, ledCount);
+        if (ledCount % 2 == 0 && litCountCoarse % 2 == 1)
+            litCountCoarse = Math.Max(holdLit, litCountCoarse - 1);
+        else if (ledCount % 2 == 1 && litCountCoarse % 2 == 0)
+            litCountCoarse = Math.Max(holdLit, litCountCoarse - 1);
+        return litCountCoarse;
     }
 }

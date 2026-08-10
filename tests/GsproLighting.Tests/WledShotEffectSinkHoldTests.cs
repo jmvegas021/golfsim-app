@@ -20,8 +20,9 @@ public sealed class WledShotEffectSinkHoldTests
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        // LedCount 8 → 8 edges-in + 8 chase frames.
-        Assert.Equal(16, handler.PostCount);
+        var expected = WledHttpReadyAnimationBuilder.ResolveEdgesInStepCount(8) +
+            WledHttpReadyAnimationBuilder.ResolveChaseStepCount(8);
+        Assert.Equal(expected, handler.PostCount);
         Assert.Contains("\"fx\":0", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
@@ -68,8 +69,9 @@ public sealed class WledShotEffectSinkHoldTests
         await sink.OnShotAsync(SampleShot());
         await Task.Delay(100);
 
-        // LedCount 8 → 8 expand steps + 1 hold for center green.
-        Assert.Equal(9, handler.PostCount);
+        // LedCount 8 → fine center-out steps + 1 hold for center green.
+        var expected = WledHttpAnimationFrameFactory.ResolveCenterOutStepCount(8) + 1;
+        Assert.Equal(expected, handler.PostCount);
         Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
         Assert.Contains("\"start\":0", handler.LastBody);
