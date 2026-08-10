@@ -7,7 +7,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// HTTP-only manual controls for solid colors, ready-state animations, and hit-direction fills.
+/// Manual WLED controls: solids + hit directions over HTTP; Ready / Not Ready over DRGB.
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
@@ -19,6 +19,7 @@ public sealed class PreviewTabPanel : UserControl
     private readonly Label _ipLabel = new();
     private readonly Label _statusLabel = new();
     private readonly WledHttpStateAnimationManager _stateManager;
+    private readonly WledBallReadyDrgbController _readyDrgb;
     private int _statusGeneration;
 
     public PreviewTabPanel(
@@ -26,6 +27,7 @@ public sealed class PreviewTabPanel : UserControl
         Func<byte> resolveBrightness,
         Func<int> resolveLedCount,
         WledHttpStateAnimationManager stateManager,
+        WledBallReadyDrgbController readyDrgb,
         Action? cancelLiveEffects = null,
         Action<string, string>? logWledFailure = null)
     {
@@ -33,6 +35,7 @@ public sealed class PreviewTabPanel : UserControl
         _resolveBrightness = resolveBrightness;
         _resolveLedCount = resolveLedCount;
         _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _readyDrgb = readyDrgb ?? throw new ArgumentNullException(nameof(readyDrgb));
         _cancelLiveEffects = cancelLiveEffects;
         _logWledFailure = logWledFailure;
 
@@ -69,8 +72,9 @@ public sealed class PreviewTabPanel : UserControl
             new TabSectionHeading
             {
                 Dock = DockStyle.Top,
-                Title = "Preview HTTP lights",
-                Subtitle = "Test solids, Ready/Not Ready, or hit-direction fills. Set the controller IP on Connection first."
+                Title = "Preview lights",
+                Subtitle =
+                    "Ready / Not Ready stream over DRGB. Solids and hit directions use HTTP. Set the controller IP on Connection first."
             },
             0,
             0);
@@ -88,7 +92,7 @@ public sealed class PreviewTabPanel : UserControl
         _statusLabel.ForeColor = UiTheme.Muted;
         _statusLabel.Font = UiTheme.BodyFont(9.5f);
         _statusLabel.Margin = new Padding(0, 16, 0, 0);
-        _statusLabel.Text = "Click a color to POST /json/state.";
+        _statusLabel.Text = "Click Ready for DRGB, or a color to POST /json/state.";
         root.Controls.Add(_statusLabel, 0, 3);
 
         return root;
@@ -112,8 +116,15 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("Blue", RgbColor.FromRgb(0, 0, 255)));
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
-        row.Controls.Add(AnimationButton("Not Ready · Expand + Chase", ApplyNotReadyAnimationAsync, width: 220));
-        row.Controls.Add(AnimationButton("Ready · Edges → Center", ApplyReadyAnimationAsync, isPrimary: true, width: 200));
+        row.Controls.Add(AnimationButton(
+            "Not Ready · DRGB",
+            ApplyNotReadyAnimationAsync,
+            width: 180));
+        row.Controls.Add(AnimationButton(
+            "Ready · DRGB",
+            ApplyReadyAnimationAsync,
+            isPrimary: true,
+            width: 150));
         row.Controls.Add(AnimationButton(
             "Left · Yellow",
             () => ApplyHitDirectionAsync(ShotDirection.Left, "Left · Yellow"),
@@ -212,25 +223,27 @@ public sealed class PreviewTabPanel : UserControl
     }
 
     private Task ApplyNotReadyAnimationAsync() =>
-        ApplyAnimationAsync(
-            "Not Ready expand + Chase",
-            (ip, token) => _stateManager.RunNotReadyAsync(
-                ip,
+        ApplyDrgbHoldAsync(
+            "Not Ready · DRGB",
+            (token, onHold) => _readyDrgb.RunNotReadyAsync(
                 _resolveLedCount(),
                 _resolveBrightness(),
-                token));
+                token,
+                onHold),
+            holdStatus: "Not Ready breathe · DRGB keepalive");
 
     private Task ApplyReadyAnimationAsync() =>
-        ApplyAnimationAsync(
-            "Ready edges-in → center band",
-            (ip, token) => _stateManager.RunReadyAsync(
-                ip,
+        ApplyDrgbHoldAsync(
+            "Ready · DRGB",
+            (token, onHold) => _readyDrgb.RunReadyAsync(
                 _resolveLedCount(),
                 _resolveBrightness(),
-                token));
+                token,
+                onHold),
+            holdStatus: "Ready hold · DRGB keepalive");
 
     private Task ApplyHitDirectionAsync(ShotDirection direction, string label) =>
-        ApplyAnimationAsync(
+        ApplyHttpAnimationAsync(
             label,
             (ip, token) => _stateManager.RunHitDirectionAsync(
                 ip,
@@ -239,7 +252,44 @@ public sealed class PreviewTabPanel : UserControl
                 _resolveBrightness(),
                 token));
 
-    private async Task ApplyAnimationAsync(
+    private async Task ApplyDrgbHoldAsync(
+        string label,
+        Func<CancellationToken, Action, Task> play,
+        string holdStatus)
+    {
+        var ip = ResolveIpOrStatus();
+        if (ip is null)
+            return;
+
+        var generation = ++_statusGeneration;
+        // Cancel HTTP only — do not CancelActive on DRGB so Ready→Not Ready can morph.
+        _stateManager.CancelActive();
+        SetStatus($"Running {label} on {ip}…");
+        try
+        {
+            await play(
+                    CancellationToken.None,
+                    () =>
+                    {
+                        if (generation == _statusGeneration)
+                            SetStatus($"{holdStatus} · {ip}");
+                    })
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer Ready/Not Ready or CancelLiveEffects.
+        }
+        catch (Exception ex)
+        {
+            if (generation != _statusGeneration)
+                return;
+            SetStatus(ex.Message, isError: true);
+            _logWledFailure?.Invoke("preview-animation", ex.Message);
+        }
+    }
+
+    private async Task ApplyHttpAnimationAsync(
         string label,
         Func<string, CancellationToken, Task> animation)
     {

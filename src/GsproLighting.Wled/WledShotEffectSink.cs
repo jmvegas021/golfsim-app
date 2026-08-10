@@ -2,12 +2,13 @@ using GsproLighting.Core.Config;
 using GsproLighting.Core.Contracts;
 using GsproLighting.Core.Models;
 using GsproLighting.Core.Services;
+using GsproLighting.Wled.Contracts;
 using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Wled;
 
 /// <summary>
-/// Maps GSPro events to the focused HTTP state manager. No DRGB, ambient, or idle restart.
+/// Maps GSPro events to WLED: Ready/Not Ready use DRGB streaming; hit directions stay HTTP.
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 {
@@ -23,22 +24,30 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     private readonly Func<WledConfig> _wledConfig;
     private readonly Func<EffectConfig> _effectConfig;
     private readonly ShotEffectMapper _shotMapper = new();
+    private readonly IWledOutput _output;
+    private readonly WledBallReadyDrgbController _readyDrgb;
     private readonly WledHttpStateAnimationManager _animationManager;
     private readonly bool _ownsAnimationManager;
+    private readonly bool _ownsReadyDrgb;
     private readonly Action<string>? _logFailure;
     private readonly Action? _onTakeover;
 
     public WledShotEffectSink(
         Func<WledConfig> wledConfig,
+        IWledOutput output,
         WledHttpStateAnimationManager? animationManager = null,
+        WledBallReadyDrgbController? readyDrgb = null,
         Action<string>? logFailure = null,
         Action? onTakeover = null,
         Func<EffectConfig>? effectConfig = null)
     {
         _wledConfig = wledConfig;
+        _output = output ?? throw new ArgumentNullException(nameof(output));
         _effectConfig = effectConfig ?? (() => new EffectConfig());
         _animationManager = animationManager ?? new WledHttpStateAnimationManager();
         _ownsAnimationManager = animationManager is null;
+        _readyDrgb = readyDrgb ?? new WledBallReadyDrgbController(_output);
+        _ownsReadyDrgb = readyDrgb is null;
         _logFailure = logFailure;
         _onTakeover = onTakeover;
     }
@@ -54,6 +63,8 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         return RunEffectAsync(
             (config, token) =>
             {
+                // Leave DRGB live mode before HTTP hit-direction posts (authoritative live:false).
+                _readyDrgb.CancelActive();
                 var plan = _shotMapper.MapPlan(shot, _effectConfig());
                 var direction = ShotEffectMapper.ApplyInvertLeftRight(
                     plan.Direction,
@@ -78,20 +89,26 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 
     public Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default) =>
         RunEffectAsync(
-            (config, token) => _animationManager.RunReadyAsync(
-                config.ControllerIp,
-                config.LedCount,
-                config.Brightness,
-                token),
+            (config, token) =>
+            {
+                _animationManager.CancelActive();
+                return _readyDrgb.RunReadyAsync(
+                    config.LedCount,
+                    config.Brightness,
+                    token);
+            },
             cancellationToken);
 
     public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default) =>
         RunEffectAsync(
-            (config, token) => _animationManager.RunNotReadyAsync(
-                config.ControllerIp,
-                config.LedCount,
-                config.Brightness,
-                token),
+            (config, token) =>
+            {
+                _animationManager.CancelActive();
+                return _readyDrgb.RunNotReadyAsync(
+                    config.LedCount,
+                    config.Brightness,
+                    token);
+            },
             cancellationToken);
 
     /// <summary>
@@ -106,19 +123,27 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     public Task HoldIdleForConnectionChangeAsync(CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    /// <summary>Cancels the current loop or in-flight frame before manual control takes over.</summary>
-    public void CancelActiveEffects() => _animationManager.CancelActive();
+    /// <summary>Cancels DRGB Ready/Not Ready holds and any in-flight HTTP animation.</summary>
+    public void CancelActiveEffects()
+    {
+        _readyDrgb.CancelActive();
+        _animationManager.CancelActive();
+    }
 
     private async Task ApplySolidOnceAsync(
         RgbColor color,
         CancellationToken cancellationToken) =>
         await RunEffectAsync(
-            (config, token) => _animationManager.ApplySolidAsync(
-                config.ControllerIp,
-                color,
-                config.Brightness,
-                config.LedCount,
-                token),
+            (config, token) =>
+            {
+                _readyDrgb.CancelActive();
+                return _animationManager.ApplySolidAsync(
+                    config.ControllerIp,
+                    color,
+                    config.Brightness,
+                    config.LedCount,
+                    token);
+            },
             cancellationToken).ConfigureAwait(false);
 
     private async Task RunEffectAsync(
@@ -147,6 +172,8 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 
     public void Dispose()
     {
+        if (_ownsReadyDrgb)
+            _readyDrgb.Dispose();
         if (_ownsAnimationManager)
             _animationManager.Dispose();
     }

@@ -56,6 +56,7 @@ public sealed class SettingsForm : Form
             () => _connection.Brightness,
             () => _connection.LedCount,
             app.HttpStateManager,
+            app.ReadyDrgb,
             app.SuspendLiveEffectsForManualControl,
             app.ReportWledFailure);
         _wled = new WledTabPanel(

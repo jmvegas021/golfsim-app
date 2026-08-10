@@ -7,9 +7,9 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Ready: sides-to-center fill, then retract to a solid green top/center band (FX 0 hold — not Chase).",
-        "Not Ready: center-out expand, then full-strip red Chase + Red Reef at max sx/ix (tt:0).",
-        "Lighting commands still fully override WLED UI state (presets, playlists, extra segments).",
-        "Preview Ready / Not Ready buttons match the live BallReady / BallNotReady sequences.",
+        "Ready: DRGB sides→center fill, retract to a solid green top/center band, then DRGB keepalive hold.",
+        "Not Ready: DRGB morph/expand to full red, then brightness breathe on DRGB (no HTTP chase fight).",
+        "Hit directions stay HTTP; starting one cancels DRGB first so live mode hands back cleanly.",
+        "Preview Ready / Not Ready match live BallReady / BallNotReady DRGB sequences.",
     ];
 }

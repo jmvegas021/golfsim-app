@@ -25,6 +25,7 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     private readonly DrgbWledOutput _wled = new();
     private readonly WledErrorLogger _wledErrors;
     private readonly WledHttpStateAnimationManager _httpStateManager = new();
+    private readonly WledBallReadyDrgbController _readyDrgb;
     private readonly WledShotEffectSink _effectSink;
     private readonly CompositeShotEventSink _shotSink;
     private readonly object _proxyGate = new();
@@ -42,10 +43,13 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
         NormalizePaths(Config);
         _wled.Configure(Config.Wled);
         Preview = new WledPreviewPlayer(_wled);
+        _readyDrgb = new WledBallReadyDrgbController(_wled);
         _wledErrors = new WledErrorLogger(Config.Logging.RawLogDirectory);
         _effectSink = new WledShotEffectSink(
             () => Config.Wled,
+            _wled,
             _httpStateManager,
+            _readyDrgb,
             logFailure: ReportEffectSinkFailure,
             onTakeover: () => Preview.CancelActivePreview(),
             effectConfig: () => Config.Effects);
@@ -90,6 +94,7 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     public IWledOutput Wled => _wled;
     public WledPreviewPlayer Preview { get; }
     public WledHttpStateAnimationManager HttpStateManager => _httpStateManager;
+    public WledBallReadyDrgbController ReadyDrgb => _readyDrgb;
     public string? LastProxyError => _lastProxyError;
     public ConnectDiscoverySnapshot? R50Snapshot => _r50Watch?.Snapshot;
     public bool IsR50WatchRunning => _r50Watch?.IsRunning == true;
@@ -279,6 +284,7 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
         await StopR50AutoWatchAsync().ConfigureAwait(false);
         await StopProxyAsync().ConfigureAwait(false);
         _effectSink.Dispose();
+        _readyDrgb.Dispose();
         _httpStateManager.Dispose();
         Preview.Dispose();
         await _wled.DisposeAsync().ConfigureAwait(false);
