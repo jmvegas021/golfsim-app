@@ -112,8 +112,8 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("Blue", RgbColor.FromRgb(0, 0, 255)));
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
-        row.Controls.Add(AnimationButton("Not Ready · Center Out + Breathe", ApplyNotReadyAnimationAsync, width: 250));
-        row.Controls.Add(AnimationButton("Ready · Center Out", ApplyReadyAnimationAsync, isPrimary: true, width: 180));
+        row.Controls.Add(AnimationButton("Not Ready · Morph/Expand + Breathe", ApplyNotReadyAnimationAsync, width: 270));
+        row.Controls.Add(AnimationButton("Ready · Morph/Expand", ApplyReadyAnimationAsync, isPrimary: true, width: 180));
         row.Controls.Add(AnimationButton(
             "Far Left · Red",
             () => ApplyHitDirectionAsync(ShotDirection.FarLeft, "Far Left · Red"),
@@ -216,7 +216,7 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyNotReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Not Ready center-out + breathe",
+            "Not Ready morph/expand + breathe",
             (ip, token) => _stateManager.RunNotReadyAsync(
                 ip,
                 _resolveLedCount(),
@@ -225,7 +225,7 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Ready center-out",
+            "Ready morph/expand",
             (ip, token) => _stateManager.RunReadyAsync(
                 ip,
                 _resolveLedCount(),

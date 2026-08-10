@@ -11,6 +11,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
 {
     private readonly WledDeviceClient _client;
     private readonly WledSolidHttpApplier _solidApplier;
+    private readonly WledHttpVisualStateTracker _visualTracker;
     private readonly bool _ownsClient;
     private readonly SemaphoreSlim _writerGate = new(1, 1);
     private readonly object _sessionGate = new();
@@ -22,6 +23,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         _client = client ?? new WledDeviceClient();
         _ownsClient = client is null;
         _solidApplier = new WledSolidHttpApplier(_client);
+        _visualTracker = new WledHttpVisualStateTracker();
     }
 
     public Task RunNotReadyAsync(
@@ -39,10 +41,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         byte brightness,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
-            token => RunFramesAsync(
-                controllerIp,
-                WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness),
-                token),
+            token => RunReadyFramesAsync(controllerIp, ledCount, brightness, token),
             cancellationToken);
 
     public Task RunHitDirectionAsync(
@@ -58,7 +57,8 @@ public sealed class WledHttpStateAnimationManager : IDisposable
                     direction,
                     ledCount,
                     brightness),
-                token),
+                token,
+                WledHttpAnimationFrameFactory.ResolveHitColor(direction)),
             cancellationToken);
 
     public Task ApplySolidAsync(
@@ -67,14 +67,23 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         byte brightness,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
-            token => _solidApplier.ApplySolidAsync(controllerIp, color, brightness, token),
+            async token =>
+            {
+                await _solidApplier.ApplySolidAsync(controllerIp, color, brightness, token)
+                    .ConfigureAwait(false);
+                _visualTracker.RememberSolid(color, brightness);
+            },
             cancellationToken);
 
     public Task ApplyOffAsync(
         string controllerIp,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
-            token => _solidApplier.ApplyOffAsync(controllerIp, token),
+            async token =>
+            {
+                await _solidApplier.ApplyOffAsync(controllerIp, token).ConfigureAwait(false);
+                _visualTracker.Clear();
+            },
             cancellationToken);
 
     public void CancelActive()
@@ -101,29 +110,91 @@ public sealed class WledHttpStateAnimationManager : IDisposable
             _writerGate.Release();
     }
 
+    private async Task RunReadyFramesAsync(
+        string controllerIp,
+        int ledCount,
+        byte brightness,
+        CancellationToken cancellationToken)
+    {
+        var target = WledHttpAnimationFrameFactory.ReadyGreen;
+        if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
+        {
+            var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
+                fromColor,
+                fromBrightness,
+                target,
+                brightness);
+            await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var expand = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
+        await RunFramesAsync(controllerIp, expand, cancellationToken, target)
+            .ConfigureAwait(false);
+    }
+
     private async Task RunNotReadyFramesAsync(
         string controllerIp,
         int ledCount,
         byte brightness,
         CancellationToken cancellationToken)
     {
-        var expand = WledHttpAnimationFrameFactory.CreateNotReadyExpandSequence(ledCount, brightness);
-        await RunFramesAsync(controllerIp, expand, cancellationToken).ConfigureAwait(false);
-        var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingCycle(brightness);
+        var target = WledHttpAnimationFrameFactory.NotReadyRed;
+        if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
+        {
+            var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
+                fromColor,
+                fromBrightness,
+                target,
+                brightness);
+            await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            var expand = WledHttpAnimationFrameFactory.CreateNotReadyExpandSequence(
+                ledCount,
+                brightness);
+            await RunFramesAsync(controllerIp, expand, cancellationToken, target)
+                .ConfigureAwait(false);
+        }
+
+        var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingTracked(brightness);
         while (true)
-            await RunFramesAsync(controllerIp, cycle, cancellationToken).ConfigureAwait(false);
+            await RunTrackedFramesAsync(controllerIp, cycle, cancellationToken)
+                .ConfigureAwait(false);
+    }
+
+    private async Task RunTrackedFramesAsync(
+        string controllerIp,
+        IReadOnlyList<WledHttpTrackedFrame> frames,
+        CancellationToken cancellationToken)
+    {
+        foreach (var tracked in frames)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _client.ApplyStateBodyAsync(controllerIp, tracked.Frame.Body, cancellationToken)
+                .ConfigureAwait(false);
+            _visualTracker.RememberSolid(tracked.Color, tracked.Brightness);
+            if (tracked.Frame.Duration > TimeSpan.Zero)
+                await Task.Delay(tracked.Frame.Duration, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task RunFramesAsync(
         string controllerIp,
         IReadOnlyList<WledHttpAnimationFrame> frames,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RgbColor? trackColor = null)
     {
         foreach (var frame in frames)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await _client.ApplyStateBodyAsync(controllerIp, frame.Body, cancellationToken)
                 .ConfigureAwait(false);
+            if (trackColor is not null)
+                _visualTracker.RememberSolid(trackColor, ReadFrameBrightness(frame.Body));
             if (frame.Duration > TimeSpan.Zero)
                 await Task.Delay(frame.Duration, cancellationToken).ConfigureAwait(false);
         }
@@ -169,5 +240,15 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         }
 
         session.Dispose();
+    }
+
+    private static byte ReadFrameBrightness(object body)
+    {
+        if (body is Dictionary<string, object?> dictionary &&
+            dictionary.TryGetValue("bri", out var value) &&
+            value is not null)
+            return Convert.ToByte(value);
+
+        return 0;
     }
 }
