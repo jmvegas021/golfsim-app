@@ -99,7 +99,11 @@ public sealed class WledHttpAnimationFrameFactoryTests
             ledCount: 12,
             brightness: 180);
 
-        Assert.Equal(7, frames.Count);
+        // Same expand step budget as Ready/Not Ready (12 + hold), not half-strip.
+        Assert.Equal(13, frames.Count);
+        Assert.All(frames.Take(12), frame => Assert.Equal(TimeSpan.FromMilliseconds(55), frame.Duration));
+        Assert.Equal(TimeSpan.Zero, frames[^1].Duration);
+
         var firstSegments = ReadSegments(frames[0]);
         AssertRange(firstSegments[0], id: 0, start: 0, stop: 5);
         AssertRange(firstSegments[1], id: 1, start: 5, stop: 6);
@@ -121,7 +125,9 @@ public sealed class WledHttpAnimationFrameFactoryTests
             ledCount: 12,
             brightness: 180);
 
-        Assert.Equal(7, frames.Count);
+        Assert.Equal(13, frames.Count);
+        Assert.All(frames.Take(12), frame => Assert.Equal(TimeSpan.FromMilliseconds(55), frame.Duration));
+
         var firstSegments = ReadSegments(frames[0]);
         AssertRange(firstSegments[0], id: 0, start: 0, stop: 6);
         AssertRange(firstSegments[1], id: 1, start: 6, stop: 7);
@@ -131,6 +137,33 @@ public sealed class WledHttpAnimationFrameFactoryTests
         var finalSegments = ReadSegments(frames[^1]);
         AssertRange(finalSegments[1], id: 1, start: 6, stop: 12);
         AssertRange(finalSegments[2], id: 2, start: 12, stop: 12);
+    }
+
+    [Fact]
+    public void CreateHitDirectionSequences_MatchReadyStepBudgetAndCadence()
+    {
+        const int ledCount = 60;
+        var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, 180);
+        var left = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.FarLeft,
+            ledCount,
+            180);
+        var right = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.FarRight,
+            ledCount,
+            180);
+        var center = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.Center,
+            ledCount,
+            180);
+
+        Assert.Equal(ready.Count, left.Count);
+        Assert.Equal(ready.Count, right.Count);
+        Assert.Equal(ready.Count, center.Count);
+        Assert.Equal(WledHttpAnimationFrameFactory.MaximumExpandStepCount + 1, ready.Count);
+        Assert.All(
+            new[] { ready, left, right, center }.SelectMany(frames => frames.Take(frames.Count - 1)),
+            frame => Assert.Equal(TimeSpan.FromMilliseconds(55), frame.Duration));
     }
 
     [Fact]

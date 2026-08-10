@@ -79,7 +79,8 @@ public static class WledHttpAnimationFrameFactory
         // Left half ends at the first right-half index (exclusive): even 12 → 6, odd 11 → 5.
         var rightEdge = (ledCount + 1) / 2;
         var maxLit = Math.Max(1, rightEdge);
-        var stepCount = Math.Min(maxLit, MaximumExpandStepCount);
+        // Same step budget as Ready/Not Ready center-out (not half-strip) for matching smoothness.
+        var stepCount = Math.Min(ledCount, MaximumExpandStepCount);
         var frames = new List<WledHttpAnimationFrame>(stepCount + 1);
         for (var step = 1; step <= stepCount; step++)
         {
@@ -107,7 +108,8 @@ public static class WledHttpAnimationFrameFactory
         // Right half starts at the first right-half index: even 12 → 6, odd 11 → 5.
         var leftEdge = ledCount / 2;
         var maxLit = Math.Max(1, ledCount - leftEdge);
-        var stepCount = Math.Min(maxLit, MaximumExpandStepCount);
+        // Same step budget as Ready/Not Ready center-out (not half-strip) for matching smoothness.
+        var stepCount = Math.Min(ledCount, MaximumExpandStepCount);
         var frames = new List<WledHttpAnimationFrame>(stepCount + 1);
         for (var step = 1; step <= stepCount; step++)
         {
