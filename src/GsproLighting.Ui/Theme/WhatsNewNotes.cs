@@ -7,9 +7,9 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Lighting commands fully override WLED UI state (presets, playlists, palettes, extra segments).",
-        "Ready stays Chase + Aurora at max sx/ix; Not Ready stays red Chase (Default palette).",
-        "Solids, tray test, and hit-direction fills post authoritative full-strip /json/state bodies.",
-        "Each apply stops presets/playlists and clears leftover multi-segment layouts.",
+        "Ready is a one-shot edges-in → center concentrate → full-strip solid green (no Chase loop).",
+        "Not Ready morphs to red, expands center-out, then breathes full-strip red.",
+        "Lighting commands still fully override WLED UI state (presets, playlists, extra segments).",
+        "Preview Ready / Not Ready buttons match the live BallReady / BallNotReady sequences.",
     ];
 }

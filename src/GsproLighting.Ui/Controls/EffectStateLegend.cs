@@ -43,8 +43,8 @@ public sealed class EffectStateLegend : UserControl
     private static IEnumerable<LegendEntry> BuildEntries(EffectConfig effects) =>
     [
         new("Waiting", $"Ripple ambient · WLED FX {EffectConfig.RippleFxId} · Red Reef", effects.Waiting),
-        new("Not ready", $"Red Chase · WLED FX {EffectConfig.ChaseFxId} · max sx/ix · Default palette", effects.NotReady),
-        new("Ready / idle", $"Ripple basic · WLED FX {EffectConfig.RippleFxId} · Red Reef · timing 15%", effects.Idle),
+        new("Not ready", "Red expand center-out · then breathe full-strip", effects.NotReady),
+        new("Ready / idle", "Green edges-in → center concentrate → full-strip solid", effects.Idle),
         new("Pure", "Bright green · direction marker", effects.PureStrike),
         new("Mishit", "Deep red · direction marker", effects.Mishit),
         new("Putt", "Soft blue · direction marker", effects.Putt),

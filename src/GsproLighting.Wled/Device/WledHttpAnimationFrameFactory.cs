@@ -113,8 +113,30 @@ public static class WledHttpAnimationFrameFactory
         byte brightness) =>
         CreateCenterOutSequence(ledCount, brightness, NotReadyRed, includeHoldFrame: true);
 
+    /// <summary>
+    /// After a Ready→Not Ready morph: start at ~50% center red and expand out to full strip.
+    /// </summary>
+    public static IReadOnlyList<WledHttpAnimationFrame> CreateNotReadyExpandFromHalfSequence(
+        int ledCount,
+        byte brightness) =>
+        WledHttpCenterBandGrowBuilder.Create(
+            ledCount,
+            brightness,
+            NotReadyRed,
+            WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(ledCount));
+
     public static IReadOnlyList<WledHttpAnimationFrame> CreateReadySequence(int ledCount, byte brightness) =>
         WledHttpReadyAnimationBuilder.CreateReadySequence(ledCount, brightness);
+
+    public static IReadOnlyList<WledHttpAnimationFrame> CreateCenterBandGrowSequence(
+        int ledCount,
+        byte brightness,
+        RgbColor color,
+        int fromLitCount) =>
+        WledHttpCenterBandGrowBuilder.Create(ledCount, brightness, color, fromLitCount);
+
+    public static int ResolveCenterBandGrowStepCount(int ledCount, int fromLitCount) =>
+        WledHttpCenterBandGrowBuilder.ResolveStepCount(ledCount, fromLitCount);
 
     /// <summary>
     /// Hit-direction: left/right half-fill from center, or full center-out green.

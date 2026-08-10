@@ -383,7 +383,7 @@ public sealed class SettingsForm : Form
     {
         var tip = _tabs.SelectedTab?.Text switch
         {
-            "Preview" => "Test solids, Not Ready red Chase, or Ready Chase + Aurora over HTTP.",
+            "Preview" => "Test solids, Not Ready expand + breathe, or Ready edges-in → solid over HTTP.",
             "WLED" => ProductCopy.WledTabTip,
             "Connection" => ProductCopy.NoWledBody,
             "Live feed" => ProductCopy.LiveFeedWaitingBody,

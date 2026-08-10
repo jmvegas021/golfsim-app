@@ -122,13 +122,29 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         byte brightness,
         CancellationToken cancellationToken)
     {
-        // One full-strip Chase + Aurora POST — WLED animates on-device at max sx/ix.
-        await _client.ApplyStateBodyAsync(
-                controllerIp,
-                WledChaseAuroraStateFactory.CreateReadyBody(ledCount, brightness),
-                cancellationToken)
+        var target = WledHttpAnimationFrameFactory.ReadyGreen;
+        if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
+        {
+            // Morph on a full-strip solid, then concentrate → full solid green.
+            var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
+                fromColor,
+                fromBrightness,
+                target,
+                brightness,
+                ledCount);
+            await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
+                .ConfigureAwait(false);
+            var chase = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(
+                ledCount,
+                brightness);
+            await RunFramesAsync(controllerIp, chase, cancellationToken, target)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
+        await RunFramesAsync(controllerIp, ready, cancellationToken, target)
             .ConfigureAwait(false);
-        _visualTracker.Clear();
     }
 
     private async Task RunNotReadyFramesAsync(
@@ -137,13 +153,54 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         byte brightness,
         CancellationToken cancellationToken)
     {
-        // One full-strip red Chase POST (Default palette — not Aurora). Clears Ready segments.
-        await _client.ApplyStateBodyAsync(
-                controllerIp,
-                WledChaseAuroraStateFactory.CreateNotReadyBody(ledCount, brightness),
-                cancellationToken)
-            .ConfigureAwait(false);
-        _visualTracker.Clear();
+        var target = WledHttpAnimationFrameFactory.NotReadyRed;
+        if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
+        {
+            // Full-strip morph clears any Ready geometry, then center-half → edges expand.
+            var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
+                fromColor,
+                fromBrightness,
+                target,
+                brightness,
+                ledCount);
+            await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
+                .ConfigureAwait(false);
+            var fromHalf = WledHttpAnimationFrameFactory.CreateNotReadyExpandFromHalfSequence(
+                ledCount,
+                brightness);
+            await RunFramesAsync(controllerIp, fromHalf, cancellationToken, target)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            var expand = WledHttpAnimationFrameFactory.CreateNotReadyExpandSequence(
+                ledCount,
+                brightness);
+            await RunFramesAsync(controllerIp, expand, cancellationToken, target)
+                .ConfigureAwait(false);
+        }
+
+        // Breathe bri only on full-strip solid red (fx 0) — never partial center bands.
+        var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingTracked(brightness, ledCount);
+        while (true)
+            await RunTrackedFramesAsync(controllerIp, cycle, cancellationToken)
+                .ConfigureAwait(false);
+    }
+
+    private async Task RunTrackedFramesAsync(
+        string controllerIp,
+        IReadOnlyList<WledHttpTrackedFrame> frames,
+        CancellationToken cancellationToken)
+    {
+        foreach (var tracked in frames)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _client.ApplyStateBodyAsync(controllerIp, tracked.Frame.Body, cancellationToken)
+                .ConfigureAwait(false);
+            _visualTracker.RememberSolid(tracked.Color, tracked.Brightness);
+            if (tracked.Frame.Duration > TimeSpan.Zero)
+                await Task.Delay(tracked.Frame.Duration, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task RunFramesAsync(
