@@ -10,7 +10,7 @@ namespace GsproLighting.Wled.Animations;
 public static class DrgbNotReadyFrameFactory
 {
     public const int FrameCadenceMilliseconds = DrgbReadyFrameFactory.FrameCadenceMilliseconds;
-    public const int MorphStepCount = 6;
+    public const int MorphStepCount = 3;
     public const int LitAdvancePerFrame = DrgbReadyFrameFactory.LitAdvancePerFrame;
 
     /// <summary>Solid red at full intensity for DDP Not Ready.</summary>
@@ -22,8 +22,9 @@ public static class DrgbNotReadyFrameFactory
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
         var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
-        var expandSteps = Math.Max(0, (ledCount - concentrate) / (2 * LitAdvancePerFrame));
+        var expandSteps = Math.Max(0, (ledCount - concentrate) / (2 * advance));
         var frames = new List<LedAnimationFrame>(MorphStepCount + expandSteps + 1);
 
         for (var step = 1; step <= MorphStepCount; step++)
@@ -48,7 +49,8 @@ public static class DrgbNotReadyFrameFactory
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var stepCount = ((ledCount + 1) / 2 + LitAdvancePerFrame - 1) / LitAdvancePerFrame;
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
+        var stepCount = ((ledCount + 1) / 2 + advance - 1) / advance;
         var frames = new List<LedAnimationFrame>(stepCount + 1);
         AppendExpandFrames(frames, ledCount, fromLitCount: 0, cadence);
         return frames;
@@ -66,7 +68,8 @@ public static class DrgbNotReadyFrameFactory
         var parity = ledCount % 2 == 0 ? 2 : 1;
         var lit = fromLitCount <= 0 ? parity : fromLitCount;
         lit = Math.Clamp(lit, parity, ledCount);
-        var advance = Math.Max(2, LitAdvancePerFrame * 2);
+        var step = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
+        var advance = Math.Max(2, step * 2);
 
         if (fromLitCount <= 0)
             frames.Add(new LedAnimationFrame(

@@ -12,10 +12,10 @@ public static class DrgbReadyFrameFactory
     public const int FrameCadenceMilliseconds = 16;
 
     /// <summary>
-    /// LEDs advanced per side each fill frame.
-    /// TODO(P2): bump for ~585 LED strips — at 2/side/frame intro is ~4s before hold.
+    /// Target LEDs advanced per side each fill/retract frame on long strips (~585).
+    /// Prefer <see cref="ResolveLitAdvance"/> so short strips stay readable in tests/previews.
     /// </summary>
-    public const int LitAdvancePerFrame = 2;
+    public const int LitAdvancePerFrame = 12;
 
     /// <summary>
     /// Fraction of the strip lit for the resting Ready hold (~25–30% centered).
@@ -28,21 +28,26 @@ public static class DrgbReadyFrameFactory
 
     public static readonly RgbColor ReadyGreen = RgbColor.FromRgb(0, 255, 0);
 
+    /// <summary>Adaptive per-side advance — ~12 on 585 LEDs, floor 2 on short strips.</summary>
+    public static int ResolveLitAdvance(int ledCount) =>
+        Math.Clamp(Math.Max(2, ledCount / 48), 2, LitAdvancePerFrame);
+
     public static IReadOnlyList<LedAnimationFrame> CreateReadySequence(int ledCount)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
+        var advance = ResolveLitAdvance(ledCount);
         var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
         var maxFromEdge = (ledCount + 1) / 2;
-        var fillSteps = (maxFromEdge + LitAdvancePerFrame - 1) / LitAdvancePerFrame;
-        var retractSteps = Math.Max(0, (ledCount - concentrate) / (2 * LitAdvancePerFrame));
+        var fillSteps = (maxFromEdge + advance - 1) / advance;
+        var retractSteps = Math.Max(0, (ledCount - concentrate) / (2 * advance));
         var frames = new List<LedAnimationFrame>(1 + fillSteps + retractSteps + 1);
 
         frames.Add(new LedAnimationFrame(CreateEmpty(ledCount), cadence));
 
-        for (var litEach = LitAdvancePerFrame; litEach < maxFromEdge; litEach += LitAdvancePerFrame)
+        for (var litEach = advance; litEach < maxFromEdge; litEach += advance)
             frames.Add(new LedAnimationFrame(CreateEdgesIn(ledCount, litEach, ReadyGreen), cadence));
 
         if (concentrate >= ledCount)
@@ -55,9 +60,9 @@ public static class DrgbReadyFrameFactory
 
         frames.Add(new LedAnimationFrame(CreateEdgesIn(ledCount, maxFromEdge, ReadyGreen), cadence));
 
-        for (var litCount = ledCount - (2 * LitAdvancePerFrame);
+        for (var litCount = ledCount - (2 * advance);
              litCount > concentrate;
-             litCount -= 2 * LitAdvancePerFrame)
+             litCount -= 2 * advance)
         {
             frames.Add(new LedAnimationFrame(CreateCenterBand(ledCount, litCount, ReadyGreen), cadence));
         }

@@ -12,7 +12,7 @@ public sealed class DrgbReadyFrameFactoryTests
         const int ledCount = 12;
         var frames = DrgbReadyFrameFactory.CreateReadySequence(ledCount);
         var green = DrgbReadyFrameFactory.ReadyGreen;
-        var advance = DrgbReadyFrameFactory.LitAdvancePerFrame;
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
         var concentrate = DrgbReadyFrameFactory.ResolveConcentrateLitCount(ledCount);
 
         Assert.True(frames.Count >= 3);
@@ -49,7 +49,7 @@ public sealed class DrgbReadyFrameFactoryTests
         const int ledCount = 10;
         var frames = DrgbReadyFrameFactory.CreateReadySequence(ledCount);
         var green = DrgbReadyFrameFactory.ReadyGreen;
-        var advance = DrgbReadyFrameFactory.LitAdvancePerFrame;
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
 
         var firstFill = frames[1].Pixels;
         Assert.True(SameRgb(green, firstFill[advance - 1]));
@@ -61,6 +61,8 @@ public sealed class DrgbReadyFrameFactoryTests
             TimeSpan.FromMilliseconds(DrgbReadyFrameFactory.FrameCadenceMilliseconds),
             frames[0].Duration);
         Assert.Equal(16, DrgbReadyFrameFactory.FrameCadenceMilliseconds);
+        Assert.Equal(2, advance);
+        Assert.Equal(12, DrgbReadyFrameFactory.ResolveLitAdvance(585));
     }
 
     [Fact]

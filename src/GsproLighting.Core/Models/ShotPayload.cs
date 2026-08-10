@@ -28,7 +28,27 @@ public sealed class ShotPayload
     public bool HasBallData =>
         ShotDataOptions?.ContainsBallData == true && BallData is not null;
 
+    /// <summary>
+    /// True when BallData carries playable metrics even if ContainsBallData was omitted/false.
+    /// Open Connect bridges sometimes send HLA/Speed without the options flag.
+    /// </summary>
+    public bool HasPlayableBallMetrics =>
+        BallData is not null &&
+        (BallData.Speed is not null ||
+         BallData.Hla is not null ||
+         BallData.CarryDistance is not null ||
+         BallData.SideSpin is not null ||
+         BallData.TotalSpin is not null ||
+         BallData.BackSpin is not null);
+
     public bool IsBallDetected => ShotDataOptions?.LaunchMonitorBallDetected == true;
+
+    /// <summary>
+    /// Explicit not-ready from Open Connect flags (false beats missing/null).
+    /// </summary>
+    public bool IndicatesNotReady =>
+        ShotDataOptions?.LaunchMonitorBallDetected == false ||
+        ShotDataOptions?.LaunchMonitorIsReady == false;
 
     public double? SmashFactor
     {

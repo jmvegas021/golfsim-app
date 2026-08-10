@@ -53,11 +53,12 @@ public static class DrgbDirectionFrameFactory
         RgbColor color)
     {
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
         var parity = ledCount % 2 == 0 ? 2 : 1;
         var frames = new List<LedAnimationFrame>();
         frames.Add(new LedAnimationFrame(DrgbReadyFrameFactory.CreateEmpty(ledCount), cadence));
 
-        for (var lit = parity; lit < target.LitCount; lit += LitAdvancePerFrame)
+        for (var lit = parity; lit < target.LitCount; lit += advance)
         {
             var start = (ledCount - lit) / 2;
             frames.Add(new LedAnimationFrame(
@@ -77,6 +78,7 @@ public static class DrgbDirectionFrameFactory
         RgbColor color)
     {
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
         var fromStart = DrgbConcentrateBandGeometry.ResolveCenter(ledCount).Start;
         var frames = new List<LedAnimationFrame>
         {
@@ -91,7 +93,7 @@ public static class DrgbDirectionFrameFactory
             return frames;
         }
 
-        var step = target.Start < fromStart ? -LitAdvancePerFrame : LitAdvancePerFrame;
+        var step = target.Start < fromStart ? -advance : advance;
         for (var start = fromStart; start != target.Start; )
         {
             frames.Add(new LedAnimationFrame(

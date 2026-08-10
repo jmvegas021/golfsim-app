@@ -8,7 +8,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled;
 
 /// <summary>
-/// Maps GSPro events to WLED: Ready / Not Ready / hit directions use DDP streaming.
+/// Maps GSPro events to WLED: Ready / Not Ready / Waiting / hit directions use DDP streaming.
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 {
@@ -18,8 +18,8 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     /// <summary>Ball not ready — solid red (DDP Not Ready hold).</summary>
     public static readonly RgbColor NotReadyColor = RgbColor.FromRgb(255, 0, 0);
 
-    /// <summary>Player info — blue.</summary>
-    public static readonly RgbColor PlayerColor = RgbColor.FromRgb(40, 120, 255);
+    /// <summary>GSPro loading / start — aqua (DDP Waiting hold).</summary>
+    public static readonly RgbColor WaitingColor = RgbColor.FromRgb(0, 200, 220);
 
     private readonly Func<WledConfig> _wledConfig;
     private readonly Func<EffectConfig> _effectConfig;
@@ -56,17 +56,12 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 
     public Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
     {
-        if (!shot.HasBallData &&
-            shot.BallData?.Speed is null &&
-            shot.BallData?.CarryDistance is null &&
-            shot.BallData?.SideSpin is null)
+        if (!shot.HasBallData && !shot.HasPlayableBallMetrics)
             return Task.CompletedTask;
 
-        return RunEffectAsync(
+        return RunDrgbEffectAsync(
             (config, token) =>
             {
-                // Cancel any leftover HTTP animation; direction supersedes Ready/Not Ready on DDP.
-                _animationManager.CancelActive();
                 var plan = _shotMapper.MapPlan(shot, _effectConfig());
                 var direction = ShotEffectMapper.ApplyInvertLeftRight(
                     plan.Direction,
@@ -82,41 +77,45 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 
     public Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default)
     {
+        // Code 201 = player / start-screen info from GSPro → aqua loading ripple (DDP).
         if (response.Code != 201)
             return Task.CompletedTask;
 
-        return ApplySolidOnceAsync(PlayerColor, cancellationToken);
+        return RunDrgbEffectAsync(
+            (config, token) => _readyDrgb.RunWaitingAsync(
+                config.LedCount,
+                config.Brightness,
+                token),
+            cancellationToken);
     }
 
     public Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default) =>
-        RunEffectAsync(
-            (config, token) =>
-            {
-                _animationManager.CancelActive();
-                return _readyDrgb.RunReadyAsync(
-                    config.LedCount,
-                    config.Brightness,
-                    token);
-            },
+        RunDrgbEffectAsync(
+            (config, token) => _readyDrgb.RunReadyAsync(
+                config.LedCount,
+                config.Brightness,
+                token),
             cancellationToken);
 
     public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default) =>
-        RunEffectAsync(
-            (config, token) =>
-            {
-                _animationManager.CancelActive();
-                return _readyDrgb.RunNotReadyAsync(
-                    config.LedCount,
-                    config.Brightness,
-                    token);
-            },
+        RunDrgbEffectAsync(
+            (config, token) => _readyDrgb.RunNotReadyAsync(
+                config.LedCount,
+                config.Brightness,
+                token),
             cancellationToken);
 
     /// <summary>
-    /// Skeleton: ambient Waiting removed — no HTTP on unknown Connect state.
+    /// Explicit waiting hold (preview / reconnect). Live trigger is Code 201 player info.
+    /// No-ops when WLED is not configured (avoids launch spam).
     /// </summary>
     public Task HoldWaitingAsync(CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        RunDrgbEffectAsync(
+            (config, token) => _readyDrgb.RunWaitingAsync(
+                config.LedCount,
+                config.Brightness,
+                token),
+            cancellationToken);
 
     /// <summary>
     /// Skeleton: ambient Idle restart removed after IP change.
@@ -124,28 +123,26 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     public Task HoldIdleForConnectionChangeAsync(CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    /// <summary>Cancels DDP Ready/Not Ready/direction holds and any in-flight HTTP animation.</summary>
+    /// <summary>Cancels DDP Ready/Not Ready/Waiting/direction holds and any in-flight HTTP animation.</summary>
     public void CancelActiveEffects()
     {
         _readyDrgb.CancelActive();
         _animationManager.CancelActive();
     }
 
-    private async Task ApplySolidOnceAsync(
-        RgbColor color,
+    /// <summary>
+    /// Cancels leftover HTTP animation, then runs a DDP status/direction effect.
+    /// </summary>
+    private Task RunDrgbEffectAsync(
+        Func<WledConfig, CancellationToken, Task> action,
         CancellationToken cancellationToken) =>
-        await RunEffectAsync(
+        RunEffectAsync(
             (config, token) =>
             {
-                _readyDrgb.CancelActive();
-                return _animationManager.ApplySolidAsync(
-                    config.ControllerIp,
-                    color,
-                    config.Brightness,
-                    config.LedCount,
-                    token);
+                _animationManager.CancelActive();
+                return action(config, token);
             },
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
 
     private async Task RunEffectAsync(
         Func<WledConfig, CancellationToken, Task> action,

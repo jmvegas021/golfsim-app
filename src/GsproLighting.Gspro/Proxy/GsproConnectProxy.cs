@@ -19,6 +19,7 @@ public sealed class GsproConnectProxy
     private readonly GsproMessageParser _parser;
     private readonly IRawMessageLogger _rawLogger;
     private readonly IShotEventSink _shotSink;
+    private readonly OpenConnectReadyEdgeDispatcher _readyEdges = new();
     private readonly bool _logHeartbeats;
 
     public GsproConnectProxy(
@@ -144,6 +145,16 @@ public sealed class GsproConnectProxy
             return;
         }
 
+        // Fire-and-forget: WledShotEffectSink holds run indefinitely until superseded.
+        // Awaiting one synchronously here would block this same loop from reading the next
+        // LM/GSPro message — including the message that would end the hold.
+        void OnError(string message) => Console.WriteLine($"[proxy] shot sink error: {message}");
+
+        // Heartbeats still carry BallDetected / ready flags — edge-dispatch lighting status
+        // even when heartbeat raw logging is suppressed.
+        if (parsed.Shot is { } shot)
+            _readyEdges.Dispatch(shot, _shotSink, cancellationToken, OnError);
+
         if (!_logHeartbeats && parsed.Shot?.IsHeartBeat == true)
             return;
 
@@ -154,22 +165,10 @@ public sealed class GsproConnectProxy
             Console.WriteLine(
                 $"  ! UNKNOWN KEYS (spike hit?): {string.Join(", ", parsed.UnknownFields.Keys)}");
 
-        // Fire-and-forget: WledShotEffectSink's Idle/Waiting/NotReady holds run indefinitely
-        // until superseded by the next sink call. Awaiting one synchronously here would block
-        // this same loop from reading the next LM/GSPro message — including the very message
-        // that would supersede/end the hold — permanently stalling the proxy pipe.
-        void OnError(string message) => Console.WriteLine($"[proxy] shot sink error: {message}");
-
-        if (parsed.Shot is { } shot)
-        {
-            if (shot.HasBallData)
-                SinkCallDispatcher.Fire(() => _shotSink.OnShotAsync(shot, cancellationToken), OnError);
-            else if (shot.IsBallDetected)
-                SinkCallDispatcher.Fire(() => _shotSink.OnBallReadyAsync(shot, cancellationToken), OnError);
-        }
-
         if (parsed.Response is { } response)
-            SinkCallDispatcher.Fire(() => _shotSink.OnPlayerInfoAsync(response, cancellationToken), OnError);
+            SinkCallDispatcher.Fire(
+                () => _shotSink.OnPlayerInfoAsync(response, cancellationToken),
+                OnError);
     }
 
     private static string Truncate(string value, int max) =>

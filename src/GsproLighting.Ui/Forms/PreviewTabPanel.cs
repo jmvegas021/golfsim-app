@@ -123,6 +123,10 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
         row.Controls.Add(AnimationButton(
+            "Waiting · Aqua · DDP",
+            ApplyWaitingAnimationAsync,
+            width: 180));
+        row.Controls.Add(AnimationButton(
             "Not Ready · DDP",
             ApplyNotReadyAnimationAsync,
             width: 180));
@@ -227,6 +231,16 @@ public sealed class PreviewTabPanel : UserControl
             _logWledFailure?.Invoke("preview-solid", ex.Message);
         }
     }
+
+    private Task ApplyWaitingAnimationAsync() =>
+        ApplyDdpHoldAsync(
+            "Waiting · Aqua · DDP",
+            (wled, token, onHold) => _readyDrgb.RunWaitingAsync(
+                Math.Max(1, wled.LedCount),
+                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
+                token,
+                onHold),
+            holdStatus: "Waiting · Aqua · DDP center→out shimmer");
 
     private Task ApplyNotReadyAnimationAsync() =>
         ApplyDdpHoldAsync(

@@ -42,11 +42,11 @@ public sealed class EffectStateLegend : UserControl
 
     private static IEnumerable<LegendEntry> BuildEntries(EffectConfig effects) =>
     [
-        new("Waiting", "No ambient return (skeleton) · waiting for Connect", effects.Waiting.Color),
-        new("Not ready", "DDP red expand → full-strip red band shimmer", RgbColor.FromRgb(255, 0, 0)),
-        new("Ready / idle", "DDP sides→center → 28% green center band shimmer", RgbColor.FromRgb(0, 255, 0)),
-        new("Direction L/R", "DDP yellow 28% side band shimmer", RgbColor.FromRgb(220, 180, 0)),
-        new("Direction center", "DDP green 28% center band shimmer (same zone as Ready)", RgbColor.FromRgb(0, 255, 0)),
+        new("Waiting / start", "DDP aqua center→out shimmer (GSPro Code 201 / loading)", RgbColor.FromRgb(0, 200, 220)),
+        new("Not ready", "DDP red expand → full-strip center→out shimmer", RgbColor.FromRgb(255, 0, 0)),
+        new("Ready / idle", "DDP sides→center → 28% green center→out shimmer", RgbColor.FromRgb(0, 255, 0)),
+        new("Direction L/R", "DDP yellow 28% side band · shimmer toward outer edge", RgbColor.FromRgb(220, 180, 0)),
+        new("Direction center", "DDP green 28% center→out shimmer (same zone as Ready)", RgbColor.FromRgb(0, 255, 0)),
         new("Pure", "Bright green · direction marker", effects.PureStrike.Color),
         new("Mishit", "Deep red · direction marker", effects.Mishit.Color),
         new("Putt", "Soft blue · direction marker", effects.Putt.Color),

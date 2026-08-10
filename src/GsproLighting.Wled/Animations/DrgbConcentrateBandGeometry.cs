@@ -35,6 +35,7 @@ public static class DrgbConcentrateBandGeometry
 
     /// <summary>
     /// Same-width band immediately left of the Ready center zone, clamped to strip start.
+    /// LitCount always equals the center band (0.28 concentrate) — never wider.
     /// </summary>
     public static LedBandRange ResolveLeft(int ledCount)
     {
@@ -45,6 +46,7 @@ public static class DrgbConcentrateBandGeometry
 
     /// <summary>
     /// Same-width band immediately right of the Ready center zone, clamped to strip end.
+    /// LitCount always equals the center band (0.28 concentrate) — never wider.
     /// </summary>
     public static LedBandRange ResolveRight(int ledCount)
     {

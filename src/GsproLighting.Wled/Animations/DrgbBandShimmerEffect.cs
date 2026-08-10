@@ -4,53 +4,81 @@ using GsproLighting.Core.Models;
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Hold-loop traveling highlight confined to a concentrate band (or full strip).
-/// Base pixels use the state color at reduced gain; the peak restores full intensity.
+/// Hold-loop multi-layer color gradient confined to a concentrate band (or full strip).
+/// Peak and wings stay in the state's hue — no white spike.
 /// </summary>
 public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
 {
-    /// <summary>Soft highlight half-width in LEDs (full width ≈ 2×).</summary>
-    public const int HighlightHalfWidthLeds = 8;
+    /// <summary>Soft wing half-width as a fraction of band length.</summary>
+    public const double WingHalfWidthFraction = 0.28;
 
-    /// <summary>Band-widths traversed per second (~1.0 keeps motion readable on long strips).</summary>
-    public const double BandWidthsPerSecond = 1.0;
+    /// <summary>Bright core half-width as a fraction of band length.</summary>
+    public const double CoreHalfWidthFraction = 0.10;
 
-    /// <summary>Steady band gain so the traveling peak can read as brighter, same hue.</summary>
-    public const double BaseGain = 0.55;
+    /// <summary>Band-widths (or half-widths for center-out) traversed per second.</summary>
+    public const double BandWidthsPerSecond = 2.4;
+
+    /// <summary>Dim resting gain so the traveling gradient reads clearly.</summary>
+    public const double BaseGain = 0.32;
+
+    public const double WingGain = 0.72;
 
     public const double PeakGain = 1.0;
 
     private readonly LedBandRange _band;
     private readonly RgbColor _baseColor;
+    private readonly DrgbShimmerMode _mode;
 
-    public DrgbBandShimmerEffect(LedBandRange band, RgbColor baseColor)
+    public DrgbBandShimmerEffect(LedBandRange band, RgbColor baseColor, DrgbShimmerMode mode)
     {
         if (band.LitCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(band), "Band must light at least one LED.");
         _band = band;
         _baseColor = baseColor;
+        _mode = mode;
     }
 
     public LedBandRange Band => _band;
 
     public RgbColor BaseColor => _baseColor;
 
-    public static DrgbBandShimmerEffect ForReady(int ledCount) =>
-        new(DrgbConcentrateBandGeometry.ResolveCenter(ledCount), DrgbReadyFrameFactory.ReadyGreen);
+    public DrgbShimmerMode Mode => _mode;
 
-    public static DrgbBandShimmerEffect ForNotReady(int ledCount)
+    public static DrgbBandShimmerEffect ForReady(int ledCount) =>
+        new(
+            DrgbConcentrateBandGeometry.ResolveCenter(ledCount),
+            DrgbReadyFrameFactory.ReadyGreen,
+            DrgbShimmerMode.CenterOut);
+
+    public static DrgbBandShimmerEffect ForNotReady(int ledCount) =>
+        ForFullStripCenterOut(ledCount, DrgbNotReadyFrameFactory.NotReadyRed);
+
+    public static DrgbBandShimmerEffect ForWaiting(int ledCount) =>
+        ForFullStripCenterOut(ledCount, DrgbWaitingFrameFactory.WaitingAqua);
+
+    private static DrgbBandShimmerEffect ForFullStripCenterOut(int ledCount, RgbColor color)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
         return new DrgbBandShimmerEffect(
             new LedBandRange(0, ledCount),
-            DrgbNotReadyFrameFactory.NotReadyRed);
+            color,
+            DrgbShimmerMode.CenterOut);
     }
 
     public static DrgbBandShimmerEffect ForDirection(ShotDirection direction, int ledCount) =>
         new(
             DrgbConcentrateBandGeometry.Resolve(direction, ledCount),
-            DrgbDirectionFrameFactory.ResolveColor(direction));
+            DrgbDirectionFrameFactory.ResolveColor(direction),
+            ResolveMode(direction));
+
+    public static DrgbShimmerMode ResolveMode(ShotDirection direction) =>
+        direction switch
+        {
+            ShotDirection.Left => DrgbShimmerMode.TowardLeft,
+            ShotDirection.Right => DrgbShimmerMode.TowardRight,
+            _ => DrgbShimmerMode.CenterOut
+        };
 
     public RgbColor[] RenderFrame(int ledCount, TimeSpan elapsed)
     {
@@ -61,35 +89,84 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
 
         var pixels = DrgbReadyFrameFactory.CreateEmpty(ledCount);
         var lit = _band.LitCount;
-        var halfWidth = Math.Clamp(HighlightHalfWidthLeds, 1, Math.Max(1, lit / 2));
-        var centerLocal = Wrap(
-            elapsed.TotalSeconds * BandWidthsPerSecond * lit,
-            lit);
+        var wing = Math.Max(1.5, lit * WingHalfWidthFraction);
+        var core = Math.Max(1.0, lit * CoreHalfWidthFraction);
 
         for (var i = 0; i < lit; i++)
         {
-            var dist = CircularDistance(i, centerLocal, lit);
-            var falloff = CosineFalloff(dist, halfWidth);
-            var gain = BaseGain + ((PeakGain - BaseGain) * falloff);
+            var dist = PeakDistance(i, lit, elapsed);
+            var gain = ResolveGain(dist, core, wing);
             pixels[_band.Start + i] = AnimationPixels.Scale(_baseColor, gain);
         }
 
         return pixels;
     }
 
-    private static double Wrap(double value, int period)
+    private double PeakDistance(int localIndex, int lit, TimeSpan elapsed)
     {
+        return _mode switch
+        {
+            DrgbShimmerMode.TowardLeft => DistanceToTravelingPeak(
+                localIndex,
+                from: lit - 1,
+                to: 0,
+                lit,
+                elapsed),
+            DrgbShimmerMode.TowardRight => DistanceToTravelingPeak(
+                localIndex,
+                from: 0,
+                to: lit - 1,
+                lit,
+                elapsed),
+            _ => DistanceToCenterOutFront(localIndex, lit, elapsed)
+        };
+    }
+
+    private static double DistanceToTravelingPeak(
+        int localIndex,
+        double from,
+        double to,
+        int lit,
+        TimeSpan elapsed)
+    {
+        var span = Math.Abs(to - from);
+        if (span < 0.5)
+            return Math.Abs(localIndex - from);
+
+        var phase = Wrap(elapsed.TotalSeconds * BandWidthsPerSecond, 1.0);
+        var peak = from + ((to - from) * phase);
+        return Math.Abs(localIndex - peak);
+    }
+
+    private static double DistanceToCenterOutFront(int localIndex, int lit, TimeSpan elapsed)
+    {
+        var mid = (lit - 1) / 2.0;
+        var half = Math.Max(1.0, mid);
+        var phase = Wrap(elapsed.TotalSeconds * BandWidthsPerSecond, 1.0);
+        var front = phase * half;
+        var distFromCenter = Math.Abs(localIndex - mid);
+        return Math.Abs(distFromCenter - front);
+    }
+
+    private static double ResolveGain(double distance, double coreHalf, double wingHalf)
+    {
+        var core = CosineFalloff(distance, coreHalf);
+        var wing = CosineFalloff(distance, wingHalf);
+        // Map wing falloff into the BaseGain→WingGain band, then lift by PeakGain core.
+        var wingRelative = (WingGain - BaseGain) / (PeakGain - BaseGain);
+        var layered = Math.Max(core, wing * wingRelative);
+        return BaseGain + ((PeakGain - BaseGain) * layered);
+    }
+
+    private static double Wrap(double value, double period)
+    {
+        if (period <= 0)
+            return 0;
         var wrapped = value % period;
         return wrapped < 0 ? wrapped + period : wrapped;
     }
 
-    private static double CircularDistance(double a, double b, int period)
-    {
-        var delta = Math.Abs(a - b);
-        return Math.Min(delta, period - delta);
-    }
-
-    private static double CosineFalloff(double distance, int halfWidth)
+    private static double CosineFalloff(double distance, double halfWidth)
     {
         if (distance >= halfWidth)
             return 0;

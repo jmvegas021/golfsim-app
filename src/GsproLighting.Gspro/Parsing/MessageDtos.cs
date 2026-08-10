@@ -26,16 +26,34 @@ internal sealed class ShotPayloadDto
     [JsonPropertyName("ShotDataOptions")]
     public ShotDataOptionsDto? ShotDataOptions { get; set; }
 
-    public ShotPayload ToModel() => new()
+    public ShotPayload ToModel()
     {
-        DeviceId = DeviceId,
-        Units = Units,
-        ShotNumber = ShotNumber,
-        ApiVersion = ApiVersion,
-        BallData = BallData?.ToModel(),
-        ClubData = ClubData?.ToModel(),
-        ShotDataOptions = ShotDataOptions?.ToModel()
-    };
+        var shot = new ShotPayload
+        {
+            DeviceId = DeviceId,
+            Units = Units,
+            ShotNumber = ShotNumber,
+            ApiVersion = ApiVersion,
+            BallData = BallData?.ToModel(),
+            ClubData = ClubData?.ToModel(),
+            ShotDataOptions = ShotDataOptions?.ToModel()
+        };
+
+        // Bridges sometimes omit ContainsBallData while still sending BallData metrics.
+        if (shot.BallData is not null)
+        {
+            shot.ShotDataOptions ??= new ShotDataOptions();
+            shot.ShotDataOptions.ContainsBallData = true;
+        }
+
+        if (shot.ClubData is not null)
+        {
+            shot.ShotDataOptions ??= new ShotDataOptions();
+            shot.ShotDataOptions.ContainsClubData = true;
+        }
+
+        return shot;
+    }
 }
 
 internal sealed class BallDataDto
