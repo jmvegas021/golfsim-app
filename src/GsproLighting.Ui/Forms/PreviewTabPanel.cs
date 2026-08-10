@@ -7,7 +7,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// Manual WLED controls: solids + hit directions over HTTP; Ready / Not Ready over DDP.
+/// Manual WLED controls: solids over HTTP; Ready / Not Ready / hit directions over DDP.
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
@@ -21,6 +21,7 @@ public sealed class PreviewTabPanel : UserControl
     private readonly Label _statusLabel = new();
     private readonly WledHttpStateAnimationManager _stateManager;
     private readonly WledBallReadyDrgbController _readyDrgb;
+    private readonly WledDirectionDrgbController _directionDrgb;
     private int _statusGeneration;
 
     public PreviewTabPanel(
@@ -30,6 +31,7 @@ public sealed class PreviewTabPanel : UserControl
         Func<int> resolveLedCount,
         WledHttpStateAnimationManager stateManager,
         WledBallReadyDrgbController readyDrgb,
+        WledDirectionDrgbController? directionDrgb = null,
         Action? cancelLiveEffects = null,
         Action<string, string>? logWledFailure = null)
     {
@@ -39,6 +41,7 @@ public sealed class PreviewTabPanel : UserControl
         _resolveLedCount = resolveLedCount;
         _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
         _readyDrgb = readyDrgb ?? throw new ArgumentNullException(nameof(readyDrgb));
+        _directionDrgb = directionDrgb ?? new WledDirectionDrgbController(_readyDrgb);
         _cancelLiveEffects = cancelLiveEffects;
         _logWledFailure = logWledFailure;
 
@@ -77,7 +80,7 @@ public sealed class PreviewTabPanel : UserControl
                 Dock = DockStyle.Top,
                 Title = "Preview lights",
                 Subtitle =
-                    "Ready / Not Ready stream over DDP (UDP :4048). Solids and hit directions use HTTP. Set the controller IP on Connection first."
+                    "Ready / Not Ready / Left·Center·Right stream over DDP (UDP :4048). Solids use HTTP. Set the controller IP on Connection first."
             },
             0,
             0);
@@ -95,7 +98,7 @@ public sealed class PreviewTabPanel : UserControl
         _statusLabel.ForeColor = UiTheme.Muted;
         _statusLabel.Font = UiTheme.BodyFont(9.5f);
         _statusLabel.Margin = new Padding(0, 16, 0, 0);
-        _statusLabel.Text = "Click Ready for DDP, or a color to POST /json/state.";
+        _statusLabel.Text = "Click Ready or a direction for DDP, or a color to POST /json/state.";
         root.Controls.Add(_statusLabel, 0, 3);
 
         return root;
@@ -129,18 +132,18 @@ public sealed class PreviewTabPanel : UserControl
             isPrimary: true,
             width: 150));
         row.Controls.Add(AnimationButton(
-            "Left · Yellow",
-            () => ApplyHitDirectionAsync(ShotDirection.Left, "Left · Yellow"),
-            width: 130));
+            "Left · Yellow · DDP",
+            () => ApplyHitDirectionAsync(ShotDirection.Left, "Left · Yellow · DDP"),
+            width: 160));
         row.Controls.Add(AnimationButton(
-            "Center · Green",
-            () => ApplyHitDirectionAsync(ShotDirection.Center, "Center · Green"),
+            "Center · Green · DDP",
+            () => ApplyHitDirectionAsync(ShotDirection.Center, "Center · Green · DDP"),
             isPrimary: true,
-            width: 140));
+            width: 170));
         row.Controls.Add(AnimationButton(
-            "Right · Yellow",
-            () => ApplyHitDirectionAsync(ShotDirection.Right, "Right · Yellow"),
-            width: 140));
+            "Right · Yellow · DDP",
+            () => ApplyHitDirectionAsync(ShotDirection.Right, "Right · Yellow · DDP"),
+            width: 170));
         return row;
     }
 
@@ -233,7 +236,7 @@ public sealed class PreviewTabPanel : UserControl
                 wled.Brightness == 0 ? (byte)1 : wled.Brightness,
                 token,
                 onHold),
-            holdStatus: "Not Ready breathe · DDP keepalive");
+            holdStatus: "Not Ready · DDP band shimmer");
 
     private Task ApplyReadyAnimationAsync() =>
         ApplyDdpHoldAsync(
@@ -243,17 +246,18 @@ public sealed class PreviewTabPanel : UserControl
                 wled.Brightness == 0 ? (byte)1 : wled.Brightness,
                 token,
                 onHold),
-            holdStatus: "Ready hold · DDP keepalive");
+            holdStatus: "Ready · DDP band shimmer");
 
     private Task ApplyHitDirectionAsync(ShotDirection direction, string label) =>
-        ApplyHttpAnimationAsync(
+        ApplyDdpHoldAsync(
             label,
-            (ip, token) => _stateManager.RunHitDirectionAsync(
-                ip,
+            (wled, token, onHold) => _directionDrgb.RunDirectionAsync(
                 direction,
-                _resolveLedCount(),
-                _resolveBrightness(),
-                token));
+                Math.Max(1, wled.LedCount),
+                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
+                token,
+                onHold),
+            holdStatus: $"{label} · DDP band shimmer");
 
     private async Task ApplyDdpHoldAsync(
         string label,
@@ -291,36 +295,6 @@ public sealed class PreviewTabPanel : UserControl
         catch (OperationCanceledException)
         {
             // Superseded by a newer Ready/Not Ready or CancelLiveEffects.
-        }
-        catch (Exception ex)
-        {
-            if (generation != _statusGeneration)
-                return;
-            SetStatus(ex.Message, isError: true);
-            _logWledFailure?.Invoke("preview-animation", ex.Message);
-        }
-    }
-
-    private async Task ApplyHttpAnimationAsync(
-        string label,
-        Func<string, CancellationToken, Task> animation)
-    {
-        var ip = ResolveIpOrStatus();
-        if (ip is null)
-            return;
-
-        var generation = ++_statusGeneration;
-        CancelLiveEffects();
-        SetStatus($"Running {label} on {ip}…");
-        try
-        {
-            await animation(ip, CancellationToken.None).ConfigureAwait(true);
-            if (generation == _statusGeneration)
-                SetStatus($"{label} complete · holding final state");
-        }
-        catch (OperationCanceledException) when (generation != _statusGeneration)
-        {
-            // A newer Preview action superseded this animation.
         }
         catch (Exception ex)
         {

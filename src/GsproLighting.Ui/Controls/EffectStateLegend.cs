@@ -42,20 +42,22 @@ public sealed class EffectStateLegend : UserControl
 
     private static IEnumerable<LegendEntry> BuildEntries(EffectConfig effects) =>
     [
-        new("Waiting", $"Ripple ambient · WLED FX {EffectConfig.RippleFxId} · Red Reef", effects.Waiting),
-        new("Not ready", "DDP red expand + breathe keepalive", effects.NotReady),
-        new("Ready / idle", "DDP sides→center → solid top/center band hold", effects.Idle),
-        new("Pure", "Bright green · direction marker", effects.PureStrike),
-        new("Mishit", "Deep red · direction marker", effects.Mishit),
-        new("Putt", "Soft blue · direction marker", effects.Putt),
-        new("Player", "Sky blue pulse", effects.Player),
-        new("Celebrate", $"Gold fireworks · WLED FX {EffectConfig.CelebrateFxId}", effects.Celebrate),
-        new("Hazard", $"Sparkle · WLED FX {EffectConfig.SparkleFxId}", effects.Hazard),
-        new("Water", "Teal flash-hold", effects.WaterHazard),
-        new("Out of bounds", "Hard red flash-hold", effects.OutOfBounds)
+        new("Waiting", "No ambient return (skeleton) · waiting for Connect", effects.Waiting.Color),
+        new("Not ready", "DDP red expand → full-strip red band shimmer", RgbColor.FromRgb(255, 0, 0)),
+        new("Ready / idle", "DDP sides→center → 28% green center band shimmer", RgbColor.FromRgb(0, 255, 0)),
+        new("Direction L/R", "DDP yellow 28% side band shimmer", RgbColor.FromRgb(220, 180, 0)),
+        new("Direction center", "DDP green 28% center band shimmer (same zone as Ready)", RgbColor.FromRgb(0, 255, 0)),
+        new("Pure", "Bright green · direction marker", effects.PureStrike.Color),
+        new("Mishit", "Deep red · direction marker", effects.Mishit.Color),
+        new("Putt", "Soft blue · direction marker", effects.Putt.Color),
+        new("Player", "Sky blue pulse", effects.Player.Color),
+        new("Celebrate", $"Gold fireworks · WLED FX {EffectConfig.CelebrateFxId}", effects.Celebrate.Color),
+        new("Hazard", $"Sparkle · WLED FX {EffectConfig.SparkleFxId}", effects.Hazard.Color),
+        new("Water", "Teal flash-hold", effects.WaterHazard.Color),
+        new("Out of bounds", "Hard red flash-hold", effects.OutOfBounds.Color)
     ];
 
-    private sealed record LegendEntry(string Title, string Description, EffectSlot Slot);
+    private sealed record LegendEntry(string Title, string Description, RgbColor Color);
 
     private sealed class LegendRow : Control
     {
@@ -81,7 +83,7 @@ public sealed class EffectStateLegend : UserControl
             UiTheme.FillPanelSurface(g, ClientRectangle, raised: false);
 
             var swatch = new Rectangle(12, 12, 28, Height - 24);
-            var color = Color.FromArgb(_entry.Slot.Color.R, _entry.Slot.Color.G, _entry.Slot.Color.B);
+            var color = Color.FromArgb(_entry.Color.R, _entry.Color.G, _entry.Color.B);
             using (var fill = new SolidBrush(color))
                 g.FillRectangle(fill, swatch);
             using (var edge = new Pen(Color.FromArgb(80, 0, 0, 0)))

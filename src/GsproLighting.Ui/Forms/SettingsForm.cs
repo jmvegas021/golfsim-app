@@ -58,6 +58,7 @@ public sealed class SettingsForm : Form
             () => _connection.LedCount,
             app.HttpStateManager,
             app.ReadyDrgb,
+            app.DirectionDrgb,
             app.SuspendLiveEffectsForManualControl,
             app.ReportWledFailure);
         _wled = new WledTabPanel(
@@ -385,7 +386,7 @@ public sealed class SettingsForm : Form
     {
         var tip = _tabs.SelectedTab?.Text switch
         {
-            "Preview" => "Test solids, Not Ready expand + Chase, or Ready sides→center band over HTTP.",
+            "Preview" => "Test solids over HTTP, or Ready / Not Ready / Left·Center·Right over DDP (28% band shimmer).",
             "WLED" => ProductCopy.WledTabTip,
             "Connection" => ProductCopy.NoWledBody,
             "Live feed" => ProductCopy.LiveFeedWaitingBody,

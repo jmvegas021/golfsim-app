@@ -1,18 +1,32 @@
 using GsproLighting.Core.Config;
-using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Pixel-frame Ready choreography for DDP streaming: blank → sides-in → full →
-/// retract to a solid top/center band (~<see cref="WledHttpReadyAnimationBuilder.ConcentrateLitFraction"/>).
+/// Pixel-frame Ready choreography for DDP streaming: blank → sides-in → full flash →
+/// retract to a centered top band; hold shimmer is owned by <see cref="DrgbBandShimmerEffect"/>.
 /// </summary>
 public static class DrgbReadyFrameFactory
 {
-    /// <summary>~42 FPS — within the 30–60 FPS DDP target.</summary>
-    public const int FrameCadenceMilliseconds = 24;
+    /// <summary>~60 FPS — top of the 30–60 FPS DDP target.</summary>
+    public const int FrameCadenceMilliseconds = 16;
 
-    public static readonly RgbColor ReadyGreen = WledHttpAnimationFrameFactory.ReadyGreen;
+    /// <summary>
+    /// LEDs advanced per side each fill frame.
+    /// TODO(P2): bump for ~585 LED strips — at 2/side/frame intro is ~4s before hold.
+    /// </summary>
+    public const int LitAdvancePerFrame = 2;
+
+    /// <summary>
+    /// Fraction of the strip lit for the resting Ready hold (~25–30% centered).
+    /// Shared with hit-direction concentrate bands.
+    /// </summary>
+    public const double ConcentrateLitFraction = DrgbConcentrateBandGeometry.ConcentrateLitFraction;
+
+    /// <summary>Status Ready always streams at full DDP intensity.</summary>
+    public const byte MaxIntensityBrightness = 255;
+
+    public static readonly RgbColor ReadyGreen = RgbColor.FromRgb(0, 255, 0);
 
     public static IReadOnlyList<LedAnimationFrame> CreateReadySequence(int ledCount)
     {
@@ -20,18 +34,33 @@ public static class DrgbReadyFrameFactory
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var concentrate = WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(ledCount);
-        var capacity = 1 + ((ledCount + 1) / 2) + Math.Max(0, (ledCount - concentrate) / 2) + 1;
-        var frames = new List<LedAnimationFrame>(capacity);
+        var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
+        var maxFromEdge = (ledCount + 1) / 2;
+        var fillSteps = (maxFromEdge + LitAdvancePerFrame - 1) / LitAdvancePerFrame;
+        var retractSteps = Math.Max(0, (ledCount - concentrate) / (2 * LitAdvancePerFrame));
+        var frames = new List<LedAnimationFrame>(1 + fillSteps + retractSteps + 1);
 
         frames.Add(new LedAnimationFrame(CreateEmpty(ledCount), cadence));
 
-        var maxFromEdge = (ledCount + 1) / 2;
-        for (var litEach = 1; litEach <= maxFromEdge; litEach++)
+        for (var litEach = LitAdvancePerFrame; litEach < maxFromEdge; litEach += LitAdvancePerFrame)
             frames.Add(new LedAnimationFrame(CreateEdgesIn(ledCount, litEach, ReadyGreen), cadence));
 
-        for (var litCount = ledCount - 2; litCount > concentrate; litCount -= 2)
+        if (concentrate >= ledCount)
+        {
+            frames.Add(new LedAnimationFrame(
+                CreateCenterBand(ledCount, ledCount, ReadyGreen),
+                TimeSpan.Zero));
+            return frames;
+        }
+
+        frames.Add(new LedAnimationFrame(CreateEdgesIn(ledCount, maxFromEdge, ReadyGreen), cadence));
+
+        for (var litCount = ledCount - (2 * LitAdvancePerFrame);
+             litCount > concentrate;
+             litCount -= 2 * LitAdvancePerFrame)
+        {
             frames.Add(new LedAnimationFrame(CreateCenterBand(ledCount, litCount, ReadyGreen), cadence));
+        }
 
         frames.Add(new LedAnimationFrame(
             CreateCenterBand(ledCount, concentrate, ReadyGreen),
@@ -39,11 +68,14 @@ public static class DrgbReadyFrameFactory
         return frames;
     }
 
-    public static RgbColor[] CreateHoldPixels(int ledCount) =>
-        CreateCenterBand(
-            ledCount,
-            WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(ledCount),
-            ReadyGreen);
+    public static RgbColor[] CreateHoldPixels(int ledCount)
+    {
+        var band = DrgbConcentrateBandGeometry.ResolveCenter(ledCount);
+        return CreateBand(ledCount, band.Start, band.LitCount, ReadyGreen);
+    }
+
+    public static int ResolveConcentrateLitCount(int ledCount) =>
+        DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
 
     public static RgbColor[] CreateEmpty(int ledCount)
     {
@@ -67,11 +99,20 @@ public static class DrgbReadyFrameFactory
 
     public static RgbColor[] CreateCenterBand(int ledCount, int litCount, RgbColor color)
     {
+        var lit = Math.Clamp(litCount, 0, ledCount);
+        return CreateBand(ledCount, (ledCount - lit) / 2, lit, color);
+    }
+
+    public static RgbColor[] CreateBand(int ledCount, int start, int litCount, RgbColor color)
+    {
         var pixels = CreateEmpty(ledCount);
         var lit = Math.Clamp(litCount, 0, ledCount);
-        var start = (ledCount - lit) / 2;
+        if (lit == 0)
+            return pixels;
+
+        var clampedStart = Math.Clamp(start, 0, ledCount - lit);
         for (var i = 0; i < lit; i++)
-            pixels[start + i] = color;
+            pixels[clampedStart + i] = color;
         return pixels;
     }
 }

@@ -8,15 +8,15 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled;
 
 /// <summary>
-/// Maps GSPro events to WLED: Ready/Not Ready use DDP streaming; hit directions stay HTTP.
+/// Maps GSPro events to WLED: Ready / Not Ready / hit directions use DDP streaming.
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 {
-    /// <summary>Ball ready — green.</summary>
-    public static readonly RgbColor ReadyColor = RgbColor.FromRgb(0, 220, 0);
+    /// <summary>Ball ready — full-intensity green (DDP Ready hold).</summary>
+    public static readonly RgbColor ReadyColor = RgbColor.FromRgb(0, 255, 0);
 
-    /// <summary>Ball not ready — dim red (also sent at reduced brightness).</summary>
-    public static readonly RgbColor NotReadyColor = RgbColor.FromRgb(180, 30, 30);
+    /// <summary>Ball not ready — solid red (DDP Not Ready hold).</summary>
+    public static readonly RgbColor NotReadyColor = RgbColor.FromRgb(255, 0, 0);
 
     /// <summary>Player info — blue.</summary>
     public static readonly RgbColor PlayerColor = RgbColor.FromRgb(40, 120, 255);
@@ -26,6 +26,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     private readonly ShotEffectMapper _shotMapper = new();
     private readonly IWledOutput _output;
     private readonly WledBallReadyDrgbController _readyDrgb;
+    private readonly WledDirectionDrgbController _directionDrgb;
     private readonly WledHttpStateAnimationManager _animationManager;
     private readonly bool _ownsAnimationManager;
     private readonly bool _ownsReadyDrgb;
@@ -48,6 +49,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         _ownsAnimationManager = animationManager is null;
         _readyDrgb = readyDrgb ?? new WledBallReadyDrgbController(_output);
         _ownsReadyDrgb = readyDrgb is null;
+        _directionDrgb = new WledDirectionDrgbController(_readyDrgb);
         _logFailure = logFailure;
         _onTakeover = onTakeover;
     }
@@ -63,14 +65,13 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         return RunEffectAsync(
             (config, token) =>
             {
-                // Leave DDP live mode before HTTP hit-direction posts (authoritative live:false).
-                _readyDrgb.CancelActive();
+                // Cancel any leftover HTTP animation; direction supersedes Ready/Not Ready on DDP.
+                _animationManager.CancelActive();
                 var plan = _shotMapper.MapPlan(shot, _effectConfig());
                 var direction = ShotEffectMapper.ApplyInvertLeftRight(
                     plan.Direction,
                     config.InvertLeftRight);
-                return _animationManager.RunHitDirectionAsync(
-                    config.ControllerIp,
+                return _directionDrgb.RunDirectionAsync(
                     direction,
                     config.LedCount,
                     config.Brightness,
@@ -123,7 +124,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     public Task HoldIdleForConnectionChangeAsync(CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    /// <summary>Cancels DDP Ready/Not Ready holds and any in-flight HTTP animation.</summary>
+    /// <summary>Cancels DDP Ready/Not Ready/direction holds and any in-flight HTTP animation.</summary>
     public void CancelActiveEffects()
     {
         _readyDrgb.CancelActive();

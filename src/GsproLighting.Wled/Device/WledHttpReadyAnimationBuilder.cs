@@ -3,12 +3,12 @@ using GsproLighting.Core.Config;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Ready intro (HTTP Solid FX 0): blank → sides-to-center fill → sides retract until only
-/// the top/center band remains. That band is the resting Ready state (no Chase/Aurora loop).
+/// Legacy HTTP Ready intro (Solid FX 0, 0.50 concentrate). Quarantined — live/Preview Ready
+/// uses DDP <see cref="Animations.DrgbConcentrateBandGeometry"/> at 0.28 instead.
 /// </summary>
 public static class WledHttpReadyAnimationBuilder
 {
-    /// <summary>Fraction of the strip lit for the resting Ready top/center band.</summary>
+    /// <summary>Legacy HTTP concentrate (do not reconnect — DDP uses 0.28).</summary>
     public const double ConcentrateLitFraction = 0.50;
 
     public static IReadOnlyList<WledHttpAnimationFrame> CreateReadySequence(

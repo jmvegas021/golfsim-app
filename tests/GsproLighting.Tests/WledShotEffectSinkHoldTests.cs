@@ -1,4 +1,3 @@
-using System.Net;
 using GsproLighting.Core.Config;
 using GsproLighting.Core.Models;
 using GsproLighting.Wled;
@@ -12,26 +11,36 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_StreamsDrgbEdgesInThenHoldsCenterBand()
+    public async Task OnBallReadyAsync_StreamsDrgbEdgesInThenShimmerCenterBand()
     {
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
         using var sink = CreateSink(output, animationManager);
+        var band = DrgbConcentrateBandGeometry.ResolveCenter(8);
 
         var ready = sink.OnBallReadyAsync(new ShotPayload());
-        var hold = DrgbReadyFrameFactory.CreateHoldPixels(8);
         await WaitUntilAsync(
-            () => output.PixelFrames.Any(frame => frame.SequenceEqual(hold)),
+            () =>
+            {
+                var frames = output.SnapshotFrames();
+                return frames.Length >= 2 &&
+                       frames.Any(frame => HasBandHue(frame, band, DrgbReadyFrameFactory.ReadyGreen)) &&
+                       HasDistinctHoldFrames(frames, band, DrgbReadyFrameFactory.ReadyGreen);
+            },
             TimeSpan.FromSeconds(3));
         sink.CancelActiveEffects();
         await ready;
 
+        var frames = output.SnapshotFrames();
         Assert.Equal(0, handler.PostCount);
-        Assert.True(IsBlack(output.PixelFrames[0]));
-        Assert.Equal(DrgbReadyFrameFactory.ReadyGreen, output.PixelFrames[1][0]);
-        Assert.Equal(DrgbReadyFrameFactory.ReadyGreen, output.PixelFrames[1][^1]);
-        Assert.Contains(output.PixelFrames, frame => frame.SequenceEqual(hold));
+        Assert.True(IsBlack(frames[0]));
+        Assert.Equal(DrgbReadyFrameFactory.ReadyGreen, frames[1][0]);
+        Assert.Equal(DrgbReadyFrameFactory.ReadyGreen, frames[1][^1]);
+        Assert.Contains(
+            frames,
+            frame => HasBandHue(frame, band, DrgbReadyFrameFactory.ReadyGreen) &&
+                     IsOutsideBandBlack(frame, band));
     }
 
     [Fact]
@@ -43,46 +52,51 @@ public sealed class WledShotEffectSinkHoldTests
         using var sink = CreateSink(output, animationManager, brightness: 180);
 
         var notReady = sink.OnBallNotReadyAsync();
-        await WaitUntilAsync(() => output.PixelFrames.Count >= 2, TimeSpan.FromSeconds(3));
+        await WaitUntilAsync(() => output.FrameCount >= 2, TimeSpan.FromSeconds(3));
         var ready = sink.OnBallReadyAsync(new ShotPayload());
         await notReady;
+        var band = DrgbConcentrateBandGeometry.ResolveCenter(8);
         await WaitUntilAsync(
-            () => output.PixelFrames.Any(frame =>
-                frame.SequenceEqual(DrgbReadyFrameFactory.CreateHoldPixels(8))),
+            () => output.SnapshotFrames().Any(frame =>
+                HasBandHue(frame, band, DrgbReadyFrameFactory.ReadyGreen)),
             TimeSpan.FromSeconds(3));
         sink.CancelActiveEffects();
         await ready;
 
         Assert.Equal(0, handler.PostCount);
         Assert.Contains(
-            output.PixelFrames,
+            output.SnapshotFrames(),
             frame => frame.Any(pixel =>
                 pixel.R == DrgbNotReadyFrameFactory.NotReadyRed.R &&
-                pixel.G == DrgbNotReadyFrameFactory.NotReadyRed.G &&
-                pixel.B == DrgbNotReadyFrameFactory.NotReadyRed.B));
+                pixel.G == 0 &&
+                pixel.B == 0));
     }
 
     [Fact]
-    public async Task OnShotAsync_PostsHitDirectionCenterOut_NoFollowUpIdle()
+    public async Task OnShotAsync_StreamsDirectionCenterBandShimmer_NoHttp()
     {
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
-        using var sink = CreateSink(output, animationManager);
+        using var readyDrgb = new WledBallReadyDrgbController(output);
+        using var sink = CreateSink(output, animationManager, readyDrgb: readyDrgb);
+        var band = DrgbConcentrateBandGeometry.ResolveCenter(8);
 
-        await sink.OnShotAsync(SampleShot());
-        await Task.Delay(100);
+        var shot = sink.OnShotAsync(SampleShot());
+        await WaitUntilAsync(
+            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.DirectionCenter &&
+                  output.SnapshotFrames().Any(frame =>
+                      HasBandHue(frame, band, DrgbDirectionFrameFactory.DirectionCenterGreen) &&
+                      IsOutsideBandBlack(frame, band)),
+            TimeSpan.FromSeconds(3));
+        sink.CancelActiveEffects();
+        await shot;
 
-        var expected = WledHttpAnimationFrameFactory.ResolveCenterOutStepCount(8) + 1;
-        Assert.Equal(expected, handler.PostCount);
-        Assert.Contains("[0,220,0]", handler.LastBody);
-        Assert.Contains("\"live\":false", handler.LastBody);
-        Assert.Contains("\"start\":0", handler.LastBody);
-        Assert.Contains("\"stop\":8", handler.LastBody);
+        Assert.Equal(0, handler.PostCount);
     }
 
     [Fact]
-    public async Task OnShotAsync_CancelsReadyDrgbBeforeHttpHitDirection()
+    public async Task OnShotAsync_SupersedesReadyDrgbWithDirectionHold()
     {
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
@@ -95,28 +109,39 @@ public sealed class WledShotEffectSinkHoldTests
             () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.ReadyCenterBand,
             TimeSpan.FromSeconds(3));
 
-        await sink.OnShotAsync(SampleShot());
+        var shot = sink.OnShotAsync(SampleShot());
         await ready;
+        await WaitUntilAsync(
+            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.DirectionCenter,
+            TimeSpan.FromSeconds(3));
+        sink.CancelActiveEffects();
+        await shot;
 
+        Assert.Equal(0, handler.PostCount);
         Assert.Equal(WledBallReadyDrgbController.HeldPose.None, readyDrgb.CurrentPose);
-        Assert.True(handler.PostCount > 0);
-        Assert.Contains("\"live\":false", handler.LastBody);
     }
 
     [Fact]
-    public async Task OnShotAsync_LeftHla_PostsLeftHalfYellow()
+    public async Task OnShotAsync_LeftHla_StreamsLeftYellowBandShimmer()
     {
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
-        using var sink = CreateSink(output, animationManager);
+        using var readyDrgb = new WledBallReadyDrgbController(output);
+        using var sink = CreateSink(output, animationManager, readyDrgb: readyDrgb);
+        var band = DrgbConcentrateBandGeometry.ResolveLeft(8);
 
-        await sink.OnShotAsync(SampleShot(hla: -6));
+        var shot = sink.OnShotAsync(SampleShot(hla: -6));
+        await WaitUntilAsync(
+            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.DirectionLeft &&
+                  output.SnapshotFrames().Any(frame =>
+                      HasBandHue(frame, band, DrgbDirectionFrameFactory.DirectionSideYellow) &&
+                      IsOutsideBandBlack(frame, band)),
+            TimeSpan.FromSeconds(3));
+        sink.CancelActiveEffects();
+        await shot;
 
-        Assert.True(handler.PostCount > 1);
-        Assert.Contains("[220,180,0]", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"stop\":4", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Equal(0, handler.PostCount);
     }
 
     [Fact]
@@ -125,12 +150,45 @@ public sealed class WledShotEffectSinkHoldTests
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
-        using var sink = CreateSink(output, animationManager, invertLeftRight: true);
+        using var readyDrgb = new WledBallReadyDrgbController(output);
+        using var sink = CreateSink(output, animationManager, invertLeftRight: true, readyDrgb: readyDrgb);
 
-        await sink.OnShotAsync(SampleShot(hla: -6));
+        var shot = sink.OnShotAsync(SampleShot(hla: -6));
+        await WaitUntilAsync(
+            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.DirectionRight,
+            TimeSpan.FromSeconds(3));
+        sink.CancelActiveEffects();
+        await shot;
 
-        Assert.Contains("\"start\":4", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"stop\":5", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Equal(0, handler.PostCount);
+    }
+
+    [Fact]
+    public async Task OnBallReadyAsync_SupersedesDirectionHold()
+    {
+        var output = new RecordingWledOutput();
+        var handler = new RecordingHttpHandler();
+        using var animationManager = CreateAnimationManager(handler);
+        using var readyDrgb = new WledBallReadyDrgbController(output);
+        using var sink = CreateSink(output, animationManager, readyDrgb: readyDrgb);
+        var band = DrgbConcentrateBandGeometry.ResolveCenter(8);
+
+        var shot = sink.OnShotAsync(SampleShot(hla: -6));
+        await WaitUntilAsync(
+            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.DirectionLeft,
+            TimeSpan.FromSeconds(3));
+
+        var ready = sink.OnBallReadyAsync(new ShotPayload());
+        await shot;
+        await WaitUntilAsync(
+            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.ReadyCenterBand &&
+                  output.SnapshotFrames().Any(frame =>
+                      HasBandHue(frame, band, DrgbReadyFrameFactory.ReadyGreen)),
+            TimeSpan.FromSeconds(3));
+        sink.CancelActiveEffects();
+        await ready;
+
+        Assert.Equal(0, handler.PostCount);
     }
 
     [Fact]
@@ -158,7 +216,7 @@ public sealed class WledShotEffectSinkHoldTests
         await sink.HoldWaitingAsync();
 
         Assert.Equal(0, handler.PostCount);
-        Assert.Empty(output.PixelFrames);
+        Assert.Equal(0, output.FrameCount);
     }
 
     [Fact]
@@ -172,7 +230,7 @@ public sealed class WledShotEffectSinkHoldTests
         await sink.HoldIdleForConnectionChangeAsync();
 
         Assert.Equal(0, handler.PostCount);
-        Assert.Empty(output.PixelFrames);
+        Assert.Equal(0, output.FrameCount);
     }
 
     [Fact]
@@ -189,11 +247,11 @@ public sealed class WledShotEffectSinkHoldTests
         await sink.OnBallReadyAsync(new ShotPayload());
 
         Assert.Equal(0, handler.PostCount);
-        Assert.Empty(output.PixelFrames);
+        Assert.Equal(0, output.FrameCount);
     }
 
     [Fact]
-    public async Task OnShotAsync_HttpFailure_DoesNotThrow()
+    public async Task OnPlayerInfoAsync_HttpFailure_DoesNotThrow()
     {
         var output = new RecordingWledOutput();
         var handler = new FailingHttpHandler();
@@ -202,7 +260,7 @@ public sealed class WledShotEffectSinkHoldTests
         using var animationManager = new WledHttpStateAnimationManager(client);
         using var sink = CreateSink(output, animationManager);
 
-        await sink.OnShotAsync(SampleShot());
+        await sink.OnPlayerInfoAsync(new GsproResponse { Code = 201 });
     }
 
     private static WledShotEffectSink CreateSink(
@@ -247,8 +305,63 @@ public sealed class WledShotEffectSinkHoldTests
             MeasuredSmashFactor = 1.5
         };
 
+    private static bool HasDistinctHoldFrames(
+        IReadOnlyList<RgbColor>[] frames,
+        LedBandRange band,
+        RgbColor color)
+    {
+        var hold = frames
+            .Where(frame => HasBandHue(frame, band, color) && IsOutsideBandBlack(frame, band))
+            .TakeLast(2)
+            .ToArray();
+        return hold.Length == 2 && !hold[0].SequenceEqual(hold[1]);
+    }
+
+    private static bool HasBandHue(
+        IReadOnlyList<RgbColor> frame,
+        LedBandRange band,
+        RgbColor expected)
+    {
+        var lit = false;
+        for (var i = band.Start; i < band.EndExclusive && i < frame.Count; i++)
+        {
+            var pixel = frame[i];
+            if (IsBlack(pixel))
+                continue;
+            lit = true;
+            if (expected.R == 0 && pixel.R != 0)
+                return false;
+            if (expected.G == 0 && pixel.G != 0)
+                return false;
+            if (expected.B == 0 && pixel.B != 0)
+                return false;
+            if (expected.R > 0 && pixel.R == 0)
+                return false;
+            if (expected.G > 0 && pixel.G == 0)
+                return false;
+        }
+
+        return lit;
+    }
+
+    private static bool IsOutsideBandBlack(IReadOnlyList<RgbColor> frame, LedBandRange band)
+    {
+        for (var i = 0; i < frame.Count; i++)
+        {
+            if (i >= band.Start && i < band.EndExclusive)
+                continue;
+            if (!IsBlack(frame[i]))
+                return false;
+        }
+
+        return true;
+    }
+
     private static bool IsBlack(IReadOnlyList<RgbColor> pixels) =>
-        pixels.All(pixel => pixel.R == 0 && pixel.G == 0 && pixel.B == 0);
+        pixels.All(IsBlack);
+
+    private static bool IsBlack(RgbColor pixel) =>
+        pixel.R == 0 && pixel.G == 0 && pixel.B == 0;
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
     {
@@ -261,76 +374,5 @@ public sealed class WledShotEffectSinkHoldTests
         }
 
         Assert.Fail("Timed out waiting for condition.");
-    }
-
-    private sealed class RecordingWledOutput : IWledOutput
-    {
-        public List<IReadOnlyList<RgbColor>> PixelFrames { get; } = [];
-
-        public void Configure(WledConfig config)
-        {
-        }
-
-        public Task SendSolidAsync(
-            RgbColor color,
-            byte? brightness = null,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task SendPixelsAsync(
-            IReadOnlyList<RgbColor> pixels,
-            byte? brightness = null,
-            CancellationToken cancellationToken = default)
-        {
-            PixelFrames.Add(pixels.ToArray());
-            return Task.CompletedTask;
-        }
-
-        public Task ClearAsync(CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    private sealed class RecordingHttpHandler : HttpMessageHandler
-    {
-        private readonly TaskCompletionSource _twoPosts =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public int PostCount { get; private set; }
-        public string LastBody { get; private set; } = "";
-        public List<string> Bodies { get; } = [];
-
-        public Task WaitForPostsAsync(int count)
-        {
-            if (PostCount >= count)
-                return Task.CompletedTask;
-            return _twoPosts.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            PostCount++;
-            LastBody = request.Content is null
-                ? ""
-                : await request.Content.ReadAsStringAsync(cancellationToken);
-            Bodies.Add(LastBody);
-            if (PostCount >= 2)
-                _twoPosts.TrySetResult();
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("{}")
-            };
-        }
-    }
-
-    private sealed class FailingHttpHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken) =>
-            throw new HttpRequestException("Simulated WLED controller unreachable");
     }
 }

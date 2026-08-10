@@ -66,7 +66,7 @@ public static class ProductCopy
         "Nothing loaded yet. Enter the WLED IP on Connection, then press Refresh.";
 
     public const string WledDdpNote =
-        "Ready / Not Ready stream over DDP realtime (UDP :4048). Hit directions and solids use HTTP. After each event the bay can return to WLED effect ambient (HTTP apply with live:false). Wi‑Fi, security, 2D matrix editors, audio config, and firmware stay in the full WLED UI.";
+        "Ready, Not Ready, and hit directions stream over DDP realtime (UDP :4048) with a 28% band shimmer hold (full-strip red for Not Ready). Solids use HTTP. Wi‑Fi, security, 2D matrix editors, audio config, and firmware stay in the full WLED UI.";
 
     public const string UpdatesIntro =
         "Check GitHub Releases for Setup or portable zip updates. Install only when you are between rounds.";

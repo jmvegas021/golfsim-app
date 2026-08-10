@@ -1,11 +1,12 @@
+using GsproLighting.Core.Models;
 using GsproLighting.Wled.Animations;
 using GsproLighting.Wled.Contracts;
 
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Owns superseding Ready / Not Ready DDP sessions (intro + keepalive hold).
-/// Shared by live BallReady events and the Preview Ready / Not Ready buttons.
+/// Owns superseding Ready / Not Ready / hit-direction DDP sessions (intro + band shimmer hold).
+/// Shared by live events and Preview buttons so supersede never fights across HTTP vs DDP.
 /// </summary>
 public sealed class WledBallReadyDrgbController : IDisposable
 {
@@ -35,17 +36,18 @@ public sealed class WledBallReadyDrgbController : IDisposable
         RunSupersedingAsync(
             async token =>
             {
+                _ = brightness;
+                var intensity = DrgbReadyFrameFactory.MaxIntensityBrightness;
                 var frames = DrgbReadyFrameFactory.CreateReadySequence(ledCount);
-                await _player.PlayAsync(frames, brightness, token).ConfigureAwait(false);
+                await _player.PlayAsync(frames, intensity, token).ConfigureAwait(false);
                 SetPose(HeldPose.ReadyCenterBand);
                 onHoldStarted?.Invoke();
-                var hold = DrgbReadyFrameFactory.CreateHoldPixels(ledCount);
-                await _player.HoldPixelsAsync(
-                        hold,
-                        brightness,
+                await _player.HoldEffectAsync(
+                        DrgbBandShimmerEffect.ForReady(ledCount),
+                        ledCount,
+                        intensity,
                         duration: null,
-                        token,
-                        sendInitialFrame: false)
+                        token)
                     .ConfigureAwait(false);
             },
             cancellationToken);
@@ -61,23 +63,49 @@ public sealed class WledBallReadyDrgbController : IDisposable
         return RunSupersedingAsync(
             async token =>
             {
+                _ = brightness;
+                var intensity = DrgbReadyFrameFactory.MaxIntensityBrightness;
                 var frames = fromReady
                     ? DrgbNotReadyFrameFactory.CreateFromReadyCenterBand(ledCount)
                     : DrgbNotReadyFrameFactory.CreateExpandFromDark(ledCount);
-                await _player.PlayAsync(frames, brightness, token).ConfigureAwait(false);
+                await _player.PlayAsync(frames, intensity, token).ConfigureAwait(false);
                 SetPose(HeldPose.NotReadyFull);
                 onHoldStarted?.Invoke();
-                await _player.HoldBreathingSolidAsync(
-                        DrgbNotReadyFrameFactory.NotReadyRed,
-                        brightness,
-                        DrgbNotReadyFrameFactory.BreathingLevels,
-                        TimeSpan.FromMilliseconds(
-                            DrgbNotReadyFrameFactory.BreathingCadenceMilliseconds),
+                await _player.HoldEffectAsync(
+                        DrgbBandShimmerEffect.ForNotReady(ledCount),
+                        ledCount,
+                        intensity,
+                        duration: null,
                         token)
                     .ConfigureAwait(false);
             },
             cancellationToken);
     }
+
+    public Task RunDirectionAsync(
+        ShotDirection direction,
+        int ledCount,
+        byte brightness,
+        CancellationToken cancellationToken = default,
+        Action? onHoldStarted = null) =>
+        RunSupersedingAsync(
+            async token =>
+            {
+                _ = brightness;
+                var intensity = DrgbReadyFrameFactory.MaxIntensityBrightness;
+                var frames = DrgbDirectionFrameFactory.CreateDirectionSequence(direction, ledCount);
+                await _player.PlayAsync(frames, intensity, token).ConfigureAwait(false);
+                SetPose(ToDirectionPose(direction));
+                onHoldStarted?.Invoke();
+                await _player.HoldEffectAsync(
+                        DrgbBandShimmerEffect.ForDirection(direction, ledCount),
+                        ledCount,
+                        intensity,
+                        duration: null,
+                        token)
+                    .ConfigureAwait(false);
+            },
+            cancellationToken);
 
     public void CancelActive()
     {
@@ -144,10 +172,21 @@ public sealed class WledBallReadyDrgbController : IDisposable
             _pose = pose;
     }
 
+    private static HeldPose ToDirectionPose(ShotDirection direction) =>
+        direction switch
+        {
+            ShotDirection.Left => HeldPose.DirectionLeft,
+            ShotDirection.Right => HeldPose.DirectionRight,
+            _ => HeldPose.DirectionCenter
+        };
+
     public enum HeldPose
     {
         None,
         ReadyCenterBand,
-        NotReadyFull
+        NotReadyFull,
+        DirectionLeft,
+        DirectionCenter,
+        DirectionRight
     }
 }

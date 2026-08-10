@@ -4,14 +4,17 @@ using GsproLighting.Core.Models;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Serializes all HTTP state writers and gives each new action ownership by canceling the
-/// previous action before it can send another frame.
+/// Serializes HTTP solid/off writers. Ready / Not Ready / hit-direction status cues
+/// are DDP-only (<see cref="WledBallReadyDrgbController"/>); HTTP status paths are quarantined.
 /// </summary>
 public sealed class WledHttpStateAnimationManager : IDisposable
 {
+    internal const string StatusCueQuarantineMessage =
+        "HTTP Ready / Not Ready / hit-direction cues are quarantined. " +
+        "Use WledBallReadyDrgbController (DDP) for live and Preview status holds.";
+
     private readonly WledDeviceClient _client;
     private readonly WledSolidHttpApplier _solidApplier;
-    private readonly WledHttpVisualStateTracker _visualTracker;
     private readonly bool _ownsClient;
     private readonly SemaphoreSlim _writerGate = new(1, 1);
     private readonly object _sessionGate = new();
@@ -23,43 +26,41 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         _client = client ?? new WledDeviceClient();
         _ownsClient = client is null;
         _solidApplier = new WledSolidHttpApplier(_client);
-        _visualTracker = new WledHttpVisualStateTracker();
     }
 
+    [Obsolete(StatusCueQuarantineMessage)]
     public Task RunNotReadyAsync(
         string controllerIp,
         int ledCount,
         byte brightness,
-        CancellationToken cancellationToken = default) =>
-        RunSupersedingAsync(
-            token => RunNotReadyFramesAsync(controllerIp, ledCount, brightness, token),
-            cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        _ = (controllerIp, ledCount, brightness, cancellationToken);
+        return Task.FromException(new NotSupportedException(StatusCueQuarantineMessage));
+    }
 
+    [Obsolete(StatusCueQuarantineMessage)]
     public Task RunReadyAsync(
         string controllerIp,
         int ledCount,
         byte brightness,
-        CancellationToken cancellationToken = default) =>
-        RunSupersedingAsync(
-            token => RunReadyFramesAsync(controllerIp, ledCount, brightness, token),
-            cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        _ = (controllerIp, ledCount, brightness, cancellationToken);
+        return Task.FromException(new NotSupportedException(StatusCueQuarantineMessage));
+    }
 
+    [Obsolete(StatusCueQuarantineMessage)]
     public Task RunHitDirectionAsync(
         string controllerIp,
         ShotDirection direction,
         int ledCount,
         byte brightness,
-        CancellationToken cancellationToken = default) =>
-        RunSupersedingAsync(
-            token => RunFramesAsync(
-                controllerIp,
-                WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-                    direction,
-                    ledCount,
-                    brightness),
-                token,
-                WledHttpAnimationFrameFactory.ResolveHitColor(direction)),
-            cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        _ = (controllerIp, direction, ledCount, brightness, cancellationToken);
+        return Task.FromException(new NotSupportedException(StatusCueQuarantineMessage));
+    }
 
     public Task ApplySolidAsync(
         string controllerIp,
@@ -68,28 +69,19 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         int ledCount,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
-            async token =>
-            {
-                await _solidApplier.ApplySolidAsync(
-                        controllerIp,
-                        color,
-                        brightness,
-                        ledCount,
-                        token)
-                    .ConfigureAwait(false);
-                _visualTracker.RememberSolid(color, brightness);
-            },
+            token => _solidApplier.ApplySolidAsync(
+                controllerIp,
+                color,
+                brightness,
+                ledCount,
+                token),
             cancellationToken);
 
     public Task ApplyOffAsync(
         string controllerIp,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
-            async token =>
-            {
-                await _solidApplier.ApplyOffAsync(controllerIp, token).ConfigureAwait(false);
-                _visualTracker.Clear();
-            },
+            token => _solidApplier.ApplyOffAsync(controllerIp, token),
             cancellationToken);
 
     public void CancelActive()
@@ -114,114 +106,6 @@ public sealed class WledHttpStateAnimationManager : IDisposable
             _client.Dispose();
         if (writerStopped)
             _writerGate.Release();
-    }
-
-    private async Task RunReadyFramesAsync(
-        string controllerIp,
-        int ledCount,
-        byte brightness,
-        CancellationToken cancellationToken)
-    {
-        var target = WledHttpAnimationFrameFactory.ReadyGreen;
-        if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
-        {
-            // Morph on a full-strip solid, then retract flanks to the solid top/center band.
-            var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
-                fromColor,
-                fromBrightness,
-                target,
-                brightness,
-                ledCount);
-            await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
-                .ConfigureAwait(false);
-            var concentrate = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(
-                ledCount,
-                brightness);
-            await RunFramesAsync(controllerIp, concentrate, cancellationToken, target)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        // One-shot HTTP intro (edges→full→center band); last frame is the solid green hold.
-        var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
-        await RunFramesAsync(controllerIp, ready, cancellationToken, target)
-            .ConfigureAwait(false);
-    }
-
-    private async Task RunNotReadyFramesAsync(
-        string controllerIp,
-        int ledCount,
-        byte brightness,
-        CancellationToken cancellationToken)
-    {
-        var target = WledHttpAnimationFrameFactory.NotReadyRed;
-        if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
-        {
-            // Full-strip morph clears Ready geometry/green, then center → sides expand.
-            var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
-                fromColor,
-                fromBrightness,
-                target,
-                brightness,
-                ledCount);
-            await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
-                .ConfigureAwait(false);
-            var fromHalf = WledHttpAnimationFrameFactory.CreateNotReadyExpandFromHalfSequence(
-                ledCount,
-                brightness);
-            await RunFramesAsync(controllerIp, fromHalf, cancellationToken, target)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            var expand = WledHttpAnimationFrameFactory.CreateNotReadyExpandSequence(
-                ledCount,
-                brightness);
-            await RunFramesAsync(controllerIp, expand, cancellationToken, target)
-                .ConfigureAwait(false);
-        }
-
-        // Ongoing Not Ready look: on-device red Chase + Red Reef (no HTTP breathe loop).
-        await _client.ApplyStateBodyAsync(
-                controllerIp,
-                WledChaseAuroraStateFactory.CreateNotReadyBody(ledCount, brightness),
-                cancellationToken)
-            .ConfigureAwait(false);
-        _visualTracker.RememberSolid(target, brightness);
-    }
-
-    private async Task RunTrackedFramesAsync(
-        string controllerIp,
-        IReadOnlyList<WledHttpTrackedFrame> frames,
-        CancellationToken cancellationToken)
-    {
-        foreach (var tracked in frames)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await _client.ApplyStateBodyAsync(controllerIp, tracked.Frame.Body, cancellationToken)
-                .ConfigureAwait(false);
-            _visualTracker.RememberSolid(tracked.Color, tracked.Brightness);
-            if (tracked.Frame.Duration > TimeSpan.Zero)
-                await Task.Delay(tracked.Frame.Duration, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private async Task RunFramesAsync(
-        string controllerIp,
-        IReadOnlyList<WledHttpAnimationFrame> frames,
-        CancellationToken cancellationToken,
-        RgbColor? trackColor = null)
-    {
-        foreach (var frame in frames)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await _client.ApplyStateBodyAsync(controllerIp, frame.Body, cancellationToken)
-                .ConfigureAwait(false);
-            if (trackColor is not null)
-                _visualTracker.RememberSolid(trackColor, ReadFrameBrightness(frame.Body));
-            if (frame.Duration > TimeSpan.Zero)
-                await Task.Delay(frame.Duration, cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private async Task RunSupersedingAsync(
@@ -264,15 +148,5 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         }
 
         session.Dispose();
-    }
-
-    private static byte ReadFrameBrightness(object body)
-    {
-        if (body is Dictionary<string, object?> dictionary &&
-            dictionary.TryGetValue("bri", out var value) &&
-            value is not null)
-            return Convert.ToByte(value);
-
-        return 0;
     }
 }
