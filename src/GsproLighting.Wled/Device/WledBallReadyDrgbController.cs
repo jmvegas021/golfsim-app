@@ -4,7 +4,7 @@ using GsproLighting.Wled.Contracts;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Owns superseding Ready / Not Ready DRGB sessions (intro + keepalive hold).
+/// Owns superseding Ready / Not Ready DDP sessions (intro + keepalive hold).
 /// Shared by live BallReady events and the Preview Ready / Not Ready buttons.
 /// </summary>
 public sealed class WledBallReadyDrgbController : IDisposable

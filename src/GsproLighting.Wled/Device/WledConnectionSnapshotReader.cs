@@ -33,7 +33,7 @@ public sealed class WledConnectionSnapshotReader : IDisposable
         var info = await infoTask.ConfigureAwait(false);
         var state = await stateTask.ConfigureAwait(false);
         var ledCount = Math.Max(1, info.LedCount);
-        // Floor at 1 so DRGB golf flashes aren't silently black if the strip is powered down.
+        // Floor at 1 so DDP golf flashes aren't silently black if the strip is powered down.
         var brightness = state.Brightness == 0 ? (byte)1 : state.Brightness;
         return new WledConnectionSnapshot(ledCount, brightness, info.Name, info.Version);
     }

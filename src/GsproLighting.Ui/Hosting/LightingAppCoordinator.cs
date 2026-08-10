@@ -22,7 +22,7 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     private readonly ConfigStore _store;
     private readonly ShotFeedBuffer _feed = new();
     private readonly BallReadyStateResolver _readyStateResolver = new();
-    private readonly DrgbWledOutput _wled = new();
+    private readonly DdpWledOutput _wled = new();
     private readonly WledErrorLogger _wledErrors;
     private readonly WledHttpStateAnimationManager _httpStateManager = new();
     private readonly WledBallReadyDrgbController _readyDrgb;

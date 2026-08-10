@@ -115,6 +115,32 @@ public sealed class EffectConfigSerializationTests
     }
 
     [Fact]
+    public void Load_MigratesLegacyDrgbPortToDdp()
+    {
+        using var directory = new TestDirectory();
+        var configPath = directory.Write(
+            "legacy-drgb.json",
+            """
+            {
+              "Wled": {
+                "ControllerIp": "192.168.86.89",
+                "UdpPort": 21324,
+                "LedCount": 585,
+                "Brightness": 180,
+                "Protocol": "drgb"
+              }
+            }
+            """);
+
+        var config = new ConfigStore(configPath).Load();
+
+        Assert.Equal("ddp", config.Wled.Protocol);
+        Assert.Equal(4048, config.Wled.UdpPort);
+        Assert.Equal(585, config.Wled.LedCount);
+        Assert.Equal("192.168.86.89", config.Wled.ControllerIp);
+    }
+
+    [Fact]
     public void ResetLightingSlotsToProductDefaults_PreservesThresholds()
     {
         var effects = new EffectConfig

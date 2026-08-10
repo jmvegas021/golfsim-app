@@ -4,7 +4,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Pixel-frame Not Ready choreography for DRGB: optional green→red morph on the Ready
+/// Pixel-frame Not Ready choreography for DDP: optional green→red morph on the Ready
 /// center band, center→sides expand to full red, then brightness breathe keepalive.
 /// </summary>
 public static class DrgbNotReadyFrameFactory

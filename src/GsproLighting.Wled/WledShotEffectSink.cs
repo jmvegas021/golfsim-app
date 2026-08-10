@@ -8,7 +8,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled;
 
 /// <summary>
-/// Maps GSPro events to WLED: Ready/Not Ready use DRGB streaming; hit directions stay HTTP.
+/// Maps GSPro events to WLED: Ready/Not Ready use DDP streaming; hit directions stay HTTP.
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 {
@@ -63,7 +63,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         return RunEffectAsync(
             (config, token) =>
             {
-                // Leave DRGB live mode before HTTP hit-direction posts (authoritative live:false).
+                // Leave DDP live mode before HTTP hit-direction posts (authoritative live:false).
                 _readyDrgb.CancelActive();
                 var plan = _shotMapper.MapPlan(shot, _effectConfig());
                 var direction = ShotEffectMapper.ApplyInvertLeftRight(
@@ -123,7 +123,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     public Task HoldIdleForConnectionChangeAsync(CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    /// <summary>Cancels DRGB Ready/Not Ready holds and any in-flight HTTP animation.</summary>
+    /// <summary>Cancels DDP Ready/Not Ready holds and any in-flight HTTP animation.</summary>
     public void CancelActiveEffects()
     {
         _readyDrgb.CancelActive();
@@ -157,7 +157,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         try
         {
             InvokeTakeover();
-            // Point shared DRGB UDP at this snapshot before Ready/Not Ready / solids run —
+            // Point shared DDP UDP at this snapshot before Ready/Not Ready / solids run —
             // Config.Wled can lag the Connection textbox until SyncWledConnectionLive runs.
             _output.Configure(config);
             await action(config, cancellationToken).ConfigureAwait(false);

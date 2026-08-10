@@ -220,7 +220,7 @@ public sealed partial class WledTabPanel
     }
 
     private static Control BuildFooterNote() =>
-        UiTheme.CreateHelpLabel(ProductCopy.WledDrgbNote);
+        UiTheme.CreateHelpLabel(ProductCopy.WledDdpNote);
 
     private static Control Section(string title, string help, Control body)
     {

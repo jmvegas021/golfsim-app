@@ -4,7 +4,7 @@ using GsproLighting.Wled.Animations;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// HTTP JSON client for WLED catalogs and state. Safe to call alongside DRGB shot reactions;
+/// HTTP JSON client for WLED catalogs and state. Safe to call alongside DDP shot reactions;
 /// after curated realtime holds, apply ambient with <c>live:false</c> to hand control back.
 /// </summary>
 public sealed class WledDeviceClient : IDisposable

@@ -27,10 +27,15 @@ public sealed class WledConfig
     public const string DefaultControllerIp = "192.168.1.50";
 
     public string ControllerIp { get; set; } = string.Empty;
-    public int UdpPort { get; set; } = 21324;
+
+    /// <summary>Realtime pixel stream UDP port. DDP default is 4048 (WLED).</summary>
+    public int UdpPort { get; set; } = 4048;
+
     public int LedCount { get; set; } = 60;
     public byte Brightness { get; set; } = 180;
-    public string Protocol { get; set; } = "drgb";
+
+    /// <summary>Realtime transport id — <c>ddp</c> (UDP :4048). Legacy <c>drgb</c> is unused.</summary>
+    public string Protocol { get; set; } = "ddp";
 
     /// <summary>
     /// When true, swap left/right marker mapping (LED 0 treated as golfer's right).

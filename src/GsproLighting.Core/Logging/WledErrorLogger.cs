@@ -1,7 +1,7 @@
 namespace GsproLighting.Core.Logging;
 
 /// <summary>
-/// Persists WLED HTTP/DRGB failures (bad requests, timeouts, unreachable device) to disk so
+/// Persists WLED HTTP/DDP failures (bad requests, timeouts, unreachable device) to disk so
 /// they survive past the in-memory Live Feed display and are included in exported log zips.
 /// </summary>
 public sealed class WledErrorLogger

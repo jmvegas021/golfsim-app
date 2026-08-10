@@ -4,7 +4,7 @@ using GsproLighting.Wled.Contracts;
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Streams in-process LED frames over DRGB via <see cref="IWledOutput"/>.
+/// Streams in-process LED frames over <see cref="IWledOutput"/> (DDP realtime).
 /// Supports CancellationToken supersede and solid/pixel keepalive holds.
 /// </summary>
 public sealed class DrgbStripAnimationPlayer
@@ -12,7 +12,7 @@ public sealed class DrgbStripAnimationPlayer
     private readonly IWledOutput _output;
     private readonly PreviewHoldKeepalive _keepalive = new()
     {
-        // DRGB timeout byte is 5s in DrgbWledOutput — 1.5s keeps the hold alive with margin.
+        // WLED realtime timeout drops live mode — 1.5s keepalive keeps Ready/Not Ready holds alive.
         Interval = TimeSpan.FromMilliseconds(1500)
     };
 

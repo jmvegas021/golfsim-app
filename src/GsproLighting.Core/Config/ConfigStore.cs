@@ -56,7 +56,26 @@ public sealed class ConfigStore
     private static void Normalize(AppConfig config)
     {
         NormalizePaths(config);
+        MigrateRealtimeTransportToDdp(config.Wled);
         config.Effects.ResetLightingSlotsToProductDefaults();
+    }
+
+    /// <summary>
+    /// Ready/Not Ready now stream over DDP :4048. Upgrade leftover DRGB :21324 installs
+    /// so Connection does not keep sending to the wrong realtime port.
+    /// </summary>
+    private static void MigrateRealtimeTransportToDdp(WledConfig wled)
+    {
+        var protocol = wled.Protocol?.Trim() ?? string.Empty;
+        var isLegacyDrgb = protocol.Length == 0 ||
+            string.Equals(protocol, "drgb", StringComparison.OrdinalIgnoreCase);
+
+        if (!isLegacyDrgb)
+            return;
+
+        wled.Protocol = "ddp";
+        if (wled.UdpPort is 21324 or 0)
+            wled.UdpPort = 4048;
     }
 
     private static void NormalizePaths(AppConfig config)

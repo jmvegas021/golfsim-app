@@ -5,7 +5,7 @@ namespace GsproLighting.Wled.Animations;
 
 /// <summary>
 /// Re-sends hold frames so WLED realtime timeout (~5s) cannot drop the hold.
-/// Supports DRGB solid/pixel holds and HTTP preset re-apply loops.
+/// Supports DDP solid/pixel holds and HTTP preset re-apply loops.
 /// </summary>
 public sealed class PreviewHoldKeepalive
 {

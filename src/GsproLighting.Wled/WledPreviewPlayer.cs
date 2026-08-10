@@ -6,7 +6,7 @@ namespace GsproLighting.Wled;
 
 /// <summary>
 /// Reusable preview facade for curated animations and WLED effects.
-/// Supports superseding previews, fade handoff, and DRGB / HTTP hold keepalive.
+/// Supports superseding previews, fade handoff, and DDP / HTTP hold keepalive.
 /// </summary>
 public sealed class WledPreviewPlayer : IDisposable
 {
@@ -74,7 +74,7 @@ public sealed class WledPreviewPlayer : IDisposable
 
     /// <summary>
     /// Plays the effect then holds until cancelled or <paramref name="holdDuration"/> elapses.
-    /// Curated holds use DRGB keepalive; WLED presets re-apply over HTTP.
+    /// Curated holds use DDP keepalive; WLED presets re-apply over HTTP.
     /// </summary>
     public async Task PreviewAndHoldAsync(
         PreviewHoldPlan plan,

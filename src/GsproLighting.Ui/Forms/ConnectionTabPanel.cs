@@ -79,7 +79,7 @@ public sealed partial class ConnectionTabPanel : UserControl
         flow.Controls.Add(BuildScanRow());
         flow.Controls.Add(_scanStatus);
         flow.Controls.Add(_deviceFromController);
-        flow.Controls.Add(Field("UDP port (DRGB)", _wledPort));
+        flow.Controls.Add(Field("UDP port (DDP)", _wledPort));
         flow.Controls.Add(_invert);
         flow.Controls.Add(UiTheme.CreateSectionLabel("GSPro Open Connect"));
         flow.Controls.Add(Field("LM listen port", _listenPort));

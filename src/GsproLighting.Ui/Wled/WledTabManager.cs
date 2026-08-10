@@ -5,7 +5,7 @@ namespace GsproLighting.Ui.Wled;
 
 /// <summary>
 /// Loads WLED catalogs/state and applies control-surface patches.
-/// Golf DRGB reactions remain separate; ambient apply sets <c>live:false</c>.
+/// Golf DDP reactions remain separate; ambient apply sets <c>live:false</c>.
 /// </summary>
 public sealed class WledTabManager : IDisposable
 {

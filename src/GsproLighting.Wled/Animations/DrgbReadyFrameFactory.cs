@@ -4,12 +4,12 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Pixel-frame Ready choreography for DRGB streaming: blank → sides-in → full →
+/// Pixel-frame Ready choreography for DDP streaming: blank → sides-in → full →
 /// retract to a solid top/center band (~<see cref="WledHttpReadyAnimationBuilder.ConcentrateLitFraction"/>).
 /// </summary>
 public static class DrgbReadyFrameFactory
 {
-    /// <summary>~42 FPS — within the 30–60 FPS DRGB target.</summary>
+    /// <summary>~42 FPS — within the 30–60 FPS DDP target.</summary>
     public const int FrameCadenceMilliseconds = 24;
 
     public static readonly RgbColor ReadyGreen = WledHttpAnimationFrameFactory.ReadyGreen;

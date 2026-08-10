@@ -7,7 +7,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// Manual WLED controls: solids + hit directions over HTTP; Ready / Not Ready over DRGB.
+/// Manual WLED controls: solids + hit directions over HTTP; Ready / Not Ready over DDP.
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
@@ -77,7 +77,7 @@ public sealed class PreviewTabPanel : UserControl
                 Dock = DockStyle.Top,
                 Title = "Preview lights",
                 Subtitle =
-                    "Ready / Not Ready stream over DRGB. Solids and hit directions use HTTP. Set the controller IP on Connection first."
+                    "Ready / Not Ready stream over DDP (UDP :4048). Solids and hit directions use HTTP. Set the controller IP on Connection first."
             },
             0,
             0);
@@ -95,7 +95,7 @@ public sealed class PreviewTabPanel : UserControl
         _statusLabel.ForeColor = UiTheme.Muted;
         _statusLabel.Font = UiTheme.BodyFont(9.5f);
         _statusLabel.Margin = new Padding(0, 16, 0, 0);
-        _statusLabel.Text = "Click Ready for DRGB, or a color to POST /json/state.";
+        _statusLabel.Text = "Click Ready for DDP, or a color to POST /json/state.";
         root.Controls.Add(_statusLabel, 0, 3);
 
         return root;
@@ -120,11 +120,11 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
         row.Controls.Add(AnimationButton(
-            "Not Ready · DRGB",
+            "Not Ready · DDP",
             ApplyNotReadyAnimationAsync,
             width: 180));
         row.Controls.Add(AnimationButton(
-            "Ready · DRGB",
+            "Ready · DDP",
             ApplyReadyAnimationAsync,
             isPrimary: true,
             width: 150));
@@ -226,24 +226,24 @@ public sealed class PreviewTabPanel : UserControl
     }
 
     private Task ApplyNotReadyAnimationAsync() =>
-        ApplyDrgbHoldAsync(
-            "Not Ready · DRGB",
+        ApplyDdpHoldAsync(
+            "Not Ready · DDP",
             (wled, token, onHold) => _readyDrgb.RunNotReadyAsync(
                 Math.Max(1, wled.LedCount),
                 wled.Brightness == 0 ? (byte)1 : wled.Brightness,
                 token,
                 onHold),
-            holdStatus: "Not Ready breathe · DRGB keepalive");
+            holdStatus: "Not Ready breathe · DDP keepalive");
 
     private Task ApplyReadyAnimationAsync() =>
-        ApplyDrgbHoldAsync(
-            "Ready · DRGB",
+        ApplyDdpHoldAsync(
+            "Ready · DDP",
             (wled, token, onHold) => _readyDrgb.RunReadyAsync(
                 Math.Max(1, wled.LedCount),
                 wled.Brightness == 0 ? (byte)1 : wled.Brightness,
                 token,
                 onHold),
-            holdStatus: "Ready hold · DRGB keepalive");
+            holdStatus: "Ready hold · DDP keepalive");
 
     private Task ApplyHitDirectionAsync(ShotDirection direction, string label) =>
         ApplyHttpAnimationAsync(
@@ -255,13 +255,13 @@ public sealed class PreviewTabPanel : UserControl
                 _resolveBrightness(),
                 token));
 
-    private async Task ApplyDrgbHoldAsync(
+    private async Task ApplyDdpHoldAsync(
         string label,
         Func<WledConfig, CancellationToken, Action, Task> play,
         string holdStatus)
     {
-        // Sync Connection → shared DrgbWledOutput before UDP (same path Quick Control uses).
-        // HTTP solids pass the textbox IP directly; DRGB previously used a stale Configure snapshot.
+        // Sync Connection → shared DdpWledOutput before UDP (same path Quick Control uses).
+        // HTTP solids pass the textbox IP directly; realtime previously used a stale Configure snapshot.
         var wled = _resolveWled();
         if (!wled.HasConfiguredController)
         {
@@ -273,7 +273,7 @@ public sealed class PreviewTabPanel : UserControl
         var ip = wled.ControllerIp.Trim();
         var target = $"{ip}:{wled.UdpPort} · {Math.Max(1, wled.LedCount)} LEDs";
         var generation = ++_statusGeneration;
-        // Cancel HTTP only — do not CancelActive on DRGB so Ready→Not Ready can morph.
+        // Cancel HTTP only — do not CancelActive on DDP so Ready→Not Ready can morph.
         _stateManager.CancelActive();
         SetStatus($"Running {label} → {target}…");
         try

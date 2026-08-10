@@ -6,7 +6,7 @@ public sealed partial class LightingAppCoordinator
 {
     /// <summary>
     /// Pushes the Connection tab's current (possibly unsaved) field values into the live WLED
-    /// config and re-points the shared DRGB/UDP output at them — without writing to disk.
+    /// config and re-points the shared DDP/UDP output at them — without writing to disk.
     /// Skeleton: does not restart ambient after IP change (no Waiting/Idle posts).
     /// </summary>
     public void SyncWledConnectionLive(string controllerIp, int udpPort, int ledCount, byte brightness, bool invertLeftRight)

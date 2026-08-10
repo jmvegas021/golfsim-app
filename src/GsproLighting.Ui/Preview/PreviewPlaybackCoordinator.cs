@@ -95,7 +95,7 @@ public sealed class PreviewPlaybackCoordinator
 
                 try
                 {
-                    // Last state keeps indefinite DRGB keepalive until Stop / next preview.
+                    // Last state keeps indefinite DDP keepalive until Stop / next preview.
                     await PlayPlanAsync(
                             plan,
                             wled,
