@@ -23,12 +23,13 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         _solidApplier = new WledSolidHttpApplier(_client);
     }
 
-    public Task RunRedBreathingAsync(
+    public Task RunNotReadyAsync(
         string controllerIp,
+        int ledCount,
         byte brightness,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
-            token => RunBreathingFramesAsync(controllerIp, brightness, token),
+            token => RunNotReadyFramesAsync(controllerIp, ledCount, brightness, token),
             cancellationToken);
 
     public Task RunReadyAsync(
@@ -83,11 +84,14 @@ public sealed class WledHttpStateAnimationManager : IDisposable
             _writerGate.Release();
     }
 
-    private async Task RunBreathingFramesAsync(
+    private async Task RunNotReadyFramesAsync(
         string controllerIp,
+        int ledCount,
         byte brightness,
         CancellationToken cancellationToken)
     {
+        var expand = WledHttpAnimationFrameFactory.CreateNotReadyExpandSequence(ledCount, brightness);
+        await RunFramesAsync(controllerIp, expand, cancellationToken).ConfigureAwait(false);
         var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingCycle(brightness);
         while (true)
             await RunFramesAsync(controllerIp, cycle, cancellationToken).ConfigureAwait(false);

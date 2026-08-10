@@ -15,7 +15,7 @@ public sealed class WledHttpStateAnimationManagerTests
         using var client = new WledDeviceClient(http);
         using var manager = new WledHttpStateAnimationManager(client);
 
-        var breathing = manager.RunRedBreathingAsync("192.168.86.40", 180);
+        var breathing = manager.RunNotReadyAsync("192.168.86.40", ledCount: 8, brightness: 180);
         await handler.FirstRequestStarted;
         var solid = manager.ApplySolidAsync(
             "192.168.86.40",
@@ -37,7 +37,7 @@ public sealed class WledHttpStateAnimationManagerTests
         using var client = new WledDeviceClient(http);
         using var manager = new WledHttpStateAnimationManager(client);
 
-        var breathing = manager.RunRedBreathingAsync("192.168.86.40", 180);
+        var breathing = manager.RunNotReadyAsync("192.168.86.40", ledCount: 8, brightness: 180);
         await handler.FirstRequestCompleted;
         manager.CancelActive();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => breathing);

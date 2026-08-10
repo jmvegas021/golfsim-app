@@ -71,8 +71,9 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 
     public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default) =>
         RunEffectAsync(
-            (config, token) => _animationManager.RunRedBreathingAsync(
+            (config, token) => _animationManager.RunNotReadyAsync(
                 config.ControllerIp,
+                config.LedCount,
                 config.Brightness,
                 token),
             cancellationToken);

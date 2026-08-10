@@ -111,8 +111,8 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("Blue", RgbColor.FromRgb(0, 0, 255)));
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
-        row.Controls.Add(AnimationButton("Not Ready · Breathe", ApplyNotReadyAnimationAsync));
-        row.Controls.Add(AnimationButton("Ready · Edges In", ApplyReadyAnimationAsync, isPrimary: true));
+        row.Controls.Add(AnimationButton("Not Ready · Center Out + Breathe", ApplyNotReadyAnimationAsync, width: 250));
+        row.Controls.Add(AnimationButton("Ready · Center Out", ApplyReadyAnimationAsync, isPrimary: true, width: 180));
         return row;
     }
 
@@ -132,9 +132,13 @@ public sealed class PreviewTabPanel : UserControl
         return button;
     }
 
-    private NightButton AnimationButton(string label, Func<Task> action, bool isPrimary = false)
+    private NightButton AnimationButton(
+        string label,
+        Func<Task> action,
+        bool isPrimary = false,
+        int width = 170)
     {
-        var button = NightButton.Create(label, 170, isPrimary: isPrimary);
+        var button = NightButton.Create(label, width, isPrimary: isPrimary);
         button.Margin = new Padding(0, 0, 10, 10);
         button.Click += async (_, _) => await action();
         return button;
@@ -190,15 +194,16 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyNotReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Not Ready breathing",
-            (ip, token) => _stateManager.RunRedBreathingAsync(
+            "Not Ready center-out + breathe",
+            (ip, token) => _stateManager.RunNotReadyAsync(
                 ip,
+                _resolveLedCount(),
                 _resolveBrightness(),
                 token));
 
     private Task ApplyReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Ready edges-in",
+            "Ready center-out",
             (ip, token) => _stateManager.RunReadyAsync(
                 ip,
                 _resolveLedCount(),

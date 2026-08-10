@@ -10,7 +10,7 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_PostsEdgeFramesThenHoldsSolidGreen()
+    public async Task OnBallReadyAsync_PostsCenterOutFramesThenHoldsSolidGreen()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -20,16 +20,18 @@ public sealed class WledShotEffectSinkHoldTests
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        Assert.Equal(5, handler.PostCount);
+        Assert.Equal(9, handler.PostCount);
         Assert.Contains("\"fx\":0", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
         Assert.Contains("\"start\":0", handler.LastBody);
         Assert.Contains("\"stop\":8", handler.LastBody);
+        Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"stop\":5", handler.Bodies[0], StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task OnBallNotReadyAsync_BreathesUntilReadySupersedesIt()
+    public async Task OnBallNotReadyAsync_ExpandsThenBreathesUntilReadySupersedesIt()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -43,6 +45,7 @@ public sealed class WledShotEffectSinkHoldTests
         await breathing;
 
         Assert.Contains(handler.Bodies, body => body.Contains("[180,30,30]", StringComparison.Ordinal));
+        Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"bri\":180", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
     }

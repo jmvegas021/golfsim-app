@@ -5,14 +5,22 @@ namespace GsproLighting.Wled.Device;
 /// <summary>Builds compact, deterministic Solid FX 0 frames for HTTP state animations.</summary>
 public static class WledHttpAnimationFrameFactory
 {
-    public const int MaximumReadyStepCount = 8;
+    /// <summary>Caps expand POSTs so long strips stay smooth without spamming HTTP.</summary>
+    public const int MaximumExpandStepCount = 16;
 
     private static readonly RgbColor Black = RgbColor.FromRgb(0, 0, 0);
     private static readonly RgbColor ReadyGreen = RgbColor.FromRgb(0, 220, 0);
     private static readonly RgbColor NotReadyRed = RgbColor.FromRgb(180, 30, 30);
-    private static readonly double[] BreathingLevels = [0.15, 0.32, 0.545, 0.775, 1, 0.775, 0.545, 0.32];
-    private static readonly TimeSpan BreathingCadence = TimeSpan.FromMilliseconds(140);
-    private static readonly TimeSpan ReadyCadence = TimeSpan.FromMilliseconds(70);
+
+    /// <summary>Brightness factors from 10% up to 100% and back (no zero floor).</summary>
+    private static readonly double[] BreathingLevels =
+    [
+        0.10, 0.18, 0.28, 0.40, 0.55, 0.72, 0.88, 1.0,
+        0.88, 0.72, 0.55, 0.40, 0.28, 0.18
+    ];
+
+    private static readonly TimeSpan BreathingCadence = TimeSpan.FromMilliseconds(95);
+    private static readonly TimeSpan ExpandCadence = TimeSpan.FromMilliseconds(55);
 
     public static IReadOnlyList<WledHttpAnimationFrame> CreateRedBreathingCycle(byte brightness) =>
         BreathingLevels
@@ -21,26 +29,52 @@ public static class WledHttpAnimationFrameFactory
                 BreathingCadence))
             .ToArray();
 
-    public static IReadOnlyList<WledHttpAnimationFrame> CreateReadySequence(int ledCount, byte brightness)
+    public static IReadOnlyList<WledHttpAnimationFrame> CreateNotReadyExpandSequence(
+        int ledCount,
+        byte brightness) =>
+        CreateCenterOutSequence(ledCount, brightness, NotReadyRed, includeHoldFrame: true);
+
+    public static IReadOnlyList<WledHttpAnimationFrame> CreateReadySequence(int ledCount, byte brightness) =>
+        CreateCenterOutSequence(ledCount, brightness, ReadyGreen, includeHoldFrame: true);
+
+    private static IReadOnlyList<WledHttpAnimationFrame> CreateCenterOutSequence(
+        int ledCount,
+        byte brightness,
+        RgbColor color,
+        bool includeHoldFrame)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
-        var halfLength = (ledCount + 1) / 2;
-        var stepCount = Math.Min(halfLength, MaximumReadyStepCount);
-        var frames = new List<WledHttpAnimationFrame>(stepCount + 1);
+        var stepCount = Math.Min(ledCount, MaximumExpandStepCount);
+        var frames = new List<WledHttpAnimationFrame>(stepCount + (includeHoldFrame ? 1 : 0));
         for (var step = 1; step <= stepCount; step++)
         {
-            var litPerEdge = (int)Math.Ceiling((double)(step * halfLength) / stepCount);
+            var litCount = ResolveSymmetricLitCount(ledCount, step, stepCount);
             frames.Add(new WledHttpAnimationFrame(
-                CreateReadyRangeBody(ledCount, litPerEdge, brightness),
-                ReadyCadence));
+                CreateCenterOutBody(ledCount, litCount, color, brightness),
+                ExpandCadence));
         }
 
-        frames.Add(new WledHttpAnimationFrame(
-            CreateFinalReadyBody(ledCount, brightness),
-            TimeSpan.Zero));
+        if (includeHoldFrame)
+        {
+            frames.Add(new WledHttpAnimationFrame(
+                CreateFinalSolidBody(ledCount, color, brightness),
+                TimeSpan.Zero));
+        }
+
         return frames;
+    }
+
+    private static int ResolveSymmetricLitCount(int ledCount, int step, int stepCount)
+    {
+        var litCount = (int)Math.Ceiling((double)(step * ledCount) / stepCount);
+        // Keep the lit block centered: even strips grow in pairs, odd strips keep a true center.
+        if (ledCount % 2 == 0 && litCount % 2 == 1)
+            litCount = Math.Min(ledCount, litCount + 1);
+        else if (ledCount % 2 == 1 && litCount % 2 == 0)
+            litCount = Math.Min(ledCount, litCount + 1);
+        return litCount;
     }
 
     private static object CreateSolidBody(RgbColor color, byte brightness) =>
@@ -52,24 +86,29 @@ public static class WledHttpAnimationFrameFactory
             ["seg"] = new[] { CreateColorSegment(0, color) }
         };
 
-    private static object CreateReadyRangeBody(int ledCount, int litPerEdge, byte brightness)
+    private static object CreateCenterOutBody(
+        int ledCount,
+        int litCount,
+        RgbColor color,
+        byte brightness)
     {
-        var leftStop = Math.Min(litPerEdge, ledCount);
-        var rightStart = Math.Max(leftStop, ledCount - litPerEdge);
+        litCount = Math.Clamp(litCount, 0, ledCount);
+        var start = (ledCount - litCount) / 2;
+        var stop = start + litCount;
         return CreateBody(
             brightness,
             [
-                CreateRangeSegment(0, 0, leftStop, ReadyGreen),
-                CreateRangeSegment(1, leftStop, rightStart, Black),
-                CreateRangeSegment(2, rightStart, ledCount, ReadyGreen)
+                CreateRangeSegment(0, 0, start, Black),
+                CreateRangeSegment(1, start, stop, color),
+                CreateRangeSegment(2, stop, ledCount, Black)
             ]);
     }
 
-    private static object CreateFinalReadyBody(int ledCount, byte brightness) =>
+    private static object CreateFinalSolidBody(int ledCount, RgbColor color, byte brightness) =>
         CreateBody(
             brightness,
             [
-                CreateRangeSegment(0, 0, ledCount, ReadyGreen),
+                CreateRangeSegment(0, 0, ledCount, color),
                 new Dictionary<string, object?> { ["id"] = 1, ["stop"] = 0 },
                 new Dictionary<string, object?> { ["id"] = 2, ["stop"] = 0 }
             ]);
