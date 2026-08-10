@@ -51,13 +51,11 @@ public sealed class SettingsForm : Form
             app.Preview,
             app.ReportWledFailure,
             app.SuspendLiveEffectsForManualControl);
+        // Skeleton Preview: solid HTTP only — not wired to animations / ambient resume.
         _preview = new PreviewTabPanel(
-            ResolveEffectsForPreview,
-            ResolveWledForPreview,
-            app.Preview,
-            app.ReportWledFailure,
-            app.SuspendLiveEffectsForManualControl,
-            app.ResumeAmbientLighting);
+            ResolveControllerIp,
+            () => _connection.Brightness,
+            app.ReportWledFailure);
         _wled = new WledTabPanel(
             ResolveControllerIp,
             () => _connection.Brightness,
@@ -156,9 +154,8 @@ public sealed class SettingsForm : Form
         Controls.Add(_footer);
         Controls.Add(new BrandHeader());
 
-        // Sellable tab order: Effects → Quick control → Preview → WLED → Connection → Live feed → Updates
-        AddTab("Effects", _effects);
-        AddTab("Quick control", _quickControl);
+        // Skeleton tab order: Preview → WLED → Connection → Live feed → Updates
+        // Effects + Quick Control stay constructed for Save/actions but are hidden this release.
         AddTab("Preview", _preview);
         AddTab("WLED", _wled);
         AddTab("Connection", _connection);
@@ -384,8 +381,7 @@ public sealed class SettingsForm : Form
     {
         var tip = _tabs.SelectedTab?.Text switch
         {
-            "Effects" => "Save writes config. Test lights / Idle glow preview without leaving this tab.",
-            "Preview" => ProductCopy.PreviewHint,
+            "Preview" => "Click Red/Green/Blue/White/Off — one HTTP solid POST to the Connection IP.",
             "WLED" => ProductCopy.WledTabTip,
             "Connection" => ProductCopy.NoWledBody,
             "Live feed" => ProductCopy.LiveFeedWaitingBody,

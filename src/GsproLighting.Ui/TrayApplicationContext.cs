@@ -1,7 +1,9 @@
+using GsproLighting.Core.Config;
 using GsproLighting.Ui.Forms;
 using GsproLighting.Ui.Hosting;
 using GsproLighting.Ui.Theme;
 using GsproLighting.Ui.Updates;
+using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Ui;
 
@@ -212,9 +214,24 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         try
         {
-            await _app.Preview.PlaySweepAsync(
-                _app.Config.Effects.PureStrike.Color,
-                _app.Config.Wled.LedCount);
+            var ip = _app.Config.Wled.ControllerIp;
+            if (!_app.Config.Wled.HasConfiguredController)
+            {
+                _tray.ShowBalloonTip(
+                    4000,
+                    "GSPro Lighting",
+                    "Set a controller IP on Connection first.",
+                    ToolTipIcon.Warning);
+                return;
+            }
+
+            _app.SuspendLiveEffectsForManualControl();
+            using var applier = new WledSolidHttpApplier();
+            await applier.ApplySolidAsync(
+                ip,
+                RgbColor.FromRgb(255, 255, 255),
+                _app.Config.Wled.Brightness);
+            _tray.ShowBalloonTip(2500, "GSPro Lighting", $"Solid white → {ip}", ToolTipIcon.Info);
         }
         catch (Exception ex)
         {

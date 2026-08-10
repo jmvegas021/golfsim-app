@@ -42,14 +42,13 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
         _wled.Configure(Config.Wled);
         Preview = new WledPreviewPlayer(_wled);
         _wledErrors = new WledErrorLogger(Config.Logging.RawLogDirectory);
+        // Skeleton: cancel-only on construct — nothing POSTs until Preview click or GSPro event.
         _effectSink = new WledShotEffectSink(
-            _wled,
-            () => Config.Effects,
             () => Config.Wled,
             logFailure: ReportEffectSinkFailure,
             onTakeover: () => Preview.CancelActivePreview());
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
-        TryHoldWaitingIfUnknown();
+        _effectSink.CancelActiveEffects();
     }
 
     /// <summary>
@@ -141,8 +140,6 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
         if (_r50Watch is not null)
             return;
 
-        TryHoldWaitingIfUnknown();
-
         try
         {
             Directory.CreateDirectory(Config.Logging.RawLogDirectory);
@@ -181,7 +178,6 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
             return;
         await watch.DisposeAsync().ConfigureAwait(false);
         RaiseR50StatusChanged();
-        TryHoldWaitingIfUnknown();
     }
 
     public void StartProxy()
@@ -190,8 +186,6 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
         {
             if (_proxyTask is { IsCompleted: false })
                 return;
-
-            TryHoldWaitingIfUnknown();
 
             _lastProxyError = null;
             _proxyCts = new CancellationTokenSource();
@@ -253,7 +247,6 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
 
         cts.Dispose();
         RaiseProxyStateChanged();
-        TryHoldWaitingIfUnknown();
     }
 
     public string BuildStatusText()
@@ -349,32 +342,13 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     }
 
     /// <summary>
-    /// Forces the strip to the Waiting hold (not Idle) whenever Connect readiness is genuinely
-    /// unknown — i.e. no Ready/Not-ready signal has ever landed in the feed this session.
-    /// Fire-and-forget: <see cref="WledShotEffectSink"/> already contains WLED failures.
-    /// </summary>
-    private void TryHoldWaitingIfUnknown()
-    {
-        if (BallReadyState != BallReadyState.Unknown)
-            return;
-        if (!Config.Wled.HasConfiguredController)
-            return;
-
-        _ = _effectSink.HoldWaitingAsync();
-    }
-
-    /// <summary>
-    /// Turns the strip on the moment GSPro/Connect is first discovered (log file found or an
-    /// R50 peer seen) after not being found — e.g. the golfer just launched GSPro. Catches the
-    /// case where the WLED device was powered off/reset while this app sat idly watching, since
-    /// otherwise nothing re-applies the ambient until a real Ready/Not-ready shot signal arrives.
+    /// Tracks when GSPro/Connect first appears so status UI can refresh; skeleton does not
+    /// auto-POST Waiting/Idle lights on discovery.
     /// </summary>
     private void HandleR50ConnectionTransition()
     {
         var snapshot = _r50Watch?.Snapshot;
         var isConnected = snapshot is { } s && (s.LogFiles.Count > 0 || s.Peers.Count > 0);
-        if (isConnected && !_r50WasConnected)
-            TryHoldWaitingIfUnknown();
         _r50WasConnected = isConnected;
     }
 

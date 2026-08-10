@@ -1,97 +1,52 @@
 using GsproLighting.Core.Config;
-using GsproLighting.Core.Preview;
 using GsproLighting.Ui.Controls;
-using GsproLighting.Ui.Preview;
 using GsproLighting.Ui.Theme;
-using GsproLighting.Wled;
-using GsproLighting.Wled.Animations;
+using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// Preview tab — test each lighting state with hold-after-animation. Never saves config.
-/// Stop returns to held ready/idle green.
+/// Skeleton Preview: five HTTP solid-color buttons proving click → lights.
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
-    private readonly Func<EffectConfig> _resolveEffects;
-    private readonly Func<WledConfig> _resolveWled;
+    private readonly Func<string> _resolveControllerIp;
+    private readonly Func<byte> _resolveBrightness;
     private readonly Action<string, string>? _logWledFailure;
-    private readonly Action? _onPreviewStopped;
-    private readonly LedStripPreview _strip = new();
-    private readonly LightingPreviewCatalog _catalog = new();
-    private readonly PreviewPlaybackCoordinator _coordinator;
-    private readonly FlowLayoutPanel _cards = new();
-    private readonly Label _stateLabel = new();
-    private readonly NightComboBox _direction = new();
-    private readonly NightButton _stop = NightButton.Create("Stop / hold idle", 150);
-    private readonly NightButton _playAll = NightButton.Create("Play all", 120, isPrimary: true);
-    private readonly NightButton _skip = NightButton.Create("Skip", 88);
-    private readonly List<PreviewStateCard> _stateCards = [];
+    private readonly Label _ipLabel = new();
+    private readonly Label _statusLabel = new();
+    private readonly WledSolidHttpApplier _applier = new();
     private int _statusGeneration;
-    private CancellationTokenSource? _previewCts;
-    private bool _playAllActive;
 
     public PreviewTabPanel(
-        Func<EffectConfig> resolveEffects,
-        Func<WledConfig> resolveWled,
-        WledPreviewPlayer player,
-        Action<string, string>? logWledFailure = null,
-        Action? onManualPreviewStarting = null,
-        Action? onPreviewStopped = null)
+        Func<string> resolveControllerIp,
+        Func<byte> resolveBrightness,
+        Action<string, string>? logWledFailure = null)
     {
-        _resolveEffects = resolveEffects;
-        _resolveWled = resolveWled;
+        _resolveControllerIp = resolveControllerIp;
+        _resolveBrightness = resolveBrightness;
         _logWledFailure = logWledFailure;
-        _onPreviewStopped = onPreviewStopped;
-        _coordinator = new PreviewPlaybackCoordinator(player, _strip, onManualPreviewStarting);
 
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
         Padding = new Padding(18, 14, 18, 14);
         Font = UiTheme.BodyFont();
 
-        ConfigureChrome();
         Controls.Add(BuildRoot());
-        ReloadCards();
-        _cards.ClientSizeChanged += (_, _) => ResizeCards();
-        _stop.Click += async (_, _) => await StopAsync();
-        _playAll.Click += async (_, _) => await PlayAllAsync();
-        _skip.Click += (_, _) => _coordinator.SkipCurrent();
-        UpdateToolbarEnabled();
+        RefreshIpLabel();
     }
 
-    public void RefreshFromEffects() => ReloadCards();
-
-    protected override void OnHandleCreated(EventArgs e)
-    {
-        base.OnHandleCreated(e);
-        BeginInvoke(() =>
-        {
-            PerformLayout();
-            ResizeCards();
-        });
-    }
+    /// <summary>Kept for SettingsForm callers; refreshes the shown controller IP.</summary>
+    public void RefreshFromEffects() => RefreshIpLabel();
 
     protected override void OnPaintBackground(PaintEventArgs e) =>
         UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
 
-    private void ConfigureChrome()
+    protected override void Dispose(bool disposing)
     {
-        _strip.Height = 108;
-        _direction.Items.AddRange(["Center", "Left", "Right"]);
-        _direction.SelectedIndex = 0;
-        _direction.Width = 120;
-        _direction.AccessibleName = "Shot direction for Pure and Mishit";
-
-        _stateLabel.AutoSize = true;
-        _stateLabel.MaximumSize = new Size(360, 0);
-        _stateLabel.ForeColor = UiTheme.Muted;
-        _stateLabel.Font = UiTheme.BodyFont(9.5f);
-        _stateLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _stateLabel.Margin = new Padding(8, 14, 0, 0);
-        _stateLabel.Text = "Select a state · colors hold after animation · Stop holds ready green";
-        _skip.Enabled = false;
+        if (disposing)
+            _applier.Dispose();
+        base.Dispose(disposing);
     }
 
     private Control BuildRoot()
@@ -100,37 +55,44 @@ public sealed class PreviewTabPanel : UserControl
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 4,
             BackColor = Color.Transparent
         };
-        for (var i = 0; i < 4; i++)
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        root.Controls.Add(BuildHeading(), 0, 0);
-        root.Controls.Add(_strip, 0, 1);
-        root.Controls.Add(BuildToolbar(), 0, 2);
-        root.Controls.Add(BuildStatesHeading(), 0, 3);
+        root.Controls.Add(
+            new TabSectionHeading
+            {
+                Dock = DockStyle.Top,
+                Title = "Preview solid colors",
+                Subtitle = "One HTTP POST per click (Solid FX 0). Set the controller IP on Connection first."
+            },
+            0,
+            0);
 
-        _cards.Dock = DockStyle.Fill;
-        _cards.AutoScroll = true;
-        _cards.FlowDirection = FlowDirection.TopDown;
-        _cards.WrapContents = false;
-        _cards.BackColor = Color.Transparent;
-        _cards.Margin = new Padding(0, 4, 0, 0);
-        root.Controls.Add(_cards, 0, 4);
+        _ipLabel.AutoSize = true;
+        _ipLabel.ForeColor = UiTheme.Muted;
+        _ipLabel.Font = UiTheme.BodyFont(9.5f);
+        _ipLabel.Margin = new Padding(0, 8, 0, 12);
+        root.Controls.Add(_ipLabel, 0, 1);
+
+        root.Controls.Add(BuildButtons(), 0, 2);
+
+        _statusLabel.AutoSize = true;
+        _statusLabel.MaximumSize = new Size(720, 0);
+        _statusLabel.ForeColor = UiTheme.Muted;
+        _statusLabel.Font = UiTheme.BodyFont(9.5f);
+        _statusLabel.Margin = new Padding(0, 16, 0, 0);
+        _statusLabel.Text = "Click a color to POST /json/state.";
+        root.Controls.Add(_statusLabel, 0, 3);
+
         return root;
     }
 
-    private static Control BuildHeading() =>
-        new TabSectionHeading
-        {
-            Dock = DockStyle.Top,
-            Title = "Preview lighting states",
-            Subtitle = "Test each bay reaction. Playback holds the end color until you pick another state or Stop."
-        };
-
-    private Control BuildToolbar()
+    private Control BuildButtons()
     {
         var row = new FlowLayoutPanel
         {
@@ -140,243 +102,103 @@ public sealed class PreviewTabPanel : UserControl
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = true,
             BackColor = Color.Transparent,
-            Margin = new Padding(0, 12, 0, 6)
+            Margin = new Padding(0, 4, 0, 0)
         };
 
-        var dirField = new TableLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            RowCount = 2,
-            Margin = new Padding(0, 0, 12, 0)
-        };
-        dirField.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        dirField.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        dirField.Controls.Add(new Label
-        {
-            Text = "DIRECTION",
-            AutoSize = true,
-            ForeColor = UiTheme.Accent,
-            Font = UiTheme.BodyFont(7.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(0, 2, 0, 2)
-        }, 0, 0);
-        _direction.Margin = new Padding(0);
-        dirField.Controls.Add(_direction, 0, 1);
-
-        _stop.Margin = new Padding(0, 0, 8, 0);
-        _playAll.Margin = new Padding(0, 0, 8, 0);
-        _skip.Margin = new Padding(0, 0, 8, 0);
-
-        row.Controls.Add(dirField);
-        row.Controls.Add(_stop);
-        row.Controls.Add(_playAll);
-        row.Controls.Add(_skip);
-        row.Controls.Add(_stateLabel);
+        row.Controls.Add(ColorButton("Red", RgbColor.FromRgb(255, 0, 0)));
+        row.Controls.Add(ColorButton("Green", RgbColor.FromRgb(0, 255, 0)));
+        row.Controls.Add(ColorButton("Blue", RgbColor.FromRgb(0, 0, 255)));
+        row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
+        row.Controls.Add(OffButton());
         return row;
     }
 
-    private static Control BuildStatesHeading() =>
-        new Label
-        {
-            Text = "STATES",
-            Dock = DockStyle.Top,
-            Height = UiTheme.SectionTitleRow,
-            ForeColor = UiTheme.Accent,
-            Font = UiTheme.BodyFont(8.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(0, 8, 0, 4),
-            Margin = new Padding(0, 8, 0, 0)
-        };
-
-    private void ReloadCards()
+    private NightButton ColorButton(string label, RgbColor color)
     {
-        foreach (var card in _stateCards)
-            card.Selected -= OnCardSelected;
-        _cards.Controls.Clear();
-        _stateCards.Clear();
-
-        foreach (var item in _catalog.Create(_resolveEffects()))
-        {
-            var card = new PreviewStateCard(item) { Width = Math.Max(280, _cards.ClientSize.Width - 2) };
-            card.Selected += OnCardSelected;
-            _stateCards.Add(card);
-            _cards.Controls.Add(card);
-        }
+        var button = NightButton.Create(label, 110, isPrimary: label == "Green");
+        button.Margin = new Padding(0, 0, 10, 10);
+        button.Click += async (_, _) => await ApplyColorAsync(label, color);
+        return button;
     }
 
-    private async void OnCardSelected(object? sender, EventArgs _)
+    private NightButton OffButton()
     {
-        if (sender is not PreviewStateCard card)
+        var button = NightButton.Create("Off", 110);
+        button.Margin = new Padding(0, 0, 10, 10);
+        button.Click += async (_, _) => await ApplyOffAsync();
+        return button;
+    }
+
+    private async Task ApplyColorAsync(string label, RgbColor color)
+    {
+        var ip = ResolveIpOrStatus();
+        if (ip is null)
             return;
 
-        var generation = BeginStatusGeneration();
-        CancelActivePreviewToken();
-        _previewCts = new CancellationTokenSource();
-        var token = _previewCts.Token;
-
-        SelectOnly(card);
-        _playAllActive = false;
-        UpdateToolbarEnabled();
-        SetState($"Previewing {card.Item.Title}…", generation);
-
+        var generation = ++_statusGeneration;
+        SetStatus($"Sending {label} to {ip}…");
         try
         {
-            await _coordinator.PreviewAsync(
-                card.Item,
-                _resolveEffects(),
-                _resolveWled(),
-                SelectedDirection(),
-                token,
-                onHoldStarted: () => SetState($"Holding {card.Item.Title}", generation));
-            SetState($"Holding {card.Item.Title}", generation);
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by another card, Play all, or Stop — generation guards status.
+            await _applier.ApplySolidAsync(ip, color, _resolveBrightness()).ConfigureAwait(true);
+            if (generation == _statusGeneration)
+                SetStatus($"{label} OK · {ip}");
         }
         catch (Exception ex)
         {
-            LogWledFailure($"Preview {card.Item.Title}: {ex.Message}");
-            SetState($"On-screen holding · WLED: {ex.Message}", generation, isError: true);
-        }
-        finally
-        {
-            UpdateToolbarEnabled();
+            if (generation != _statusGeneration)
+                return;
+            SetStatus(ex.Message, isError: true);
+            _logWledFailure?.Invoke("preview-solid", ex.Message);
         }
     }
 
-    private async Task PlayAllAsync()
+    private async Task ApplyOffAsync()
     {
-        var generation = BeginStatusGeneration();
-        CancelActivePreviewToken();
-        _previewCts = new CancellationTokenSource();
-        var token = _previewCts.Token;
-        _playAllActive = true;
-        UpdateToolbarEnabled();
+        var ip = ResolveIpOrStatus();
+        if (ip is null)
+            return;
 
-        var progress = new Progress<PreviewSequenceProgress>(report =>
-        {
-            if (!report.IsComplete)
-                SelectByTitle(report.StateTitle);
-            SetState(report.FormatLabel(), generation);
-        });
-
+        var generation = ++_statusGeneration;
+        SetStatus($"Sending Off to {ip}…");
         try
         {
-            await _coordinator.PlayAllAsync(
-                _resolveEffects(),
-                _resolveWled(),
-                SelectedDirection(),
-                progress,
-                token);
-            SetState("Play all complete · last state holding", generation);
-        }
-        catch (OperationCanceledException)
-        {
-            SetState("Play all stopped", generation);
+            await _applier.ApplyOffAsync(ip).ConfigureAwait(true);
+            if (generation == _statusGeneration)
+                SetStatus($"Off OK · {ip}");
         }
         catch (Exception ex)
         {
-            LogWledFailure($"Play all: {ex.Message}");
-            SetState($"Play all · WLED: {ex.Message}", generation, isError: true);
-        }
-        finally
-        {
-            _playAllActive = false;
-            UpdateToolbarEnabled();
+            if (generation != _statusGeneration)
+                return;
+            SetStatus(ex.Message, isError: true);
+            _logWledFailure?.Invoke("preview-solid", ex.Message);
         }
     }
 
-    private async Task StopAsync()
+    private string? ResolveIpOrStatus()
     {
-        var generation = BeginStatusGeneration();
-        CancelActivePreviewToken();
-        _coordinator.CancelSequence();
-        _playAllActive = false;
-        UpdateToolbarEnabled();
-        SetState("Stopping…", generation);
-
-        try
+        RefreshIpLabel();
+        var ip = _resolveControllerIp()?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(ip) || !WledConfig.IsConfiguredController(ip))
         {
-            // Drop the manual hold locally; live ambient (Waiting/Idle/NotReady) takes back over.
-            await _coordinator.StopAsync(_resolveEffects(), _resolveWled()).ConfigureAwait(true);
-            _onPreviewStopped?.Invoke();
-            foreach (var card in _stateCards)
-                card.IsSelected = false;
-            SetState("Stopped · live ambient restored", generation);
-        }
-        catch (Exception ex)
-        {
-            LogWledFailure($"Stop: {ex.Message}");
-            SetState($"Stop failed: {ex.Message}", generation, isError: true);
-        }
-        finally
-        {
-            UpdateToolbarEnabled();
-        }
-    }
-
-    private void LogWledFailure(string message) =>
-        _logWledFailure?.Invoke("preview", message);
-
-    private int BeginStatusGeneration() => Interlocked.Increment(ref _statusGeneration);
-
-    private void CancelActivePreviewToken()
-    {
-        _previewCts?.Cancel();
-        _previewCts?.Dispose();
-        _previewCts = null;
-        _coordinator.CancelSequence();
-        // Player cancel happens inside PreviewAsync/Stop via BeginPreview supersede.
-    }
-
-    private void SelectOnly(PreviewStateCard card)
-    {
-        foreach (var other in _stateCards)
-            other.IsSelected = ReferenceEquals(other, card);
-    }
-
-    private void SelectByTitle(string title)
-    {
-        foreach (var card in _stateCards)
-            card.IsSelected = string.Equals(card.Item.Title, title, StringComparison.Ordinal);
-    }
-
-    private void UpdateToolbarEnabled()
-    {
-        _playAll.Enabled = !_playAllActive;
-        _skip.Enabled = _playAllActive || _coordinator.IsPlayAllRunning;
-        _stop.Enabled = true;
-    }
-
-    private AnimationDirection SelectedDirection() =>
-        _direction.SelectedItem?.ToString() switch
-        {
-            "Left" => AnimationDirection.Left,
-            "Right" => AnimationDirection.Right,
-            _ => AnimationDirection.Center
-        };
-
-    private void SetState(string message, int generation, bool isError = false)
-    {
-        if (generation != Volatile.Read(ref _statusGeneration))
-            return;
-
-        if (IsHandleCreated && InvokeRequired)
-        {
-            BeginInvoke(() => SetState(message, generation, isError));
-            return;
+            SetStatus("Set a real controller IP on Connection first.", isError: true);
+            return null;
         }
 
-        _stateLabel.Text = message;
-        _stateLabel.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
+        return ip;
     }
 
-    private void ResizeCards()
+    private void RefreshIpLabel()
     {
-        var width = Math.Max(1, _cards.ClientSize.Width - 2);
-        foreach (Control card in _cards.Controls)
-            card.Width = width;
+        var ip = _resolveControllerIp()?.Trim() ?? "";
+        _ipLabel.Text = WledConfig.IsConfiguredController(ip)
+            ? $"Controller: {ip}"
+            : "Controller: set IP on Connection";
+    }
+
+    private void SetStatus(string text, bool isError = false)
+    {
+        _statusLabel.Text = text;
+        _statusLabel.ForeColor = isError ? UiTheme.NotReady : UiTheme.Muted;
     }
 }
