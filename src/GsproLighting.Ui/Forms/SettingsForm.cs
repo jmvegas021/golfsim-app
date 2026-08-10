@@ -60,7 +60,8 @@ public sealed class SettingsForm : Form
             app.ReadyDrgb,
             app.DirectionDrgb,
             app.SuspendLiveEffectsForManualControl,
-            app.ReportWledFailure);
+            app.ReportWledFailure,
+            configureOutput: wled => _app.Wled.Configure(wled));
         _wled = new WledTabPanel(
             ResolveControllerIp,
             () => _connection.Brightness,

@@ -4,24 +4,29 @@ using GsproLighting.Core.Models;
 namespace GsproLighting.Wled.Animations;
 
 /// <summary>
-/// Hold-loop multi-layer color gradient confined to a concentrate band (or full strip).
-/// Peak and wings stay in the state's hue — no white spike.
+/// Hold-loop multi-layer same-hue gradient confined to a concentrate band (or full strip).
+/// Peak, mid-wing, and soft halo stay in the state's hue — no white spike.
 /// </summary>
 public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
 {
+    /// <summary>Soft outer halo half-width as a fraction of band length.</summary>
+    public const double HaloHalfWidthFraction = 0.42;
+
     /// <summary>Soft wing half-width as a fraction of band length.</summary>
-    public const double WingHalfWidthFraction = 0.28;
+    public const double WingHalfWidthFraction = 0.26;
 
     /// <summary>Bright core half-width as a fraction of band length.</summary>
-    public const double CoreHalfWidthFraction = 0.10;
+    public const double CoreHalfWidthFraction = 0.09;
 
     /// <summary>Band-widths (or half-widths for center-out) traversed per second.</summary>
-    public const double BandWidthsPerSecond = 2.4;
+    public const double BandWidthsPerSecond = 2.1;
 
     /// <summary>Dim resting gain so the traveling gradient reads clearly.</summary>
-    public const double BaseGain = 0.32;
+    public const double BaseGain = 0.22;
 
-    public const double WingGain = 0.72;
+    public const double HaloGain = 0.48;
+
+    public const double WingGain = 0.78;
 
     public const double PeakGain = 1.0;
 
@@ -89,13 +94,14 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
 
         var pixels = DrgbReadyFrameFactory.CreateEmpty(ledCount);
         var lit = _band.LitCount;
+        var halo = Math.Max(2.0, lit * HaloHalfWidthFraction);
         var wing = Math.Max(1.5, lit * WingHalfWidthFraction);
         var core = Math.Max(1.0, lit * CoreHalfWidthFraction);
 
         for (var i = 0; i < lit; i++)
         {
             var dist = PeakDistance(i, lit, elapsed);
-            var gain = ResolveGain(dist, core, wing);
+            var gain = ResolveGain(dist, core, wing, halo);
             pixels[_band.Start + i] = AnimationPixels.Scale(_baseColor, gain);
         }
 
@@ -148,13 +154,18 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
         return Math.Abs(distFromCenter - front);
     }
 
-    private static double ResolveGain(double distance, double coreHalf, double wingHalf)
+    private static double ResolveGain(double distance, double coreHalf, double wingHalf, double haloHalf)
     {
         var core = CosineFalloff(distance, coreHalf);
         var wing = CosineFalloff(distance, wingHalf);
-        // Map wing falloff into the BaseGain→WingGain band, then lift by PeakGain core.
-        var wingRelative = (WingGain - BaseGain) / (PeakGain - BaseGain);
-        var layered = Math.Max(core, wing * wingRelative);
+        var halo = CosineFalloff(distance, haloHalf);
+
+        // Layer same-hue halo → wing → peak so the gradient reads richer without whitening.
+        var layered = Math.Max(
+            core,
+            Math.Max(
+                wing * ((WingGain - BaseGain) / (PeakGain - BaseGain)),
+                halo * ((HaloGain - BaseGain) / (PeakGain - BaseGain))));
         return BaseGain + ((PeakGain - BaseGain) * layered);
     }
 

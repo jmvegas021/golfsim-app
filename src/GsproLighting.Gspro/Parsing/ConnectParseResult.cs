@@ -30,6 +30,12 @@ public sealed class ConnectParseResult
         RawLine = raw
     };
 
+    public static ConnectParseResult ForWaiting(string raw) => new()
+    {
+        Kind = ConnectParseKind.Waiting,
+        RawLine = raw
+    };
+
     public static ConnectParseResult ForRaw(string raw) => new()
     {
         Kind = ConnectParseKind.Raw,
@@ -43,5 +49,7 @@ public enum ConnectParseKind
     Raw,
     Shot,
     Ready,
-    NotReady
+    NotReady,
+    /// <summary>GSPro / Connect loading before first Ready (aqua Waiting hold).</summary>
+    Waiting
 }

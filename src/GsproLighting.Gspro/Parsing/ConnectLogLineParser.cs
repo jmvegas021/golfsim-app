@@ -7,7 +7,7 @@ namespace GsproLighting.Gspro.Parsing;
 /// <summary>
 /// Parses Garmin Connect / GSPro Connect log lines into shots, ready events, or sparse raw lines.
 /// Tuned for GarminR50Form: readyForShot + "Logging ball data IMMEDIATELY" ball JSON
-/// (including multiline / pretty-printed payloads).
+/// (including multiline / pretty-printed payloads and pre-marker property fragments).
 /// Ready / not-ready are edge-triggered to match the R50 green / red light.
 /// </summary>
 public sealed class ConnectLogLineParser
@@ -22,6 +22,13 @@ public sealed class ConnectLogLineParser
         "Logging ball data",
         "before sending to GSPro",
         "sending to GSPro"
+    };
+
+    private static readonly string[] WaitingTokens =
+    {
+        "Connected to LM",
+        "Telling it we're ready for shot",
+        "Looking for Garmin"
     };
 
     private static readonly string[] HighSignalRawTokens =
@@ -55,11 +62,15 @@ public sealed class ConnectLogLineParser
     private readonly GsproMessageParser _jsonParser = new();
     private readonly GarminConnectBallMapper _garminMapper = new();
     private readonly MultilineJsonAccumulator _jsonBuffer = new();
+    private readonly GarminSparseMetricsAccumulator _sparseMetrics = new();
     private bool _awaitingBallJson;
     private string? _ballContextLine;
     private int _awaitingIdleLines;
     /// <summary>R50 light state: null = unknown, true = green/ready, false = red/not-ready.</summary>
     private bool? _isReady;
+    /// <summary>True after first Waiting edge until Ready/NotReady/Shot clears it.</summary>
+    private bool _waitingShown;
+    private bool _lookingForGarminWaitingArmed;
 
     public ConnectParseResult Parse(string line)
     {
@@ -68,11 +79,23 @@ public sealed class ConnectLogLineParser
 
         var trimmed = line.Trim();
 
+        // Sparse property lines can arrive before the ball marker — keep them.
+        if (_sparseMetrics.TryIngestPropertyLine(trimmed))
+        {
+            _awaitingBallJson = true;
+            _awaitingIdleLines = 0;
+            return ConnectParseResult.Ignore;
+        }
+
         // Multiline JSON path — skip noise filter so "{" / "}" lines are kept.
         if (_jsonBuffer.IsBuffering || _awaitingBallJson)
         {
             if (ContainsAny(trimmed, BallLogMarkers))
                 return HandleBallMarkerLine(trimmed);
+
+            var forceShot = TryFlushForceOrSparse(trimmed);
+            if (forceShot is not null)
+                return forceShot;
 
             var buffered = TryFinishBufferedJson(trimmed);
             if (buffered is not null)
@@ -95,6 +118,10 @@ public sealed class ConnectLogLineParser
 
         if (ContainsAny(trimmed, BallLogMarkers))
             return HandleBallMarkerLine(trimmed);
+
+        var forceOrSparse = TryFlushForceOrSparse(trimmed);
+        if (forceOrSparse is not null)
+            return forceOrSparse;
 
         var shot = TryExtractShot(trimmed, trimmed);
         if (shot is not null)
@@ -124,10 +151,15 @@ public sealed class ConnectLogLineParser
         if (ConnectReadySignalClassifier.IsReady(trimmed))
             return EmitReadyEdge(trimmed);
 
+        var waiting = TryEmitWaiting(trimmed);
+        if (waiting is not null)
+            return waiting;
+
         if (ContainsAny(trimmed, HighSignalRawTokens) &&
             (trimmed.Contains("garmin", StringComparison.OrdinalIgnoreCase) ||
              trimmed.Contains("connect", StringComparison.OrdinalIgnoreCase) ||
-             trimmed.Contains("r50", StringComparison.OrdinalIgnoreCase)))
+             trimmed.Contains("r50", StringComparison.OrdinalIgnoreCase) ||
+             trimmed.Contains("lm", StringComparison.OrdinalIgnoreCase)))
             return ConnectParseResult.ForRaw(trimmed);
 
         return ConnectParseResult.Ignore;
@@ -139,6 +171,7 @@ public sealed class ConnectLogLineParser
         (ContainsAny(line, BallLogMarkers) ||
          ConnectReadySignalClassifier.MentionsReadySignal(line) ||
          GarminConnectBallMapper.LooksLikeBallMetrics(line) ||
+         ContainsAny(line, WaitingTokens) ||
          ContainsAny(line, HighSignalRawTokens));
 
     private ConnectParseResult HandleBallMarkerLine(string trimmed)
@@ -146,6 +179,7 @@ public sealed class ConnectLogLineParser
         _awaitingBallJson = true;
         _ballContextLine = trimmed;
         _awaitingIdleLines = 0;
+        // Keep sparse pre-marker metrics; only reset brace JSON buffering.
         _jsonBuffer.Reset();
 
         var sameLineShot = TryExtractShot(trimmed, trimmed);
@@ -165,6 +199,31 @@ public sealed class ConnectLogLineParser
 
         // Restore v0.3.1 visibility: show the marker even before JSON completes.
         return ConnectParseResult.ForRaw(trimmed);
+    }
+
+    private ConnectParseResult? TryFlushForceOrSparse(string trimmed)
+    {
+        var looksLikeForce = trimmed.Contains("BallSpeed", StringComparison.OrdinalIgnoreCase) ||
+                             trimmed.Contains("Force ", StringComparison.OrdinalIgnoreCase);
+        if (!looksLikeForce && !_sparseMetrics.HasMetrics)
+            return null;
+
+        if (looksLikeForce)
+            _sparseMetrics.MergeForceLine(trimmed);
+
+        if (!_sparseMetrics.HasMetrics && !looksLikeForce)
+            return null;
+
+        // Need a playable cue — BallSpeed/Force or already-collected carry/sidespin/HLA.
+        var shot = _sparseMetrics.TryBuildShot(_ballContextLine ?? trimmed);
+        if (shot is null)
+            return null;
+
+        // Prefer flushing when we have speed (Force line) or were awaiting a ball marker.
+        if (!looksLikeForce && !_awaitingBallJson)
+            return null;
+
+        return EmitShot(shot, trimmed);
     }
 
     private ConnectParseResult? TryFinishBufferedJson(string trimmed)
@@ -256,17 +315,53 @@ public sealed class ConnectLogLineParser
         return ConnectLogKeyValueMapper.TryMap(line, context);
     }
 
+    private ConnectParseResult? TryEmitWaiting(string trimmed)
+    {
+        // Prefer the stronger "Connected to LM" edge; also show aqua once while
+        // Connect is still hunting for Garmin before any Ready/Not Ready.
+        var connectedToLm = trimmed.Contains("Connected to LM", StringComparison.OrdinalIgnoreCase);
+        var looking = trimmed.Contains("Looking for Garmin", StringComparison.OrdinalIgnoreCase);
+
+        if (!connectedToLm && !looking)
+            return null;
+
+        // Once Ready/NotReady has been seen in this session, don't re-enter Waiting
+        // from "Looking for Garmin" keepalives — only from a fresh LM connect.
+        if (looking && !connectedToLm)
+        {
+            if (_isReady is not null || _waitingShown)
+                return ConnectParseResult.Ignore;
+            if (_lookingForGarminWaitingArmed)
+                return ConnectParseResult.Ignore;
+            _lookingForGarminWaitingArmed = true;
+            _waitingShown = true;
+            return ConnectParseResult.ForWaiting(trimmed);
+        }
+
+        if (_waitingShown && !connectedToLm)
+            return ConnectParseResult.Ignore;
+
+        // New LM connection always re-arms Waiting (loading / start).
+        _waitingShown = true;
+        _lookingForGarminWaitingArmed = false;
+        _isReady = null;
+        return ConnectParseResult.ForWaiting(trimmed);
+    }
+
     private ConnectParseResult EmitShot(ShotPayload shot, string raw)
     {
         // After a shot the monitor leaves ready; next green signal should fire once.
         ClearReadyState();
         ClearBallWait();
+        _waitingShown = false;
         return ConnectParseResult.ForShot(shot, raw);
     }
 
     private ConnectParseResult EmitReadyEdge(string trimmed)
     {
         ClearBallWait();
+        _waitingShown = false;
+        _lookingForGarminWaitingArmed = false;
 
         if (_isReady == true)
             return ConnectParseResult.Ignore;
@@ -278,6 +373,8 @@ public sealed class ConnectLogLineParser
     private ConnectParseResult EmitNotReadyEdge(string trimmed)
     {
         ClearBallWait();
+        _waitingShown = false;
+        _lookingForGarminWaitingArmed = false;
 
         // Debounce: one [Not ready] per red stretch (keepAlive / repeats ignored).
         if (_isReady == false)
@@ -298,6 +395,7 @@ public sealed class ConnectLogLineParser
         _ballContextLine = null;
         _awaitingIdleLines = 0;
         _jsonBuffer.Reset();
+        _sparseMetrics.Reset();
     }
 
     private static ShotPayload CreateReadyPayload() => new()

@@ -50,4 +50,10 @@ public sealed class ConsoleShotEventSink : IShotEventSink
         Console.WriteLine("[Not ready] R50 not ready");
         return Task.CompletedTask;
     }
+
+    public Task OnWaitingAsync(CancellationToken cancellationToken = default)
+    {
+        Console.WriteLine("[Waiting] GSPro / Connect loading");
+        return Task.CompletedTask;
+    }
 }

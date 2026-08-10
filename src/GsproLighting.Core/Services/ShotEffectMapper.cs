@@ -72,6 +72,8 @@ public sealed class ShotEffectMapper
 
         var carry = shot.BallData?.CarryDistance;
         var vla = shot.BallData?.Vla;
+        if (vla is > 8)
+            return false;
         return carry is double c && c <= 40 &&
                speed is null or <= 35 &&
                vla is null or <= 8;

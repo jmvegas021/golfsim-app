@@ -103,15 +103,20 @@ public sealed class WledBallReadyDrgbController : IDisposable
         CancellationToken cancellationToken = default,
         Action? onHoldStarted = null) =>
         RunSupersedingAsync(
-            token => PlayIntroThenHoldAsync(
-                DrgbDirectionFrameFactory.CreateDirectionSequence(direction, ledCount),
-                DrgbBandShimmerEffect.ForDirection(direction, ledCount),
-                ledCount,
-                brightness,
-                ToDirectionPose(direction),
-                onHoldStarted,
-                token,
-                onIntroComplete: () => _directionHold.Arm()),
+            token =>
+            {
+                // Arm before intro so Ready/Not Ready arriving mid-slide cannot cancel
+                // the hit cue (R50 logs Not Ready ~2–3s after the Force line).
+                _directionHold.Arm();
+                return PlayIntroThenHoldAsync(
+                    DrgbDirectionFrameFactory.CreateDirectionSequence(direction, ledCount),
+                    DrgbBandShimmerEffect.ForDirection(direction, ledCount),
+                    ledCount,
+                    brightness,
+                    ToDirectionPose(direction),
+                    onHoldStarted,
+                    token);
+            },
             cancellationToken);
 
     public void CancelActive()

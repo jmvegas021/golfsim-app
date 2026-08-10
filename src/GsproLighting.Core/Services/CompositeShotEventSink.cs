@@ -35,4 +35,10 @@ public sealed class CompositeShotEventSink : IShotEventSink
         foreach (var sink in _sinks)
             await sink.OnBallNotReadyAsync(cancellationToken);
     }
+
+    public async Task OnWaitingAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var sink in _sinks)
+            await sink.OnWaitingAsync(cancellationToken);
+    }
 }

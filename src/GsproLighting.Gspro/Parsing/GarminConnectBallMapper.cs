@@ -72,7 +72,7 @@ public sealed class GarminConnectBallMapper
         var metrics = ResolveMetricsObject(root);
         var speed = ReadDouble(metrics, SpeedKeys);
         var carry = ReadDouble(metrics, CarryKeys);
-        var hla = ReadDouble(metrics, HlaKeys);
+        var hla = ReadHlaDegrees(metrics);
         var vla = ReadDouble(metrics, VlaKeys);
         var sideSpin = ReadDouble(metrics, SideSpinKeys);
         var backSpin = ReadDouble(metrics, BackSpinKeys);
@@ -174,12 +174,29 @@ public sealed class GarminConnectBallMapper
              contextLine.Contains("putter", StringComparison.OrdinalIgnoreCase)))
             return true;
 
+        // Short chips with a real launch angle are not putts.
+        if (vla is > 8)
+            return false;
+
         if (carry is double c && c <= 40 &&
             (speed is null or <= 35) &&
             (vla is null or <= 8))
             return true;
 
         return false;
+    }
+
+    private static double? ReadHlaDegrees(JsonElement element)
+    {
+        foreach (var key in HlaKeys)
+        {
+            var value = ReadDouble(element, key);
+            if (value is null)
+                continue;
+            return GarminHlaDegrees.Normalize(value.Value, key);
+        }
+
+        return null;
     }
 
     private static double? ReadDouble(JsonElement element, params string[] keys)

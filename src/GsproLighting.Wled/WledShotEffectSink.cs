@@ -78,16 +78,20 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     public Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default)
     {
         // Code 201 = player / start-screen info from GSPro → aqua loading ripple (DDP).
+        // Also rare in R50 log-watch sessions — see OnWaitingAsync for Connect-loading edges.
         if (response.Code != 201)
             return Task.CompletedTask;
 
-        return RunDrgbEffectAsync(
+        return OnWaitingAsync(cancellationToken);
+    }
+
+    public Task OnWaitingAsync(CancellationToken cancellationToken = default) =>
+        RunDrgbEffectAsync(
             (config, token) => _readyDrgb.RunWaitingAsync(
                 config.LedCount,
                 config.Brightness,
                 token),
             cancellationToken);
-    }
 
     public Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default) =>
         RunDrgbEffectAsync(
@@ -106,16 +110,12 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
             cancellationToken);
 
     /// <summary>
-    /// Explicit waiting hold (preview / reconnect). Live trigger is Code 201 player info.
+    /// Explicit waiting hold (preview / reconnect). Live triggers: Code 201 and
+    /// Connect-loading edges (<see cref="OnWaitingAsync"/>).
     /// No-ops when WLED is not configured (avoids launch spam).
     /// </summary>
     public Task HoldWaitingAsync(CancellationToken cancellationToken = default) =>
-        RunDrgbEffectAsync(
-            (config, token) => _readyDrgb.RunWaitingAsync(
-                config.LedCount,
-                config.Brightness,
-                token),
-            cancellationToken);
+        OnWaitingAsync(cancellationToken);
 
     /// <summary>
     /// Skeleton: ambient Idle restart removed after IP change.

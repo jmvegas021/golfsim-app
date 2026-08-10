@@ -8,14 +8,17 @@ namespace GsproLighting.Wled.Animations;
 /// </summary>
 public static class DrgbReadyFrameFactory
 {
-    /// <summary>~60 FPS — top of the 30–60 FPS DDP target.</summary>
-    public const int FrameCadenceMilliseconds = 16;
+    /// <summary>
+    /// ~45–50 FPS — a smidge slower than the prior 16ms (~60 FPS) aggressive intros,
+    /// still far from the old multi-second crawl.
+    /// </summary>
+    public const int FrameCadenceMilliseconds = 20;
 
     /// <summary>
     /// Target LEDs advanced per side each fill/retract frame on long strips (~585).
     /// Prefer <see cref="ResolveLitAdvance"/> so short strips stay readable in tests/previews.
     /// </summary>
-    public const int LitAdvancePerFrame = 12;
+    public const int LitAdvancePerFrame = 10;
 
     /// <summary>
     /// Fraction of the strip lit for the resting Ready hold (~25–30% centered).

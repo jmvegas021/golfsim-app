@@ -42,7 +42,7 @@ public sealed class EffectStateLegend : UserControl
 
     private static IEnumerable<LegendEntry> BuildEntries(EffectConfig effects) =>
     [
-        new("Waiting / start", "DDP aqua center→out shimmer (GSPro Code 201 / loading)", RgbColor.FromRgb(0, 200, 220)),
+        new("Waiting / start", "DDP aqua center→out shimmer (Connect loading / Code 201)", RgbColor.FromRgb(0, 200, 220)),
         new("Not ready", "DDP red expand → full-strip center→out shimmer", RgbColor.FromRgb(255, 0, 0)),
         new("Ready / idle", "DDP sides→center → 28% green center→out shimmer", RgbColor.FromRgb(0, 255, 0)),
         new("Direction L/R", "DDP yellow 28% side band · shimmer toward outer edge", RgbColor.FromRgb(220, 180, 0)),

@@ -17,6 +17,7 @@ public sealed class PreviewTabPanel : UserControl
     private readonly Func<int> _resolveLedCount;
     private readonly Action? _cancelLiveEffects;
     private readonly Action<string, string>? _logWledFailure;
+    private readonly Action<WledConfig>? _configureOutput;
     private readonly Label _ipLabel = new();
     private readonly Label _statusLabel = new();
     private readonly WledHttpStateAnimationManager _stateManager;
@@ -33,7 +34,8 @@ public sealed class PreviewTabPanel : UserControl
         WledBallReadyDrgbController readyDrgb,
         WledDirectionDrgbController? directionDrgb = null,
         Action? cancelLiveEffects = null,
-        Action<string, string>? logWledFailure = null)
+        Action<string, string>? logWledFailure = null,
+        Action<WledConfig>? configureOutput = null)
     {
         _resolveWled = resolveWled ?? throw new ArgumentNullException(nameof(resolveWled));
         _resolveControllerIp = resolveControllerIp;
@@ -44,6 +46,7 @@ public sealed class PreviewTabPanel : UserControl
         _directionDrgb = directionDrgb ?? new WledDirectionDrgbController(_readyDrgb);
         _cancelLiveEffects = cancelLiveEffects;
         _logWledFailure = logWledFailure;
+        _configureOutput = configureOutput;
 
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
@@ -293,6 +296,8 @@ public sealed class PreviewTabPanel : UserControl
         var generation = ++_statusGeneration;
         // Cancel HTTP only — do not CancelActive on DDP so Ready→Not Ready can morph.
         _stateManager.CancelActive();
+        // Same Configure path as live WledShotEffectSink so L/C/R use live LED count/IP.
+        _configureOutput?.Invoke(wled);
         SetStatus($"Running {label} → {target}…");
         try
         {

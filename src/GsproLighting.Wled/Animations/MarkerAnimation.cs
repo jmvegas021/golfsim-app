@@ -1,7 +1,11 @@
 using GsproLighting.Core.Config;
+using GsproLighting.Core.Models;
 
 namespace GsproLighting.Wled.Animations;
 
+/// <summary>
+/// Legacy curated marker frames — uses the same concentrate-band geometry as live DDP L/C/R.
+/// </summary>
 internal sealed class MarkerAnimation : ILedAnimation
 {
     private readonly AnimationDirection? _direction;
@@ -16,33 +20,32 @@ internal sealed class MarkerAnimation : ILedAnimation
 
     public IEnumerable<LedAnimationFrame> CreateFrames(LedAnimationRequest request)
     {
-        var center = ResolveCenter(request);
-        var bandRadius = Math.Max(1, request.LedCount / 30);
-        var trailRadius = Math.Max(2, request.LedCount / 12);
-        var pixels = AnimationPixels.Empty(request.LedCount);
-
-        for (var index = 0; index < request.LedCount; index++)
-        {
-            var distance = Math.Abs(index - center);
-            if (distance <= bandRadius)
-                pixels[index] = request.Color;
-            else if (distance <= trailRadius)
-                pixels[index] = AnimationPixels.Scale(request.Color, 0.25);
-        }
-
+        var direction = ToShotDirection(_direction ?? request.Direction, request.InvertLeftRight);
+        var band = DrgbConcentrateBandGeometry.Resolve(direction, request.LedCount);
+        var pixels = DrgbReadyFrameFactory.CreateBand(
+            request.LedCount,
+            band.Start,
+            band.LitCount,
+            request.Color);
         yield return new LedAnimationFrame(pixels, TimeSpan.FromMilliseconds(180));
     }
 
-    private int ResolveCenter(LedAnimationRequest request)
+    private static ShotDirection ToShotDirection(AnimationDirection direction, bool invert)
     {
-        var direction = _direction ?? request.Direction;
-        var fraction = direction switch
+        var effective = invert
+            ? direction switch
+            {
+                AnimationDirection.Left => AnimationDirection.Right,
+                AnimationDirection.Right => AnimationDirection.Left,
+                _ => direction
+            }
+            : direction;
+
+        return effective switch
         {
-            AnimationDirection.Left => 0.15,
-            AnimationDirection.Right => 0.85,
-            _ => 0.5
+            AnimationDirection.Left => ShotDirection.Left,
+            AnimationDirection.Right => ShotDirection.Right,
+            _ => ShotDirection.Center
         };
-        var center = (int)Math.Round((request.LedCount - 1) * fraction);
-        return request.InvertLeftRight ? request.LedCount - 1 - center : center;
     }
 }

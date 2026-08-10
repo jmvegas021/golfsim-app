@@ -26,20 +26,23 @@ public sealed class OpenConnectReadyEdgeDispatcherTests
     }
 
     [Fact]
-    public void NotReadyHeartbeats_FireOncePerRedStretch()
+    public void FirstNotReadyHeartbeat_FiresWaitingNotNotReady()
     {
         var sink = new RecordingSink();
         var dispatcher = new OpenConnectReadyEdgeDispatcher();
         var notReady = NotReadyHeartbeat();
 
+        // Code 201 is often absent — first connected+not-ready heartbeat → Waiting.
         dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
         dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
-        Assert.Equal(1, sink.NotReadyCount);
+        Assert.Equal(1, sink.WaitingCount);
+        Assert.Equal(0, sink.NotReadyCount);
 
         dispatcher.Dispatch(ReadyHeartbeat(), sink, CancellationToken.None, _ => { });
         dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
         Assert.Equal(1, sink.ReadyCount);
-        Assert.Equal(2, sink.NotReadyCount);
+        Assert.Equal(1, sink.NotReadyCount);
+        Assert.Equal(1, sink.WaitingCount);
     }
 
     [Fact]
@@ -92,6 +95,7 @@ public sealed class OpenConnectReadyEdgeDispatcherTests
         public int ShotCount { get; private set; }
         public int ReadyCount { get; private set; }
         public int NotReadyCount { get; private set; }
+        public int WaitingCount { get; private set; }
 
         public Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
         {
@@ -111,6 +115,12 @@ public sealed class OpenConnectReadyEdgeDispatcherTests
         public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default)
         {
             NotReadyCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task OnWaitingAsync(CancellationToken cancellationToken = default)
+        {
+            WaitingCount++;
             return Task.CompletedTask;
         }
     }

@@ -60,9 +60,9 @@ public sealed class DrgbReadyFrameFactoryTests
         Assert.Equal(
             TimeSpan.FromMilliseconds(DrgbReadyFrameFactory.FrameCadenceMilliseconds),
             frames[0].Duration);
-        Assert.Equal(16, DrgbReadyFrameFactory.FrameCadenceMilliseconds);
+        Assert.Equal(20, DrgbReadyFrameFactory.FrameCadenceMilliseconds);
         Assert.Equal(2, advance);
-        Assert.Equal(12, DrgbReadyFrameFactory.ResolveLitAdvance(585));
+        Assert.Equal(10, DrgbReadyFrameFactory.ResolveLitAdvance(585));
     }
 
     [Fact]

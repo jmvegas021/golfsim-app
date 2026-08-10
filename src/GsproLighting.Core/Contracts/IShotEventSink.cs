@@ -8,4 +8,11 @@ public interface IShotEventSink
     Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default);
     Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default);
     Task OnBallNotReadyAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GSPro / Connect loading before Ready (aqua Waiting hold). Optional for sinks
+    /// that only care about shots.
+    /// </summary>
+    Task OnWaitingAsync(CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }

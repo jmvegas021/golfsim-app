@@ -6,14 +6,16 @@ namespace GsproLighting.Gspro.Parsing;
 
 /// <summary>
 /// Maps non-JSON key/value Connect log fragments into ShotPayload.
+/// Supports Open Connect style <c>Key: value</c> and R50 Force lines
+/// (<c>BallSpeed 24.50|| …</c>).
 /// </summary>
 public static class ConnectLogKeyValueMapper
 {
     public static ShotPayload? TryMap(string line, string? context)
     {
         var speed = FindDouble(line, "BallSpeed", "Ball Speed", "ballSpeed", "Speed");
-        var hla = FindDouble(line, "HLA", "SideAngle", "Azimuth", "carryDeviationAngle", "launchDirection");
-        var vla = FindDouble(line, "VLA", "LaunchAngle", "Launch Angle", "launchAngle");
+        var hla = FindHlaDegrees(line);
+        var vla = FindDouble(line, "VLA", "LaunchAngle", "Launch Angle", "launchAngle", "ExitAngle");
         var spin = FindDouble(line, "TotalSpin", "Total Spin", "Spin", "spinRate");
         var sideSpin = FindDouble(line, "SideSpin", "sidespin", "sideSpin");
         var spinAxis = FindDouble(line, "SpinAxis", "Spin Axis", "spinAxis");
@@ -71,21 +73,45 @@ public static class ConnectLogKeyValueMapper
         var carry = shot.BallData?.CarryDistance;
         var speed = shot.BallData?.Speed;
         var vla = shot.BallData?.Vla;
+        if (vla is > 8)
+            return;
+
         if (carry is double c && c <= 40 && (speed is null or <= 35) && (vla is null or <= 8))
             shot.IsPutting = true;
     }
 
-    private static double? FindDouble(string line, params string[] keys)
+    /// <summary>
+    /// Reads the first matching numeric key from a Force / key-value log line.
+    /// Accepts <c>Key: 1.2</c>, <c>Key=1.2</c>, and <c>Key 1.2</c>.
+    /// </summary>
+    public static double? FindDouble(string line, params string[] keys)
     {
         foreach (var key in keys)
         {
             var match = Regex.Match(
                 line,
-                $@"\b{Regex.Escape(key)}\b\s*[=:]\s*(-?\d+(?:\.\d+)?)",
+                $@"\b{Regex.Escape(key)}\b\s*[=:]?\s*(-?\d+(?:\.\d+)?)",
                 RegexOptions.IgnoreCase);
             if (match.Success &&
                 double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
                 return value;
+        }
+
+        return null;
+    }
+
+    private static double? FindHlaDegrees(string line)
+    {
+        foreach (var key in new[]
+                 {
+                     "HLA", "SideAngle", "Azimuth", "launchDirection", "LaunchDirection",
+                     "carryDeviationAngle"
+                 })
+        {
+            var value = FindDouble(line, key);
+            if (value is null)
+                continue;
+            return GarminHlaDegrees.Normalize(value.Value, key);
         }
 
         return null;

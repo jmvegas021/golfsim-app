@@ -35,6 +35,7 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
     {
         var isPutt = shot.IsPutting == true ||
                      (shot.SpinType?.Contains("putt", StringComparison.OrdinalIgnoreCase) ?? false);
+        var direction = ShotEffectMapper.ClassifyDirection(shot.BallData?.Hla, centerHlaAbsDegrees: 1.5);
         var entry = new ShotFeedEntry
         {
             Timestamp = DateTimeOffset.Now,
@@ -45,7 +46,7 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
             SpinAxis = shot.BallData?.SpinAxis,
             Carry = shot.BallData?.CarryDistance,
             Smash = shot.SmashFactor,
-            Summary = BuildShotSummary(shot, isPutt)
+            Summary = BuildShotSummary(shot, isPutt, direction)
         };
         Add(entry);
         return Task.CompletedTask;
@@ -91,6 +92,17 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         return Task.CompletedTask;
     }
 
+    public Task OnWaitingAsync(CancellationToken cancellationToken = default)
+    {
+        Add(new ShotFeedEntry
+        {
+            Timestamp = DateTimeOffset.Now,
+            Kind = "Waiting",
+            Summary = "GSPro / Connect loading (aqua)"
+        });
+        return Task.CompletedTask;
+    }
+
     /// <summary>
     /// Surfaces a sparse Connect/R50 watch diagnostic line (errors / connect status).
     /// </summary>
@@ -104,12 +116,18 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         });
     }
 
-    private static string BuildShotSummary(ShotPayload shot, bool isPutt)
+    private static string BuildShotSummary(ShotPayload shot, bool isPutt, ShotDirection direction)
     {
         var ball = shot.BallData;
         var parts = new List<string>();
         if (isPutt)
             parts.Add("Putt");
+        parts.Add(direction switch
+        {
+            ShotDirection.Left => "Left",
+            ShotDirection.Right => "Right",
+            _ => "Center"
+        });
         if (shot.ShotNumber is int n)
             parts.Add($"#{n}");
         if (ball?.CarryDistance is double carry)
