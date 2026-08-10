@@ -65,11 +65,17 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         string controllerIp,
         RgbColor color,
         byte brightness,
+        int ledCount,
         CancellationToken cancellationToken = default) =>
         RunSupersedingAsync(
             async token =>
             {
-                await _solidApplier.ApplySolidAsync(controllerIp, color, brightness, token)
+                await _solidApplier.ApplySolidAsync(
+                        controllerIp,
+                        color,
+                        brightness,
+                        ledCount,
+                        token)
                     .ConfigureAwait(false);
                 _visualTracker.RememberSolid(color, brightness);
             },

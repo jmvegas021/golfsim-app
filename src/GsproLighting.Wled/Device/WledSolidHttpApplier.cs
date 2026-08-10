@@ -4,7 +4,7 @@ namespace GsproLighting.Wled.Device;
 
 /// <summary>
 /// One-shot HTTP solid-color (FX 0) / off posts to WLED <c>/json/state</c>.
-/// Skeleton path: no DRGB, no keepalive, no ambient Ripple.
+/// Uses authoritative full-strip bodies so prior WLED UI state cannot linger.
 /// </summary>
 public sealed class WledSolidHttpApplier : IDisposable
 {
@@ -17,47 +17,32 @@ public sealed class WledSolidHttpApplier : IDisposable
         _ownsClient = client is null;
     }
 
-    /// <summary>Solid FX 0 with RGB, <c>live:false</c> so HTTP owns the strip.</summary>
-    public static WledStatePatch CreateSolidPatch(
-        RgbColor color,
-        byte brightness,
-        int segmentId = 0)
-    {
-        ArgumentNullException.ThrowIfNull(color);
-        return new WledStatePatch
-        {
-            On = true,
-            Brightness = brightness,
-            Live = false,
-            SegmentId = segmentId,
-            FxId = 0,
-            Primary = color,
-            Secondary = RgbColor.FromRgb(0, 0, 0),
-            Tertiary = RgbColor.FromRgb(0, 0, 0)
-        };
-    }
+    /// <summary>Authoritative solid FX 0 covering the full strip.</summary>
+    public static object CreateSolidBody(int ledCount, RgbColor color, byte brightness) =>
+        WledAuthoritativeStateFactory.CreateSolidBody(ledCount, color, brightness);
 
-    /// <summary>Powers the strip off and clears realtime ownership.</summary>
-    public static WledStatePatch CreateOffPatch() =>
-        new() { On = false, Live = false };
+    /// <summary>Powers the strip off and stops presets/playlists / realtime ownership.</summary>
+    public static object CreateOffBody() =>
+        WledAuthoritativeStateFactory.CreateOffBody();
 
     public Task ApplySolidAsync(
         string controllerIp,
         RgbColor color,
         byte brightness,
+        int ledCount,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(color);
-        return _client.ApplyStateAsync(
+        return _client.ApplyStateBodyAsync(
             controllerIp,
-            CreateSolidPatch(color, brightness),
+            CreateSolidBody(ledCount, color, brightness),
             cancellationToken);
     }
 
     public Task ApplyOffAsync(
         string controllerIp,
         CancellationToken cancellationToken = default) =>
-        _client.ApplyStateAsync(controllerIp, CreateOffPatch(), cancellationToken);
+        _client.ApplyStateBodyAsync(controllerIp, CreateOffBody(), cancellationToken);
 
     public void Dispose()
     {

@@ -169,7 +169,12 @@ public sealed class PreviewTabPanel : UserControl
         SetStatus($"Sending {label} to {ip}…");
         try
         {
-            await _stateManager.ApplySolidAsync(ip, color, _resolveBrightness()).ConfigureAwait(true);
+            await _stateManager.ApplySolidAsync(
+                    ip,
+                    color,
+                    _resolveBrightness(),
+                    _resolveLedCount())
+                .ConfigureAwait(true);
             if (generation == _statusGeneration)
                 SetStatus($"{label} OK · {ip}");
         }

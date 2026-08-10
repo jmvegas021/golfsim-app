@@ -1,9 +1,9 @@
 <Project>
   <PropertyGroup>
-    <Version>0.8.16</Version>
-    <AssemblyVersion>0.8.16.0</AssemblyVersion>
-    <FileVersion>0.8.16.0</FileVersion>
-    <InformationalVersion>0.8.16</InformationalVersion>
+    <Version>0.8.17</Version>
+    <AssemblyVersion>0.8.17.0</AssemblyVersion>
+    <FileVersion>0.8.17.0</FileVersion>
+    <InformationalVersion>0.8.17</InformationalVersion>
     <Company>jmvegas021</Company>
     <Product>GSPro Lighting</Product>
   </PropertyGroup>

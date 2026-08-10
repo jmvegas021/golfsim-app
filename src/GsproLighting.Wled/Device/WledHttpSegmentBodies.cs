@@ -7,23 +7,11 @@ public static class WledHttpSegmentBodies
 {
     private static readonly RgbColor Black = RgbColor.FromRgb(0, 0, 0);
 
-    public static object CreateSolid(RgbColor color, byte brightness) =>
-        new Dictionary<string, object?>
-        {
-            ["on"] = true,
-            ["bri"] = brightness,
-            ["live"] = false,
-            ["seg"] = new[] { CreateColorSegment(0, color) }
-        };
+    public static object CreateSolid(RgbColor color, byte brightness, int ledCount = 1) =>
+        WledAuthoritativeStateFactory.CreateSolidBody(ledCount, color, brightness);
 
     public static object CreateFullStrip(int ledCount, RgbColor color, byte brightness) =>
-        CreateBody(
-            brightness,
-            [
-                CreateRangeSegment(0, 0, ledCount, color),
-                new Dictionary<string, object?> { ["id"] = 1, ["stop"] = 0 },
-                new Dictionary<string, object?> { ["id"] = 2, ["stop"] = 0 }
-            ]);
+        WledAuthoritativeStateFactory.CreateSolidBody(ledCount, color, brightness);
 
     public static object CreateCenterBand(
         int ledCount,
@@ -80,33 +68,20 @@ public static class WledHttpSegmentBodies
     }
 
     private static object CreateBody(byte brightness, object[] segments) =>
-        new Dictionary<string, object?>
-        {
-            ["on"] = true,
-            ["bri"] = brightness,
-            ["live"] = false,
-            ["seg"] = segments
-        };
+        WledAuthoritativeStateFactory.CreateBody(brightness, segments);
 
     private static Dictionary<string, object?> CreateRangeSegment(
         int id,
         int start,
         int stop,
-        RgbColor color)
-    {
-        var segment = CreateColorSegment(id, color);
-        segment["start"] = start;
-        segment["stop"] = stop;
-        return segment;
-    }
-
-    private static Dictionary<string, object?> CreateColorSegment(int id, RgbColor color) =>
-        new()
-        {
-            ["id"] = id,
-            ["fx"] = 0,
-            ["col"] = new[] { ToRgb(color), ToRgb(Black), ToRgb(Black) }
-        };
-
-    private static int[] ToRgb(RgbColor color) => [color.R, color.G, color.B];
+        RgbColor color) =>
+        WledAuthoritativeStateFactory.CreateSegment(
+            id,
+            start,
+            stop,
+            WledAuthoritativeStateFactory.SolidFxId,
+            WledAuthoritativeStateFactory.DefaultTimingByte,
+            WledAuthoritativeStateFactory.DefaultTimingByte,
+            WledAuthoritativeStateFactory.DefaultPaletteId,
+            color);
 }

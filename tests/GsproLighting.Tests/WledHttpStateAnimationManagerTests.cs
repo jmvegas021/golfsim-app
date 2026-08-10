@@ -21,7 +21,8 @@ public sealed class WledHttpStateAnimationManagerTests
         var solid = manager.ApplySolidAsync(
             "192.168.86.40",
             RgbColor.FromRgb(0, 0, 255),
-            180);
+            180,
+            ledCount: 8);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => notReady);
         await solid;
@@ -42,7 +43,12 @@ public sealed class WledHttpStateAnimationManagerTests
 
         Assert.Single(handler.Bodies);
         using var doc = JsonDocument.Parse(handler.Bodies[0]);
-        var segs = doc.RootElement.GetProperty("seg").EnumerateArray().ToArray();
+        var root = doc.RootElement;
+        Assert.Equal(-1, root.GetProperty("ps").GetInt32());
+        Assert.Equal(-1, root.GetProperty("pl").GetInt32());
+        Assert.False(root.GetProperty("live").GetBoolean());
+        Assert.Equal(0, root.GetProperty("mainseg").GetInt32());
+        var segs = root.GetProperty("seg").EnumerateArray().ToArray();
         Assert.Equal(EffectConfig.ChaseFxId, segs[0].GetProperty("fx").GetInt32());
         Assert.Equal(EffectConfig.AuroraPaletteId, segs[0].GetProperty("pal").GetInt32());
         Assert.Equal(255, segs[0].GetProperty("sx").GetInt32());
@@ -65,7 +71,11 @@ public sealed class WledHttpStateAnimationManagerTests
 
         Assert.Single(handler.Bodies);
         using var doc = JsonDocument.Parse(handler.Bodies[0]);
-        var segs = doc.RootElement.GetProperty("seg").EnumerateArray().ToArray();
+        var root = doc.RootElement;
+        Assert.Equal(-1, root.GetProperty("ps").GetInt32());
+        Assert.Equal(-1, root.GetProperty("pl").GetInt32());
+        Assert.False(root.GetProperty("live").GetBoolean());
+        var segs = root.GetProperty("seg").EnumerateArray().ToArray();
         Assert.Equal(EffectConfig.ChaseFxId, segs[0].GetProperty("fx").GetInt32());
         Assert.Equal(0, segs[0].GetProperty("pal").GetInt32());
         Assert.NotEqual(EffectConfig.AuroraPaletteId, segs[0].GetProperty("pal").GetInt32());

@@ -7,9 +7,9 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Ready uses native WLED Chase + Aurora at max speed/intensity (smooth on-device).",
-        "Not Ready stays red Chase at max sx/ix (Default palette — not Aurora).",
-        "Ready↔Not Ready full-strip POSTs clear leftover center-band segments.",
-        "Hit directions (Left / Center / Right) remain solid half-fills.",
+        "Lighting commands fully override WLED UI state (presets, playlists, palettes, extra segments).",
+        "Ready stays Chase + Aurora at max sx/ix; Not Ready stays red Chase (Default palette).",
+        "Solids, tray test, and hit-direction fills post authoritative full-strip /json/state bodies.",
+        "Each apply stops presets/playlists and clears leftover multi-segment layouts.",
     ];
 }

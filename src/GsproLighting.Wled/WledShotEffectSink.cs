@@ -117,6 +117,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
                 config.ControllerIp,
                 color,
                 config.Brightness,
+                config.LedCount,
                 token),
             cancellationToken).ConfigureAwait(false);
 

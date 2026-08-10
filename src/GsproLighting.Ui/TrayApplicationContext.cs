@@ -230,7 +230,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             await applier.ApplySolidAsync(
                 ip,
                 RgbColor.FromRgb(255, 255, 255),
-                _app.Config.Wled.Brightness);
+                _app.Config.Wled.Brightness,
+                Math.Max(1, _app.Config.Wled.LedCount));
             _tray.ShowBalloonTip(2500, "GSPro Lighting", $"Solid white → {ip}", ToolTipIcon.Info);
         }
         catch (Exception ex)
