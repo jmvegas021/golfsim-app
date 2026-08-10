@@ -3,8 +3,8 @@ using GsproLighting.Core.Config;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Builds authoritative Chase hold bodies for Ready / Not Ready.
-/// Ready: full-strip Chase + Aurora at max sx/ix (matches WLED UI). Not Ready: full-strip Chase + Red Reef.
+/// Builds the authoritative Not Ready Chase hold (full-strip Chase + Red Reef).
+/// Ready rests on solid geometric HTTP frames — not this factory.
 /// </summary>
 public static class WledChaseAuroraStateFactory
 {
@@ -33,18 +33,4 @@ public static class WledChaseAuroraStateFactory
             EffectConfig.MaxTimingByte,
             RedReefPaletteId,
             NotReadyPrimary);
-
-    /// <summary>
-    /// Full-strip Chase + Aurora at max sx/ix — same geometry as selecting Chase/Aurora in WLED UI.
-    /// Geometric edges-in intro is separate; resting Ready must not use a center-band-only segment.
-    /// </summary>
-    public static object CreateReadyBody(int ledCount, byte brightness) =>
-        WledAuthoritativeStateFactory.CreateFullStripBody(
-            ledCount,
-            brightness,
-            ChaseFxId,
-            EffectConfig.MaxTimingByte,
-            EffectConfig.MaxTimingByte,
-            AuroraPaletteId,
-            ReadyPrimary);
 }

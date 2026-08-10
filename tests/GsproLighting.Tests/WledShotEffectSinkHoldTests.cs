@@ -10,7 +10,7 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_PostsEdgesInConcentrateThenChaseAurora()
+    public async Task OnBallReadyAsync_PostsEdgesInConcentrateThenSolidCenterBand()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -20,7 +20,7 @@ public sealed class WledShotEffectSinkHoldTests
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        var expected = WledHttpAnimationFrameFactory.CreateReadySequence(8, 180).Count + 1;
+        var expected = WledHttpAnimationFrameFactory.CreateReadySequence(8, 180).Count;
         Assert.Equal(expected, handler.PostCount);
         Assert.Contains("\"live\":false", handler.LastBody);
         Assert.Contains("\"ps\":-1", handler.LastBody);
@@ -30,17 +30,17 @@ public sealed class WledShotEffectSinkHoldTests
         Assert.Contains("\"stop\":1", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"start\":7", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"stop\":8", handler.Bodies[0], StringComparison.Ordinal);
-        // Final Ready rest is full-strip Chase + Aurora at max sx/ix (seg[0], not a center band).
+        // Final Ready rest: solid FX 0 center band (black flanks) — not Chase/Aurora.
         Assert.Contains("\"tt\":0", handler.LastBody);
         Assert.Contains("\"mainseg\":0", handler.LastBody);
         Assert.Contains("\"on\":true", handler.LastBody);
-        Assert.Contains($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
-        Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
-        Assert.Contains("\"sx\":255", handler.LastBody);
-        Assert.Contains("\"ix\":255", handler.LastBody);
-        Assert.Contains("\"start\":0", handler.LastBody);
-        Assert.Contains("\"stop\":8", handler.LastBody);
+        Assert.Contains("\"fx\":0", handler.LastBody);
+        Assert.DoesNotContain($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
+        Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
+        var concentrate = WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(8);
+        Assert.Contains($"\"stop\":{(8 - concentrate) / 2 + concentrate}", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
+        Assert.Contains("[0,0,0]", handler.LastBody);
     }
 
     [Fact]
@@ -60,9 +60,11 @@ public sealed class WledShotEffectSinkHoldTests
         Assert.Contains(handler.Bodies, body => body.Contains("[180,30,30]", StringComparison.Ordinal));
         Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"bri\":180", handler.LastBody);
-        Assert.Contains($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
-        Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
+        Assert.Contains("\"fx\":0", handler.LastBody);
+        Assert.DoesNotContain($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
+        Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
+        Assert.Contains("[0,0,0]", handler.LastBody);
     }
 
     [Fact]

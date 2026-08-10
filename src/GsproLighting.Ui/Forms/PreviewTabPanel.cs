@@ -113,7 +113,7 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
         row.Controls.Add(AnimationButton("Not Ready · Expand + Chase", ApplyNotReadyAnimationAsync, width: 220));
-        row.Controls.Add(AnimationButton("Ready · Edges → Chase", ApplyReadyAnimationAsync, isPrimary: true, width: 200));
+        row.Controls.Add(AnimationButton("Ready · Edges → Center", ApplyReadyAnimationAsync, isPrimary: true, width: 200));
         row.Controls.Add(AnimationButton(
             "Left · Yellow",
             () => ApplyHitDirectionAsync(ShotDirection.Left, "Left · Yellow"),
@@ -222,7 +222,7 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Ready edges-in → Chase",
+            "Ready edges-in → center band",
             (ip, token) => _stateManager.RunReadyAsync(
                 ip,
                 _resolveLedCount(),

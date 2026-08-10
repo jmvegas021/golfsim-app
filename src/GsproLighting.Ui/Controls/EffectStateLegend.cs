@@ -44,7 +44,7 @@ public sealed class EffectStateLegend : UserControl
     [
         new("Waiting", $"Ripple ambient · WLED FX {EffectConfig.RippleFxId} · Red Reef", effects.Waiting),
         new("Not ready", "Red expand center-out · then Chase + Red Reef", effects.NotReady),
-        new("Ready / idle", "Green edges-in → concentrate · then full-strip Chase + Aurora", effects.Idle),
+        new("Ready / idle", "Green sides→center → solid top/center band hold", effects.Idle),
         new("Pure", "Bright green · direction marker", effects.PureStrike),
         new("Mishit", "Deep red · direction marker", effects.Mishit),
         new("Putt", "Soft blue · direction marker", effects.Putt),

@@ -49,10 +49,10 @@ public sealed class WledHttpStateAnimationManagerTests
     }
 
     [Fact]
-    public async Task RunReadyAsync_FromKnownRed_MorphsThenConcentratesThenChaseAurora()
+    public async Task RunReadyAsync_FromKnownRed_MorphsThenConcentratesToSolidCenterBand()
     {
         var concentrateCount = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(12, 180).Count;
-        var expectedTotal = 1 + WledHttpAnimationFrameFactory.ColorTransitionStepCount + concentrateCount + 1;
+        var expectedTotal = 1 + WledHttpAnimationFrameFactory.ColorTransitionStepCount + concentrateCount;
         var handler = new RecordingHandler(completeAfterCount: expectedTotal);
         using var http = new HttpClient(handler);
         using var client = new WledDeviceClient(http);
@@ -82,7 +82,7 @@ public sealed class WledHttpStateAnimationManagerTests
         });
 
         using var hold = JsonDocument.Parse(handler.Bodies[^1]);
-        AssertReadyFullStripHold(hold.RootElement, ledCount: 12);
+        AssertReadyCenterBandSolidHold(hold.RootElement, ledCount: 12);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class WledHttpStateAnimationManagerTests
     public async Task RunNotReadyAsync_AfterReady_OverwritesGreenWithFullStripRedMorph()
     {
         const int ledCount = 12;
-        var readyCount = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, 180).Count + 1;
+        var readyCount = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, 180).Count;
         var morphCount = WledHttpAnimationFrameFactory.ColorTransitionStepCount;
         var expandCount = WledHttpAnimationFrameFactory
             .CreateNotReadyExpandFromHalfSequence(ledCount, 180)
@@ -158,7 +158,7 @@ public sealed class WledHttpStateAnimationManagerTests
 
         Assert.Equal(expectedTotal, handler.Bodies.Count);
         using var readyHold = JsonDocument.Parse(handler.Bodies[readyCount - 1]);
-        AssertReadyFullStripHold(readyHold.RootElement, ledCount);
+        AssertReadyCenterBandSolidHold(readyHold.RootElement, ledCount);
 
         var morphBodies = handler.Bodies.Skip(readyCount).Take(morphCount).ToArray();
         Assert.All(morphBodies, body =>
@@ -214,11 +214,11 @@ public sealed class WledHttpStateAnimationManagerTests
     }
 
     [Fact]
-    public async Task RunReadyAsync_FromOff_EndsFullStripChaseAurora()
+    public async Task RunReadyAsync_FromOff_EndsSolidCenterBandGreen()
     {
         const int ledCount = 12;
         var readyCount = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, 180).Count;
-        var expectedTotal = readyCount + 1;
+        var expectedTotal = readyCount;
         var handler = new RecordingHandler(completeAfterCount: expectedTotal);
         using var http = new HttpClient(handler);
         using var client = new WledDeviceClient(http);
@@ -234,10 +234,12 @@ public sealed class WledHttpStateAnimationManagerTests
         Assert.Equal(1, firstSegs[0].GetProperty("stop").GetInt32());
 
         using var last = JsonDocument.Parse(handler.Bodies[^1]);
-        AssertReadyFullStripHold(last.RootElement, ledCount);
+        AssertReadyCenterBandSolidHold(last.RootElement, ledCount);
+        Assert.DoesNotContain($"\"fx\":{EffectConfig.ChaseFxId}", handler.Bodies[^1]);
+        Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.Bodies[^1]);
     }
 
-    private static void AssertReadyFullStripHold(JsonElement root, int ledCount)
+    private static void AssertReadyCenterBandSolidHold(JsonElement root, int ledCount)
     {
         Assert.True(root.GetProperty("on").GetBoolean());
         Assert.False(root.GetProperty("live").GetBoolean());
@@ -246,14 +248,17 @@ public sealed class WledHttpStateAnimationManagerTests
         Assert.Equal(-1, root.GetProperty("pl").GetInt32());
         Assert.Equal(0, root.GetProperty("mainseg").GetInt32());
 
+        var concentrateLit = WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(ledCount);
         var segs = root.GetProperty("seg").EnumerateArray().ToArray();
-        Assert.Equal(0, segs[0].GetProperty("start").GetInt32());
-        Assert.Equal(ledCount, segs[0].GetProperty("stop").GetInt32());
-        Assert.Equal(EffectConfig.ChaseFxId, segs[0].GetProperty("fx").GetInt32());
-        Assert.Equal(EffectConfig.AuroraPaletteId, segs[0].GetProperty("pal").GetInt32());
-        Assert.Equal(255, segs[0].GetProperty("sx").GetInt32());
-        Assert.Equal(255, segs[0].GetProperty("ix").GetInt32());
-        Assert.Equal(0, segs[1].GetProperty("stop").GetInt32());
+        Assert.True(segs.Length >= 3);
+        Assert.Equal(0, segs[0].GetProperty("fx").GetInt32());
+        Assert.Equal(0, segs[1].GetProperty("fx").GetInt32());
+        Assert.Equal(
+            concentrateLit,
+            segs[1].GetProperty("stop").GetInt32() - segs[1].GetProperty("start").GetInt32());
+        Assert.Equal([0, 220, 0], ReadPrimaryColor(segs[1]));
+        Assert.Equal([0, 0, 0], ReadPrimaryColor(segs[0]));
+        Assert.Equal([0, 0, 0], ReadPrimaryColor(segs[2]));
     }
 
     private static void AssertNotReadyFullStripHold(JsonElement root, int ledCount)

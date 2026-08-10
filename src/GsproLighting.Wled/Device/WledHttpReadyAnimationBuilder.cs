@@ -3,12 +3,12 @@ using GsproLighting.Core.Config;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Ready intro: edges→center, then concentrate to a ~50% center band (one-shot).
-/// The ongoing Ready look (Chase + Aurora) is applied by the animation manager after this.
+/// Ready intro (HTTP Solid FX 0): blank → sides-to-center fill → sides retract until only
+/// the top/center band remains. That band is the resting Ready state (no Chase/Aurora loop).
 /// </summary>
 public static class WledHttpReadyAnimationBuilder
 {
-    /// <summary>Fraction of the strip lit after the Ready concentrate beat.</summary>
+    /// <summary>Fraction of the strip lit for the resting Ready top/center band.</summary>
     public const double ConcentrateLitFraction = 0.50;
 
     public static IReadOnlyList<WledHttpAnimationFrame> CreateReadySequence(

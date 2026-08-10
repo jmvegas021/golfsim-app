@@ -158,6 +158,7 @@ public sealed class WledHttpAnimationFrameFactoryTests
 
         Assert.Equal(edgesIn + chase, frames.Count);
         Assert.Equal(6, concentrateLit);
+        Assert.Equal(0.50, WledHttpReadyAnimationBuilder.ConcentrateLitFraction);
 
         var firstSegments = ReadSegments(frames[0]);
         // Edges-in: lit on both ends, dark in the middle.
@@ -167,6 +168,19 @@ public sealed class WledHttpAnimationFrameFactoryTests
         Assert.Equal([0, 220, 0], ReadPrimaryColor(firstSegments[0]));
         Assert.Equal([0, 0, 0], ReadPrimaryColor(firstSegments[1]));
 
+        // Midway: edges grow until a full-strip solid appears before retract.
+        var fullStripIndex = frames
+            .Select((frame, index) => (frame, index))
+            .First(pair =>
+            {
+                var segs = ReadSegments(pair.frame);
+                return segs[0].GetProperty("start").GetInt32() == 0 &&
+                    segs[0].GetProperty("stop").GetInt32() == ledCount &&
+                    segs[1].GetProperty("stop").GetInt32() == 0;
+            })
+            .index;
+        Assert.True(fullStripIndex < frames.Count - 1);
+
         var concentrateIndex = edgesIn + chase - 1;
         var concentrateSegments = ReadSegments(frames[concentrateIndex]);
         Assert.Equal(
@@ -174,7 +188,13 @@ public sealed class WledHttpAnimationFrameFactoryTests
             concentrateSegments[1].GetProperty("stop").GetInt32() -
             concentrateSegments[1].GetProperty("start").GetInt32());
         Assert.Equal([0, 220, 0], ReadPrimaryColor(concentrateSegments[1]));
+        Assert.Equal([0, 0, 0], ReadPrimaryColor(concentrateSegments[0]));
+        Assert.Equal([0, 0, 0], ReadPrimaryColor(concentrateSegments[2]));
+        Assert.Equal(0, concentrateSegments[0].GetProperty("fx").GetInt32());
+        Assert.Equal(0, concentrateSegments[1].GetProperty("fx").GetInt32());
+        Assert.Equal(0, concentrateSegments[2].GetProperty("fx").GetInt32());
         Assert.Equal(TimeSpan.Zero, frames[^1].Duration);
+        Assert.NotEqual(EffectConfig.ChaseFxId, concentrateSegments[1].GetProperty("fx").GetInt32());
     }
 
     [Fact]
