@@ -22,6 +22,7 @@ public static class WledAuthoritativeStateFactory
         {
             ["on"] = on,
             ["bri"] = brightness,
+            ["tt"] = 0,
             ["live"] = false,
             ["ps"] = -1,
             ["pl"] = -1,

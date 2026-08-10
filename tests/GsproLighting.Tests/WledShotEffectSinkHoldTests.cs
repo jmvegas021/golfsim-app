@@ -30,11 +30,16 @@ public sealed class WledShotEffectSinkHoldTests
         Assert.Contains("\"stop\":1", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"start\":7", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"stop\":8", handler.Bodies[0], StringComparison.Ordinal);
-        // Final Ready rest is Chase + Aurora on the center band.
+        // Final Ready rest is full-strip Chase + Aurora at max sx/ix (seg[0], not a center band).
+        Assert.Contains("\"tt\":0", handler.LastBody);
+        Assert.Contains("\"mainseg\":0", handler.LastBody);
+        Assert.Contains("\"on\":true", handler.LastBody);
         Assert.Contains($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
         Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
         Assert.Contains("\"sx\":255", handler.LastBody);
         Assert.Contains("\"ix\":255", handler.LastBody);
+        Assert.Contains("\"start\":0", handler.LastBody);
+        Assert.Contains("\"stop\":8", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
     }
 

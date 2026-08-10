@@ -82,12 +82,7 @@ public sealed class WledHttpStateAnimationManagerTests
         });
 
         using var hold = JsonDocument.Parse(handler.Bodies[^1]);
-        var holdSegments = hold.RootElement.GetProperty("seg").EnumerateArray().ToArray();
-        Assert.Equal(EffectConfig.ChaseFxId, holdSegments[1].GetProperty("fx").GetInt32());
-        Assert.Equal(EffectConfig.AuroraPaletteId, holdSegments[1].GetProperty("pal").GetInt32());
-        Assert.Equal(255, holdSegments[1].GetProperty("sx").GetInt32());
-        Assert.Equal(255, holdSegments[1].GetProperty("ix").GetInt32());
-        Assert.Equal(1, hold.RootElement.GetProperty("mainseg").GetInt32());
+        AssertReadyFullStripHold(hold.RootElement, ledCount: 12);
     }
 
     [Fact]
@@ -138,11 +133,7 @@ public sealed class WledHttpStateAnimationManagerTests
         Assert.Equal([180, 30, 30], ReadPrimaryColor(halfSegs[1]));
 
         using var chaseHold = JsonDocument.Parse(handler.Bodies[^1]);
-        var chaseSegs = chaseHold.RootElement.GetProperty("seg").EnumerateArray().ToArray();
-        Assert.Equal(EffectConfig.ChaseFxId, chaseSegs[0].GetProperty("fx").GetInt32());
-        Assert.Equal(EffectConfig.RedReefPaletteId, chaseSegs[0].GetProperty("pal").GetInt32());
-        Assert.Equal(255, chaseSegs[0].GetProperty("sx").GetInt32());
-        Assert.Equal(255, chaseSegs[0].GetProperty("ix").GetInt32());
+        AssertNotReadyFullStripHold(chaseHold.RootElement, ledCount: 12);
         Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.Bodies[^1]);
         Assert.DoesNotContain("[0,220,0]", handler.Bodies.Skip(1));
     }
@@ -167,9 +158,7 @@ public sealed class WledHttpStateAnimationManagerTests
 
         Assert.Equal(expectedTotal, handler.Bodies.Count);
         using var readyHold = JsonDocument.Parse(handler.Bodies[readyCount - 1]);
-        var holdSegs = readyHold.RootElement.GetProperty("seg").EnumerateArray().ToArray();
-        Assert.Equal(EffectConfig.ChaseFxId, holdSegs[1].GetProperty("fx").GetInt32());
-        Assert.Equal(EffectConfig.AuroraPaletteId, holdSegs[1].GetProperty("pal").GetInt32());
+        AssertReadyFullStripHold(readyHold.RootElement, ledCount);
 
         var morphBodies = handler.Bodies.Skip(readyCount).Take(morphCount).ToArray();
         Assert.All(morphBodies, body =>
@@ -189,12 +178,7 @@ public sealed class WledHttpStateAnimationManagerTests
             ReadPrimaryColor(lastMorph.RootElement.GetProperty("seg")[0]));
 
         using var notReadyHold = JsonDocument.Parse(handler.Bodies[^1]);
-        Assert.Equal(
-            EffectConfig.ChaseFxId,
-            notReadyHold.RootElement.GetProperty("seg")[0].GetProperty("fx").GetInt32());
-        Assert.Equal(
-            EffectConfig.RedReefPaletteId,
-            notReadyHold.RootElement.GetProperty("seg")[0].GetProperty("pal").GetInt32());
+        AssertNotReadyFullStripHold(notReadyHold.RootElement, ledCount);
     }
 
     [Fact]
@@ -225,17 +209,12 @@ public sealed class WledHttpStateAnimationManagerTests
         Assert.Equal([180, 30, 30], ReadPrimaryColor(holdSegs[0]));
 
         using var chase = JsonDocument.Parse(handler.Bodies[^1]);
-        var chaseSegs = chase.RootElement.GetProperty("seg").EnumerateArray().ToArray();
-        Assert.Equal(EffectConfig.ChaseFxId, chaseSegs[0].GetProperty("fx").GetInt32());
-        Assert.Equal(EffectConfig.RedReefPaletteId, chaseSegs[0].GetProperty("pal").GetInt32());
-        Assert.Equal(255, chaseSegs[0].GetProperty("sx").GetInt32());
-        Assert.Equal(255, chaseSegs[0].GetProperty("ix").GetInt32());
+        AssertNotReadyFullStripHold(chase.RootElement, ledCount);
         Assert.Equal(200, chase.RootElement.GetProperty("bri").GetInt32());
-        Assert.Equal(0, chaseSegs[1].GetProperty("stop").GetInt32());
     }
 
     [Fact]
-    public async Task RunReadyAsync_FromOff_EndsCenterBandChaseAurora()
+    public async Task RunReadyAsync_FromOff_EndsFullStripChaseAurora()
     {
         const int ledCount = 12;
         var readyCount = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, 180).Count;
@@ -255,19 +234,39 @@ public sealed class WledHttpStateAnimationManagerTests
         Assert.Equal(1, firstSegs[0].GetProperty("stop").GetInt32());
 
         using var last = JsonDocument.Parse(handler.Bodies[^1]);
-        var lastSegs = last.RootElement.GetProperty("seg").EnumerateArray().ToArray();
-        Assert.Equal(EffectConfig.ChaseFxId, lastSegs[1].GetProperty("fx").GetInt32());
-        Assert.Equal(EffectConfig.AuroraPaletteId, lastSegs[1].GetProperty("pal").GetInt32());
-        Assert.Equal(255, lastSegs[1].GetProperty("sx").GetInt32());
-        Assert.Equal(255, lastSegs[1].GetProperty("ix").GetInt32());
-        Assert.Equal(-1, last.RootElement.GetProperty("ps").GetInt32());
-        Assert.Equal(-1, last.RootElement.GetProperty("pl").GetInt32());
-        Assert.Equal(1, last.RootElement.GetProperty("mainseg").GetInt32());
+        AssertReadyFullStripHold(last.RootElement, ledCount);
+    }
 
-        var concentrate = WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(ledCount);
-        Assert.Equal(
-            concentrate,
-            lastSegs[1].GetProperty("stop").GetInt32() - lastSegs[1].GetProperty("start").GetInt32());
+    private static void AssertReadyFullStripHold(JsonElement root, int ledCount)
+    {
+        Assert.True(root.GetProperty("on").GetBoolean());
+        Assert.False(root.GetProperty("live").GetBoolean());
+        Assert.Equal(0, root.GetProperty("tt").GetInt32());
+        Assert.Equal(-1, root.GetProperty("ps").GetInt32());
+        Assert.Equal(-1, root.GetProperty("pl").GetInt32());
+        Assert.Equal(0, root.GetProperty("mainseg").GetInt32());
+
+        var segs = root.GetProperty("seg").EnumerateArray().ToArray();
+        Assert.Equal(0, segs[0].GetProperty("start").GetInt32());
+        Assert.Equal(ledCount, segs[0].GetProperty("stop").GetInt32());
+        Assert.Equal(EffectConfig.ChaseFxId, segs[0].GetProperty("fx").GetInt32());
+        Assert.Equal(EffectConfig.AuroraPaletteId, segs[0].GetProperty("pal").GetInt32());
+        Assert.Equal(255, segs[0].GetProperty("sx").GetInt32());
+        Assert.Equal(255, segs[0].GetProperty("ix").GetInt32());
+        Assert.Equal(0, segs[1].GetProperty("stop").GetInt32());
+    }
+
+    private static void AssertNotReadyFullStripHold(JsonElement root, int ledCount)
+    {
+        Assert.Equal(0, root.GetProperty("tt").GetInt32());
+        var segs = root.GetProperty("seg").EnumerateArray().ToArray();
+        Assert.Equal(0, segs[0].GetProperty("start").GetInt32());
+        Assert.Equal(ledCount, segs[0].GetProperty("stop").GetInt32());
+        Assert.Equal(EffectConfig.ChaseFxId, segs[0].GetProperty("fx").GetInt32());
+        Assert.Equal(EffectConfig.RedReefPaletteId, segs[0].GetProperty("pal").GetInt32());
+        Assert.Equal(255, segs[0].GetProperty("sx").GetInt32());
+        Assert.Equal(255, segs[0].GetProperty("ix").GetInt32());
+        Assert.Equal(0, segs[1].GetProperty("stop").GetInt32());
     }
 
     private sealed class BlockingFirstRequestHandler : HttpMessageHandler

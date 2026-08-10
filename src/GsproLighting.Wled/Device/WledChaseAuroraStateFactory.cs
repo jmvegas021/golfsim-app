@@ -4,7 +4,7 @@ namespace GsproLighting.Wled.Device;
 
 /// <summary>
 /// Builds authoritative Chase hold bodies for Ready / Not Ready.
-/// Ready: Chase + Aurora on a center band (black sides). Not Ready: full-strip Chase + Red Reef.
+/// Ready: full-strip Chase + Aurora at max sx/ix (matches WLED UI). Not Ready: full-strip Chase + Red Reef.
 /// </summary>
 public static class WledChaseAuroraStateFactory
 {
@@ -23,8 +23,6 @@ public static class WledChaseAuroraStateFactory
     public static readonly RgbColor NotReadyPrimary = RgbColor.FromRgb(180, 30, 30);
     public static readonly RgbColor ReadyPrimary = RgbColor.FromRgb(0, 220, 0);
 
-    private static readonly RgbColor Black = RgbColor.FromRgb(0, 0, 0);
-
     /// <summary>Full-strip red Chase + Red Reef at max sx/ix — no Aurora.</summary>
     public static object CreateNotReadyBody(int ledCount, byte brightness) =>
         WledAuthoritativeStateFactory.CreateFullStripBody(
@@ -37,62 +35,16 @@ public static class WledChaseAuroraStateFactory
             NotReadyPrimary);
 
     /// <summary>
-    /// Chase + Aurora at max sx/ix on the Ready concentrate center band;
-    /// solid black flanks leave only the top/center portion lit.
+    /// Full-strip Chase + Aurora at max sx/ix — same geometry as selecting Chase/Aurora in WLED UI.
+    /// Geometric edges-in intro is separate; resting Ready must not use a center-band-only segment.
     /// </summary>
-    public static object CreateReadyBody(int ledCount, byte brightness)
-    {
-        if (ledCount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(ledCount));
-
-        var litCount = WledHttpReadyAnimationBuilder.ResolveConcentrateLitCount(ledCount);
-        var start = (ledCount - litCount) / 2;
-        var stop = start + litCount;
-        return WledAuthoritativeStateFactory.CreateBody(
+    public static object CreateReadyBody(int ledCount, byte brightness) =>
+        WledAuthoritativeStateFactory.CreateFullStripBody(
+            ledCount,
             brightness,
-            [
-                CreateSolidSegment(id: 0, start: 0, stop: start, Black),
-                CreateChaseSegment(
-                    id: 1,
-                    start,
-                    stop,
-                    ChaseFxId,
-                    AuroraPaletteId,
-                    ReadyPrimary),
-                CreateSolidSegment(id: 2, start: stop, stop: ledCount, Black)
-            ],
-            mainSegmentId: 1);
-    }
-
-    private static Dictionary<string, object?> CreateSolidSegment(
-        int id,
-        int start,
-        int stop,
-        RgbColor color) =>
-        WledAuthoritativeStateFactory.CreateSegment(
-            id,
-            start,
-            stop,
-            WledAuthoritativeStateFactory.SolidFxId,
-            WledAuthoritativeStateFactory.DefaultTimingByte,
-            WledAuthoritativeStateFactory.DefaultTimingByte,
-            DefaultPaletteId,
-            color);
-
-    private static Dictionary<string, object?> CreateChaseSegment(
-        int id,
-        int start,
-        int stop,
-        int fxId,
-        int paletteId,
-        RgbColor primary) =>
-        WledAuthoritativeStateFactory.CreateSegment(
-            id,
-            start,
-            stop,
-            fxId,
+            ChaseFxId,
             EffectConfig.MaxTimingByte,
             EffectConfig.MaxTimingByte,
-            paletteId,
-            primary);
+            AuroraPaletteId,
+            ReadyPrimary);
 }

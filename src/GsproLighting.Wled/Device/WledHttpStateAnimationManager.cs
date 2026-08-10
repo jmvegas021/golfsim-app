@@ -125,7 +125,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         var target = WledHttpAnimationFrameFactory.ReadyGreen;
         if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
         {
-            // Morph on a full-strip solid, then concentrate sides → center band.
+            // Morph on a full-strip solid, then one-shot edges-in → concentrate.
             var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
                 fromColor,
                 fromBrightness,
@@ -147,7 +147,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
                 .ConfigureAwait(false);
         }
 
-        // Ongoing Ready look: on-device Chase + Aurora on the center band (intro does not loop).
+        // Resting Ready: full-strip Chase + Aurora at max sx/ix (intro does not loop).
         await _client.ApplyStateBodyAsync(
                 controllerIp,
                 WledChaseAuroraStateFactory.CreateReadyBody(ledCount, brightness),

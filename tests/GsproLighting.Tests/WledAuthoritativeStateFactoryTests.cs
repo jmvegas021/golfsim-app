@@ -23,6 +23,7 @@ public sealed class WledAuthoritativeStateFactoryTests
 
         Assert.True(root.GetProperty("on").GetBoolean());
         Assert.Equal(200, root.GetProperty("bri").GetInt32());
+        Assert.Equal(0, root.GetProperty("tt").GetInt32());
         Assert.False(root.GetProperty("live").GetBoolean());
         Assert.Equal(-1, root.GetProperty("ps").GetInt32());
         Assert.Equal(-1, root.GetProperty("pl").GetInt32());
