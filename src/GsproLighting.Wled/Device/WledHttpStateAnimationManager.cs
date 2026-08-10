@@ -125,7 +125,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         var target = WledHttpAnimationFrameFactory.ReadyGreen;
         if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
         {
-            // Morph on a full-strip solid, then concentrate → full solid green.
+            // Morph on a full-strip solid, then concentrate sides → center band.
             var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
                 fromColor,
                 fromBrightness,
@@ -134,17 +134,26 @@ public sealed class WledHttpStateAnimationManager : IDisposable
                 ledCount);
             await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
                 .ConfigureAwait(false);
-            var chase = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(
+            var concentrate = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(
                 ledCount,
                 brightness);
-            await RunFramesAsync(controllerIp, chase, cancellationToken, target)
+            await RunFramesAsync(controllerIp, concentrate, cancellationToken, target)
                 .ConfigureAwait(false);
-            return;
+        }
+        else
+        {
+            var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
+            await RunFramesAsync(controllerIp, ready, cancellationToken, target)
+                .ConfigureAwait(false);
         }
 
-        var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
-        await RunFramesAsync(controllerIp, ready, cancellationToken, target)
+        // Ongoing Ready look: on-device Chase + Aurora on the center band (intro does not loop).
+        await _client.ApplyStateBodyAsync(
+                controllerIp,
+                WledChaseAuroraStateFactory.CreateReadyBody(ledCount, brightness),
+                cancellationToken)
             .ConfigureAwait(false);
+        _visualTracker.RememberSolid(target, brightness);
     }
 
     private async Task RunNotReadyFramesAsync(
@@ -156,7 +165,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         var target = WledHttpAnimationFrameFactory.NotReadyRed;
         if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
         {
-            // Full-strip morph clears any Ready geometry, then center-half → edges expand.
+            // Full-strip morph clears Ready geometry/green, then center → sides expand.
             var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
                 fromColor,
                 fromBrightness,
@@ -180,11 +189,13 @@ public sealed class WledHttpStateAnimationManager : IDisposable
                 .ConfigureAwait(false);
         }
 
-        // Breathe bri only on full-strip solid red (fx 0) — never partial center bands.
-        var cycle = WledHttpAnimationFrameFactory.CreateRedBreathingTracked(brightness, ledCount);
-        while (true)
-            await RunTrackedFramesAsync(controllerIp, cycle, cancellationToken)
-                .ConfigureAwait(false);
+        // Ongoing Not Ready look: on-device red Chase + Red Reef (no HTTP breathe loop).
+        await _client.ApplyStateBodyAsync(
+                controllerIp,
+                WledChaseAuroraStateFactory.CreateNotReadyBody(ledCount, brightness),
+                cancellationToken)
+            .ConfigureAwait(false);
+        _visualTracker.RememberSolid(target, brightness);
     }
 
     private async Task RunTrackedFramesAsync(

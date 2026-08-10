@@ -10,7 +10,7 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_PostsEdgesInConcentrateThenFullSolidGreen()
+    public async Task OnBallReadyAsync_PostsEdgesInConcentrateThenChaseAurora()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -20,10 +20,8 @@ public sealed class WledShotEffectSinkHoldTests
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        var expected = WledHttpAnimationFrameFactory.CreateReadySequence(8, 180).Count;
+        var expected = WledHttpAnimationFrameFactory.CreateReadySequence(8, 180).Count + 1;
         Assert.Equal(expected, handler.PostCount);
-        Assert.Contains("\"fx\":0", handler.LastBody);
-        Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
         Assert.Contains("\"ps\":-1", handler.LastBody);
         Assert.Contains("\"pl\":-1", handler.LastBody);
@@ -32,14 +30,16 @@ public sealed class WledShotEffectSinkHoldTests
         Assert.Contains("\"stop\":1", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"start\":7", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"stop\":8", handler.Bodies[0], StringComparison.Ordinal);
-        // Final Ready rest is full-strip solid green — not Chase/Aurora.
-        Assert.Contains("\"stop\":8", handler.LastBody);
-        Assert.DoesNotContain($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
-        Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
+        // Final Ready rest is Chase + Aurora on the center band.
+        Assert.Contains($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
+        Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
+        Assert.Contains("\"sx\":255", handler.LastBody);
+        Assert.Contains("\"ix\":255", handler.LastBody);
+        Assert.Contains("[0,220,0]", handler.LastBody);
     }
 
     [Fact]
-    public async Task OnBallNotReadyAsync_ExpandsThenBreathesUntilReadySupersedesIt()
+    public async Task OnBallNotReadyAsync_ExpandsThenRedChaseUntilReadySupersedesIt()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -47,16 +47,17 @@ public sealed class WledShotEffectSinkHoldTests
             () => ConfiguredWled(brightness: 180),
             animationManager);
 
-        var breathing = sink.OnBallNotReadyAsync();
+        var notReady = sink.OnBallNotReadyAsync();
         await handler.WaitForPostsAsync(2);
         await sink.OnBallReadyAsync(new ShotPayload());
-        await breathing;
+        await notReady;
 
         Assert.Contains(handler.Bodies, body => body.Contains("[180,30,30]", StringComparison.Ordinal));
         Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"bri\":180", handler.LastBody);
+        Assert.Contains($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
+        Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
-        Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
     }
 
     [Fact]

@@ -160,7 +160,7 @@ public sealed class EffectConfigSerializationTests
         Assert.NotNull(slot.WledOptions);
         Assert.Equal(EffectConfig.MaxTimingByte, slot.WledOptions!.Speed);
         Assert.Equal(EffectConfig.MaxTimingByte, slot.WledOptions.Intensity);
-        Assert.Equal(0, slot.WledOptions.PaletteId);
+        Assert.Equal(EffectConfig.RedReefPaletteId, slot.WledOptions.PaletteId);
         Assert.NotEqual(EffectConfig.AuroraPaletteId, slot.WledOptions.PaletteId);
     }
 

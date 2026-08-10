@@ -65,7 +65,7 @@ public sealed class EffectConfig
     {
         // Basic ambient — WLED Ripple (layered, Red Reef, colors max, timing 15%).
         Idle = CreateRippleAmbient(RgbColor.FromRgb(61, 220, 132));
-        // Not ready — red Chase at max sx/ix (Default palette; not Aurora).
+        // Not ready — red Chase + Red Reef at max sx/ix (not Aurora).
         NotReady = CreateRedChase(RgbColor.FromRgb(229, 83, 61));
         // Waiting — same Ripple ambient with amber tint while Connect state is unknown.
         Waiting = CreateRippleAmbient(RgbColor.FromRgb(212, 160, 23));
@@ -91,7 +91,7 @@ public sealed class EffectConfig
                 Overlay = true
             });
 
-    /// <summary>Red Chase at max speed/intensity — Default palette keeps segment colors red.</summary>
+    /// <summary>Red Chase + Red Reef at max speed/intensity (Not Ready live path).</summary>
     public static EffectSlot CreateRedChase(RgbColor color) =>
         EffectSlot.WledPreset(
             color.WithMaxIntensity(),
@@ -100,7 +100,7 @@ public sealed class EffectConfig
             {
                 Speed = MaxTimingByte,
                 Intensity = MaxTimingByte,
-                PaletteId = 0
+                PaletteId = RedReefPaletteId
             });
 
     /// <summary>Chase + Aurora at max speed/intensity (Ready live path).</summary>

@@ -116,10 +116,14 @@ public static class WledAuthoritativeStateFactory
     /// <summary>
     /// Authoritative root plus active segments, clearing any unused ids in 1..ExtraSegmentsToClear.
     /// </summary>
-    public static object CreateBody(byte brightness, IReadOnlyList<object> activeSegments)
+    public static object CreateBody(
+        byte brightness,
+        IReadOnlyList<object> activeSegments,
+        int mainSegmentId = 0)
     {
         ArgumentNullException.ThrowIfNull(activeSegments);
         var body = CreateRoot(on: true, brightness);
+        body["mainseg"] = Math.Max(0, mainSegmentId);
         body["seg"] = AppendClearedExtras(activeSegments);
         return body;
     }

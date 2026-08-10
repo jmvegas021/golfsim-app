@@ -22,7 +22,7 @@ public static class WledCatalogValidator
         CheckEffect(effects, EffectConfig.ChaseFxId, "Chase (Ready / Not Ready)", warnings);
         CheckEffect(effects, EffectConfig.CelebrateFxId, "Celebrate", warnings);
         CheckEffect(effects, EffectConfig.SparkleFxId, "Hazard", warnings);
-        CheckPalette(palettes, EffectConfig.RedReefPaletteId, "Red Reef (ambient)", warnings);
+        CheckPalette(palettes, EffectConfig.RedReefPaletteId, "Red Reef (ambient / Not Ready)", warnings);
         CheckPalette(palettes, EffectConfig.AuroraPaletteId, "Aurora (Ready)", warnings);
 
         return warnings;

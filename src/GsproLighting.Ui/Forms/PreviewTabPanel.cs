@@ -112,8 +112,8 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("Blue", RgbColor.FromRgb(0, 0, 255)));
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
-        row.Controls.Add(AnimationButton("Not Ready · Expand + Breathe", ApplyNotReadyAnimationAsync, width: 220));
-        row.Controls.Add(AnimationButton("Ready · Edges → Solid", ApplyReadyAnimationAsync, isPrimary: true, width: 200));
+        row.Controls.Add(AnimationButton("Not Ready · Expand + Chase", ApplyNotReadyAnimationAsync, width: 220));
+        row.Controls.Add(AnimationButton("Ready · Edges → Chase", ApplyReadyAnimationAsync, isPrimary: true, width: 200));
         row.Controls.Add(AnimationButton(
             "Left · Yellow",
             () => ApplyHitDirectionAsync(ShotDirection.Left, "Left · Yellow"),
@@ -213,7 +213,7 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyNotReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Not Ready expand + breathe",
+            "Not Ready expand + Chase",
             (ip, token) => _stateManager.RunNotReadyAsync(
                 ip,
                 _resolveLedCount(),
@@ -222,7 +222,7 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Ready edges-in → solid",
+            "Ready edges-in → Chase",
             (ip, token) => _stateManager.RunReadyAsync(
                 ip,
                 _resolveLedCount(),

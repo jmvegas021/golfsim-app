@@ -7,8 +7,8 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Ready is a one-shot edges-in → center concentrate → full-strip solid green (no Chase loop).",
-        "Not Ready morphs to red, expands center-out, then breathes full-strip red.",
+        "Ready: one-shot edges-in → concentrate, then on-device Chase + Aurora on the center band.",
+        "Not Ready: one-shot center-out expand, then on-device red Chase + Red Reef (no breathe loop).",
         "Lighting commands still fully override WLED UI state (presets, playlists, extra segments).",
         "Preview Ready / Not Ready buttons match the live BallReady / BallNotReady sequences.",
     ];

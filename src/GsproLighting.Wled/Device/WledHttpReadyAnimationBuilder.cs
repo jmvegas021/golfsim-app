@@ -3,7 +3,8 @@ using GsproLighting.Core.Config;
 namespace GsproLighting.Wled.Device;
 
 /// <summary>
-/// Ready: edges→center, concentrate to a ~50% center band, then full-strip solid green.
+/// Ready intro: edges→center, then concentrate to a ~50% center band (one-shot).
+/// The ongoing Ready look (Chase + Aurora) is applied by the animation manager after this.
 /// </summary>
 public static class WledHttpReadyAnimationBuilder
 {
@@ -19,21 +20,15 @@ public static class WledHttpReadyAnimationBuilder
 
         var color = WledHttpAnimationFrameFactory.ReadyGreen;
         var frames = new List<WledHttpAnimationFrame>(
-            WledHttpAnimationFrameFactory.MaximumExpandStepCount * 3 + 1);
+            WledHttpAnimationFrameFactory.MaximumExpandStepCount * 2 + 1);
         frames.AddRange(CreateEdgesInFrames(ledCount, brightness, color));
         frames.AddRange(CreateChaseToCenterFrames(ledCount, brightness, color, includeFullStart: false));
-        frames.AddRange(
-            WledHttpAnimationFrameFactory.CreateCenterBandGrowSequence(
-                ledCount,
-                brightness,
-                color,
-                ResolveConcentrateLitCount(ledCount)));
         return frames;
     }
 
     /// <summary>
     /// When the strip is already fully lit (e.g. after morphing from Not Ready),
-    /// skip edges-in: chase to the center concentrate band, then grow to full solid.
+    /// skip edges-in and concentrate to the center band only.
     /// </summary>
     public static IReadOnlyList<WledHttpAnimationFrame> CreateReadyChaseFromFullSequence(
         int ledCount,
@@ -43,16 +38,7 @@ public static class WledHttpReadyAnimationBuilder
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
         var color = WledHttpAnimationFrameFactory.ReadyGreen;
-        var frames = new List<WledHttpAnimationFrame>(
-            WledHttpAnimationFrameFactory.MaximumExpandStepCount * 2 + 2);
-        frames.AddRange(CreateChaseToCenterFrames(ledCount, brightness, color, includeFullStart: true));
-        frames.AddRange(
-            WledHttpAnimationFrameFactory.CreateCenterBandGrowSequence(
-                ledCount,
-                brightness,
-                color,
-                ResolveConcentrateLitCount(ledCount)));
-        return frames;
+        return CreateChaseToCenterFrames(ledCount, brightness, color, includeFullStart: true);
     }
 
     public static int ResolveConcentrateLitCount(int ledCount)
@@ -80,11 +66,6 @@ public static class WledHttpReadyAnimationBuilder
             1,
             WledHttpAnimationFrameFactory.MaximumExpandStepCount);
     }
-
-    public static int ResolveExpandStepCount(int ledCount) =>
-        WledHttpCenterBandGrowBuilder.ResolveStepCount(
-            ledCount,
-            ResolveConcentrateLitCount(ledCount));
 
     private static IReadOnlyList<WledHttpAnimationFrame> CreateEdgesInFrames(
         int ledCount,
@@ -144,9 +125,10 @@ public static class WledHttpReadyAnimationBuilder
         for (var step = 1; step <= stepCount; step++)
         {
             var litCount = ResolveChaseLitCount(ledCount, concentrateLit, step, stepCount);
+            var duration = step == stepCount ? TimeSpan.Zero : cadence;
             frames.Add(new WledHttpAnimationFrame(
                 WledHttpSegmentBodies.CreateCenterBand(ledCount, litCount, color, brightness),
-                cadence));
+                duration));
         }
 
         return frames;

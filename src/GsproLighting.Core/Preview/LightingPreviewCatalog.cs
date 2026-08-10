@@ -23,7 +23,7 @@ public sealed class LightingPreviewCatalog
             Item(
                 LightingPreviewIds.NotReady,
                 "Not ready",
-                "WLED red Chase (max speed/intensity, Default palette — not Aurora)",
+                "WLED red Chase + Red Reef (max speed/intensity — not Aurora)",
                 effects.NotReady,
                 holdBrightnessFactor: 0.33,
                 holdAsSolid: false),
