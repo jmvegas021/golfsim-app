@@ -113,27 +113,19 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
         row.Controls.Add(AnimationButton("Not Ready · Morph/Expand + Breathe", ApplyNotReadyAnimationAsync, width: 270));
-        row.Controls.Add(AnimationButton("Ready · Morph/Expand", ApplyReadyAnimationAsync, isPrimary: true, width: 180));
+        row.Controls.Add(AnimationButton("Ready · Edges-In + Chase", ApplyReadyAnimationAsync, isPrimary: true, width: 200));
         row.Controls.Add(AnimationButton(
-            "Far Left · Red",
-            () => ApplyHitDirectionAsync(ShotDirection.FarLeft, "Far Left · Red"),
-            width: 140));
-        row.Controls.Add(AnimationButton(
-            "Mid Left · Yellow",
-            () => ApplyHitDirectionAsync(ShotDirection.MidLeft, "Mid Left · Yellow"),
-            width: 160));
+            "Left · Yellow",
+            () => ApplyHitDirectionAsync(ShotDirection.Left, "Left · Yellow"),
+            width: 130));
         row.Controls.Add(AnimationButton(
             "Center · Green",
             () => ApplyHitDirectionAsync(ShotDirection.Center, "Center · Green"),
             isPrimary: true,
             width: 140));
         row.Controls.Add(AnimationButton(
-            "Mid Right · Yellow",
-            () => ApplyHitDirectionAsync(ShotDirection.MidRight, "Mid Right · Yellow"),
-            width: 170));
-        row.Controls.Add(AnimationButton(
-            "Far Right · Red",
-            () => ApplyHitDirectionAsync(ShotDirection.FarRight, "Far Right · Red"),
+            "Right · Yellow",
+            () => ApplyHitDirectionAsync(ShotDirection.Right, "Right · Yellow"),
             width: 140));
         return row;
     }
@@ -225,7 +217,7 @@ public sealed class PreviewTabPanel : UserControl
 
     private Task ApplyReadyAnimationAsync() =>
         ApplyAnimationAsync(
-            "Ready morph/expand",
+            "Ready edges-in + chase",
             (ip, token) => _stateManager.RunReadyAsync(
                 ip,
                 _resolveLedCount(),

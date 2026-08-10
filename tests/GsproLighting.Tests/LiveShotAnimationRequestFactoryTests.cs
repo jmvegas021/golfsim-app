@@ -23,11 +23,9 @@ public sealed class LiveShotAnimationRequestFactoryTests
     }
 
     [Theory]
-    [InlineData(ShotDirection.FarLeft, AnimationDirection.Left)]
-    [InlineData(ShotDirection.MidLeft, AnimationDirection.Left)]
+    [InlineData(ShotDirection.Left, AnimationDirection.Left)]
     [InlineData(ShotDirection.Center, AnimationDirection.Center)]
-    [InlineData(ShotDirection.MidRight, AnimationDirection.Right)]
-    [InlineData(ShotDirection.FarRight, AnimationDirection.Right)]
+    [InlineData(ShotDirection.Right, AnimationDirection.Right)]
     public void Create_MapsDirectionForDirectionAuto(
         ShotDirection direction,
         AnimationDirection expected)

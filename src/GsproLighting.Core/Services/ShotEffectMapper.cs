@@ -20,10 +20,7 @@ public sealed class ShotEffectMapper
 
         var isPutt = IsPutt(shot, effects);
         var slot = isPutt ? effects.Putt : SelectStrikeSlot(shot, effects);
-        var direction = ClassifyDirection(
-            shot.BallData?.Hla,
-            effects.CenterHlaAbsDegrees,
-            effects.MidHlaAbsDegrees);
+        var direction = ClassifyDirection(shot.BallData?.Hla, effects.CenterHlaAbsDegrees);
         return new ShotLightPlan(slot, direction, isPutt);
     }
 
@@ -31,30 +28,18 @@ public sealed class ShotEffectMapper
         MapPlan(shot, effects).Color;
 
     /// <summary>
-    /// Buckets HLA into five hit-direction bands.
-    /// Defaults: |HLA| &lt;= 1.5° center (green); &lt;= 4.0° mid yellow; beyond far red.
-    /// Negative HLA → left; positive → right.
+    /// Buckets HLA into left / center / right.
+    /// Default: |HLA| &lt;= 1.5° → Center; otherwise Left (negative) or Right (positive).
     /// </summary>
-    public static ShotDirection ClassifyDirection(
-        double? hla,
-        double centerHlaAbsDegrees,
-        double midHlaAbsDegrees = 4.0)
+    public static ShotDirection ClassifyDirection(double? hla, double centerHlaAbsDegrees)
     {
         if (hla is not double angle || double.IsNaN(angle))
             return ShotDirection.Center;
 
-        var centerThreshold = Math.Abs(centerHlaAbsDegrees);
-        var midThreshold = Math.Max(Math.Abs(midHlaAbsDegrees), centerThreshold);
-        var abs = Math.Abs(angle);
-
-        if (abs <= centerThreshold)
+        if (Math.Abs(angle) <= Math.Abs(centerHlaAbsDegrees))
             return ShotDirection.Center;
 
-        var isLeft = angle < 0;
-        if (abs <= midThreshold)
-            return isLeft ? ShotDirection.MidLeft : ShotDirection.MidRight;
-
-        return isLeft ? ShotDirection.FarLeft : ShotDirection.FarRight;
+        return angle < 0 ? ShotDirection.Left : ShotDirection.Right;
     }
 
     /// <summary>Swaps left/right buckets when the strip is mounted mirrored.</summary>
@@ -65,10 +50,8 @@ public sealed class ShotEffectMapper
 
         return direction switch
         {
-            ShotDirection.FarLeft => ShotDirection.FarRight,
-            ShotDirection.MidLeft => ShotDirection.MidRight,
-            ShotDirection.MidRight => ShotDirection.MidLeft,
-            ShotDirection.FarRight => ShotDirection.FarLeft,
+            ShotDirection.Left => ShotDirection.Right,
+            ShotDirection.Right => ShotDirection.Left,
             _ => direction
         };
     }

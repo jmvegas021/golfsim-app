@@ -95,34 +95,49 @@ public sealed class WledHttpAnimationFrameFactoryTests
         var finalSegments = ReadSegments(frames[^1]);
         AssertRange(finalSegments[0], id: 0, start: 0, stop: 12);
         Assert.Equal([180, 30, 30], ReadPrimaryColor(finalSegments[0]));
-        Assert.Equal(0, finalSegments[1].GetProperty("stop").GetInt32());
-        Assert.Equal(0, finalSegments[2].GetProperty("stop").GetInt32());
         Assert.Equal(180, ReadBrightness(frames[^1]));
     }
 
     [Fact]
-    public void CreateReadySequence_IlluminatesFromCenterOutwardThenHoldsFullGreen()
+    public void CreateReadySequence_EdgesInThenChasesToCenterHoldBand()
     {
-        var frames = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount: 12, brightness: 180);
+        const int ledCount = 12;
+        var frames = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness: 180);
+        var holdLit = WledHttpReadyAnimationBuilder.ResolveHoldLitCount(ledCount);
 
-        Assert.Equal(13, frames.Count);
+        Assert.True(frames.Count > WledHttpAnimationFrameFactory.MaximumExpandStepCount);
         var firstSegments = ReadSegments(frames[0]);
-        AssertRange(firstSegments[0], id: 0, start: 0, stop: 5);
-        AssertRange(firstSegments[1], id: 1, start: 5, stop: 7);
-        AssertRange(firstSegments[2], id: 2, start: 7, stop: 12);
-        Assert.Equal([0, 220, 0], ReadPrimaryColor(firstSegments[1]));
-
-        var midSegments = ReadSegments(frames[5]);
-        AssertRange(midSegments[0], id: 0, start: 0, stop: 3);
-        AssertRange(midSegments[1], id: 1, start: 3, stop: 9);
-        AssertRange(midSegments[2], id: 2, start: 9, stop: 12);
+        // Edges-in: lit on both ends, dark in the middle.
+        AssertRange(firstSegments[0], id: 0, start: 0, stop: 1);
+        AssertRange(firstSegments[1], id: 1, start: 1, stop: 11);
+        AssertRange(firstSegments[2], id: 2, start: 11, stop: 12);
+        Assert.Equal([0, 220, 0], ReadPrimaryColor(firstSegments[0]));
+        Assert.Equal([0, 0, 0], ReadPrimaryColor(firstSegments[1]));
 
         var finalSegments = ReadSegments(frames[^1]);
-        AssertRange(finalSegments[0], id: 0, start: 0, stop: 12);
-        Assert.Equal([0, 220, 0], ReadPrimaryColor(finalSegments[0]));
-        Assert.Equal(0, finalSegments[1].GetProperty("stop").GetInt32());
-        Assert.Equal(0, finalSegments[2].GetProperty("stop").GetInt32());
-        Assert.Equal(180, ReadBrightness(frames[^1]));
+        var finalStart = finalSegments[1].GetProperty("start").GetInt32();
+        var finalStop = finalSegments[1].GetProperty("stop").GetInt32();
+        Assert.Equal(holdLit, finalStop - finalStart);
+        Assert.Equal([0, 220, 0], ReadPrimaryColor(finalSegments[1]));
+        Assert.True(holdLit < ledCount);
+        Assert.Equal(TimeSpan.Zero, frames[^1].Duration);
+    }
+
+    [Fact]
+    public void CreateReadyChaseFromFullSequence_ShrinksToCenterWithoutBlackFlash()
+    {
+        const int ledCount = 12;
+        var frames = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(ledCount, 180);
+        var holdLit = WledHttpReadyAnimationBuilder.ResolveHoldLitCount(ledCount);
+
+        using var first = JsonDocument.Parse(JsonSerializer.Serialize(frames[0].Body));
+        Assert.Equal(0, first.RootElement.GetProperty("seg")[0].GetProperty("start").GetInt32());
+        Assert.Equal(ledCount, first.RootElement.GetProperty("seg")[0].GetProperty("stop").GetInt32());
+        Assert.All(frames, frame => Assert.True(ReadBrightness(frame) > 0));
+
+        var finalSegments = ReadSegments(frames[^1]);
+        Assert.Equal(holdLit, finalSegments[1].GetProperty("stop").GetInt32() -
+            finalSegments[1].GetProperty("start").GetInt32());
     }
 
     [Fact]
@@ -130,7 +145,8 @@ public sealed class WledHttpAnimationFrameFactoryTests
     {
         var frames = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount: 300, brightness: 255);
 
-        Assert.Equal(WledHttpAnimationFrameFactory.MaximumExpandStepCount + 1, frames.Count);
+        // Edges-in (16) + chase (16) = 32 for long strips.
+        Assert.Equal(WledHttpAnimationFrameFactory.MaximumExpandStepCount * 2, frames.Count);
     }
 
     [Fact]
@@ -144,14 +160,13 @@ public sealed class WledHttpAnimationFrameFactoryTests
     }
 
     [Fact]
-    public void CreateHitDirectionSequence_FarLeft_FillsFromCenterTowardLeftOnly()
+    public void CreateHitDirectionSequence_Left_FillsFromCenterTowardLeftHalfOnly()
     {
         var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-            ShotDirection.FarLeft,
+            ShotDirection.Left,
             ledCount: 12,
             brightness: 180);
 
-        // Same expand step budget as Ready/Not Ready (12 + hold), not half-strip.
         Assert.Equal(13, frames.Count);
         Assert.All(
             frames.Take(12),
@@ -164,35 +179,29 @@ public sealed class WledHttpAnimationFrameFactoryTests
         AssertRange(firstSegments[0], id: 0, start: 0, stop: 5);
         AssertRange(firstSegments[1], id: 1, start: 5, stop: 6);
         AssertRange(firstSegments[2], id: 2, start: 6, stop: 12);
-        Assert.Equal([220, 40, 40], ReadPrimaryColor(firstSegments[1]));
+        Assert.Equal([220, 180, 0], ReadPrimaryColor(firstSegments[1]));
 
         var finalSegments = ReadSegments(frames[^1]);
         AssertRange(finalSegments[0], id: 0, start: 0, stop: 0);
         AssertRange(finalSegments[1], id: 1, start: 0, stop: 6);
         AssertRange(finalSegments[2], id: 2, start: 6, stop: 12);
-        Assert.Equal([220, 40, 40], ReadPrimaryColor(finalSegments[1]));
+        Assert.Equal([220, 180, 0], ReadPrimaryColor(finalSegments[1]));
     }
 
     [Fact]
-    public void CreateHitDirectionSequence_FarRight_FillsFromCenterTowardRightOnly()
+    public void CreateHitDirectionSequence_Right_FillsFromCenterTowardRightHalfOnly()
     {
         var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-            ShotDirection.FarRight,
+            ShotDirection.Right,
             ledCount: 12,
             brightness: 180);
 
         Assert.Equal(13, frames.Count);
-        Assert.All(
-            frames.Take(12),
-            frame => Assert.Equal(
-                TimeSpan.FromMilliseconds(WledHttpAnimationFrameFactory.ExpandCadenceMilliseconds),
-                frame.Duration));
-
         var firstSegments = ReadSegments(frames[0]);
         AssertRange(firstSegments[0], id: 0, start: 0, stop: 6);
         AssertRange(firstSegments[1], id: 1, start: 6, stop: 7);
         AssertRange(firstSegments[2], id: 2, start: 7, stop: 12);
-        Assert.Equal([220, 40, 40], ReadPrimaryColor(firstSegments[1]));
+        Assert.Equal([220, 180, 0], ReadPrimaryColor(firstSegments[1]));
 
         var finalSegments = ReadSegments(frames[^1]);
         AssertRange(finalSegments[1], id: 1, start: 6, stop: 12);
@@ -200,16 +209,15 @@ public sealed class WledHttpAnimationFrameFactoryTests
     }
 
     [Fact]
-    public void CreateHitDirectionSequences_MatchReadyStepBudgetAndCadence()
+    public void CreateHitDirectionSequences_MatchExpandStepBudgetAndCadence()
     {
         const int ledCount = 60;
-        var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, 180);
         var left = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-            ShotDirection.FarLeft,
+            ShotDirection.Left,
             ledCount,
             180);
         var right = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-            ShotDirection.FarRight,
+            ShotDirection.Right,
             ledCount,
             180);
         var center = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
@@ -217,12 +225,11 @@ public sealed class WledHttpAnimationFrameFactoryTests
             ledCount,
             180);
 
-        Assert.Equal(ready.Count, left.Count);
-        Assert.Equal(ready.Count, right.Count);
-        Assert.Equal(ready.Count, center.Count);
-        Assert.Equal(WledHttpAnimationFrameFactory.MaximumExpandStepCount + 1, ready.Count);
+        Assert.Equal(left.Count, right.Count);
+        Assert.Equal(left.Count, center.Count);
+        Assert.Equal(WledHttpAnimationFrameFactory.MaximumExpandStepCount + 1, left.Count);
         Assert.All(
-            new[] { ready, left, right, center }.SelectMany(frames => frames.Take(frames.Count - 1)),
+            new[] { left, right, center }.SelectMany(frames => frames.Take(frames.Count - 1)),
             frame => Assert.Equal(
                 TimeSpan.FromMilliseconds(WledHttpAnimationFrameFactory.ExpandCadenceMilliseconds),
                 frame.Duration));
@@ -249,22 +256,10 @@ public sealed class WledHttpAnimationFrameFactoryTests
     }
 
     [Fact]
-    public void CreateHitDirectionSequence_MidLeft_UsesYellow()
-    {
-        var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-            ShotDirection.MidLeft,
-            ledCount: 12,
-            brightness: 200);
-
-        var firstSegments = ReadSegments(frames[0]);
-        Assert.Equal([220, 180, 0], ReadPrimaryColor(firstSegments[1]));
-    }
-
-    [Fact]
     public void CreateHitDirectionSequence_LimitsHttpRequestCountForLongStrips()
     {
         var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
-            ShotDirection.FarLeft,
+            ShotDirection.Left,
             ledCount: 300,
             brightness: 255);
 

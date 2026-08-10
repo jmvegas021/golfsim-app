@@ -6,9 +6,7 @@ namespace GsproLighting.Core.Models;
 /// </summary>
 public enum ShotDirection
 {
-    FarLeft,
-    MidLeft,
+    Left,
     Center,
-    MidRight,
-    FarRight
+    Right
 }

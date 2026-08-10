@@ -119,6 +119,7 @@ public sealed class WledHttpStateAnimationManager : IDisposable
         var target = WledHttpAnimationFrameFactory.ReadyGreen;
         if (_visualTracker.TryGetSolid(out var fromColor, out var fromBrightness))
         {
+            // Morph current solid into green, then chase-collapse to the center hold band.
             var morph = WledHttpAnimationFrameFactory.CreateColorTransitionTracked(
                 fromColor,
                 fromBrightness,
@@ -126,11 +127,16 @@ public sealed class WledHttpStateAnimationManager : IDisposable
                 brightness);
             await RunTrackedFramesAsync(controllerIp, morph, cancellationToken)
                 .ConfigureAwait(false);
+            var chase = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(
+                ledCount,
+                brightness);
+            await RunFramesAsync(controllerIp, chase, cancellationToken, target)
+                .ConfigureAwait(false);
             return;
         }
 
-        var expand = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
-        await RunFramesAsync(controllerIp, expand, cancellationToken, target)
+        var ready = WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness);
+        await RunFramesAsync(controllerIp, ready, cancellationToken, target)
             .ConfigureAwait(false);
     }
 

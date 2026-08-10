@@ -42,9 +42,8 @@ public sealed class EffectConfig
     public double CenterHlaAbsDegrees { get; set; } = 1.5;
 
     /// <summary>
-    /// Absolute HLA degrees at/below which a non-center shot is mid left/right (yellow).
-    /// Beyond this is far left/right (red). Default 4.0°.
-    /// Must be greater than <see cref="CenterHlaAbsDegrees"/>; classifier clamps if needed.
+    /// Legacy mid-band threshold kept for config round-trip compatibility.
+    /// Live mapping is Left / Center / Right using <see cref="CenterHlaAbsDegrees"/> only.
     /// </summary>
     public double MidHlaAbsDegrees { get; set; } = 4.0;
 

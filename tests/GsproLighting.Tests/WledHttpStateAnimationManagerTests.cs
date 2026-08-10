@@ -48,9 +48,11 @@ public sealed class WledHttpStateAnimationManagerTests
     }
 
     [Fact]
-    public async Task RunReadyAsync_FromKnownRed_TransitionsTowardGreenWithoutCenterOutBlack()
+    public async Task RunReadyAsync_FromKnownRed_MorphsTowardGreenThenChasesToCenter()
     {
-        var handler = new RecordingHandler(completeAfterCount: 1 + WledHttpAnimationFrameFactory.ColorTransitionStepCount);
+        var chaseCount = WledHttpReadyAnimationBuilder.CreateReadyChaseFromFullSequence(12, 180).Count;
+        var expectedTotal = 1 + WledHttpAnimationFrameFactory.ColorTransitionStepCount + chaseCount;
+        var handler = new RecordingHandler(completeAfterCount: expectedTotal);
         using var http = new HttpClient(handler);
         using var client = new WledDeviceClient(http);
         using var manager = new WledHttpStateAnimationManager(client);
@@ -61,8 +63,10 @@ public sealed class WledHttpStateAnimationManagerTests
             180);
         await manager.RunReadyAsync("192.168.86.40", ledCount: 12, brightness: 180);
 
-        Assert.Equal(1 + WledHttpAnimationFrameFactory.ColorTransitionStepCount, handler.Bodies.Count);
-        var morphBodies = handler.Bodies.Skip(1).ToArray();
+        Assert.Equal(expectedTotal, handler.Bodies.Count);
+        var morphBodies = handler.Bodies.Skip(1)
+            .Take(WledHttpAnimationFrameFactory.ColorTransitionStepCount)
+            .ToArray();
         Assert.All(morphBodies, body =>
         {
             using var doc = JsonDocument.Parse(body);
@@ -78,6 +82,13 @@ public sealed class WledHttpStateAnimationManagerTests
         var lastColor = ReadPrimaryColor(lastMorph.RootElement.GetProperty("seg")[0]);
         Assert.True(firstColor[1] < lastColor[1]);
         Assert.Equal([0, 220, 0], lastColor);
+
+        using var hold = JsonDocument.Parse(handler.Bodies[^1]);
+        var holdSegments = hold.RootElement.GetProperty("seg").EnumerateArray().ToArray();
+        Assert.Equal(3, holdSegments.Length);
+        var holdLit = holdSegments[1].GetProperty("stop").GetInt32() -
+            holdSegments[1].GetProperty("start").GetInt32();
+        Assert.Equal(WledHttpReadyAnimationBuilder.ResolveHoldLitCount(12), holdLit);
     }
 
     [Fact]

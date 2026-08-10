@@ -10,7 +10,7 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_PostsCenterOutFramesThenHoldsSolidGreen()
+    public async Task OnBallReadyAsync_PostsEdgesInThenChaseToCenterHold()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -20,14 +20,20 @@ public sealed class WledShotEffectSinkHoldTests
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        Assert.Equal(9, handler.PostCount);
+        // LedCount 8 → 8 edges-in + 8 chase frames.
+        Assert.Equal(16, handler.PostCount);
         Assert.Contains("\"fx\":0", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
-        Assert.Contains("\"start\":0", handler.LastBody);
-        Assert.Contains("\"stop\":8", handler.LastBody);
-        Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"stop\":5", handler.Bodies[0], StringComparison.Ordinal);
+        // First frame: green on both edges.
+        Assert.Contains("\"start\":0", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"stop\":1", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"start\":7", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"stop\":8", handler.Bodies[0], StringComparison.Ordinal);
+        // Hold is a center band smaller than the full strip.
+        var holdLit = WledHttpReadyAnimationBuilder.ResolveHoldLitCount(8);
+        Assert.True(holdLit < 8);
+        Assert.Contains($"\"stop\":{(8 - holdLit) / 2 + holdLit}", handler.LastBody);
     }
 
     [Fact]
@@ -71,7 +77,7 @@ public sealed class WledShotEffectSinkHoldTests
     }
 
     [Fact]
-    public async Task OnShotAsync_FarLeftHla_PostsLeftOnlyRed()
+    public async Task OnShotAsync_LeftHla_PostsLeftHalfYellow()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -82,7 +88,7 @@ public sealed class WledShotEffectSinkHoldTests
         await sink.OnShotAsync(SampleShot(hla: -6));
 
         Assert.True(handler.PostCount > 1);
-        Assert.Contains("[220,40,40]", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("[220,180,0]", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
         Assert.Contains("\"stop\":4", handler.Bodies[0], StringComparison.Ordinal);
     }
@@ -96,7 +102,7 @@ public sealed class WledShotEffectSinkHoldTests
             () => ConfiguredWled(invertLeftRight: true),
             animationManager);
 
-        // Negative HLA is left; invert plays far-right animation (grows from center to right).
+        // Negative HLA is left; invert plays right animation (grows from center to right).
         await sink.OnShotAsync(SampleShot(hla: -6));
 
         Assert.Contains("\"start\":4", handler.Bodies[0], StringComparison.Ordinal);

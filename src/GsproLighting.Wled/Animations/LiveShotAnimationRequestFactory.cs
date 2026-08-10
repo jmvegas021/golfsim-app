@@ -24,8 +24,8 @@ public sealed class LiveShotAnimationRequestFactory
     private static AnimationDirection ToAnimationDirection(ShotDirection direction) =>
         direction switch
         {
-            ShotDirection.FarLeft or ShotDirection.MidLeft => AnimationDirection.Left,
-            ShotDirection.FarRight or ShotDirection.MidRight => AnimationDirection.Right,
+            ShotDirection.Left => AnimationDirection.Left,
+            ShotDirection.Right => AnimationDirection.Right,
             _ => AnimationDirection.Center
         };
 }
