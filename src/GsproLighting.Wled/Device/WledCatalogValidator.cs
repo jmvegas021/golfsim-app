@@ -19,9 +19,11 @@ public static class WledCatalogValidator
         var warnings = new List<string>();
 
         CheckEffect(effects, EffectConfig.RippleFxId, "Ripple ambient (Idle/Waiting)", warnings);
+        CheckEffect(effects, EffectConfig.ChaseFxId, "Chase (Ready / Not Ready)", warnings);
         CheckEffect(effects, EffectConfig.CelebrateFxId, "Celebrate", warnings);
         CheckEffect(effects, EffectConfig.SparkleFxId, "Hazard", warnings);
         CheckPalette(palettes, EffectConfig.RedReefPaletteId, "Red Reef (ambient)", warnings);
+        CheckPalette(palettes, EffectConfig.AuroraPaletteId, "Aurora (Ready)", warnings);
 
         return warnings;
     }

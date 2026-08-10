@@ -12,10 +12,15 @@ public sealed class WledCatalogValidatorTests
         var effects = new[]
         {
             Entry(EffectConfig.RippleFxId, "Ripple"),
+            Entry(EffectConfig.ChaseFxId, "Chase"),
             Entry(EffectConfig.CelebrateFxId, "Fireworks"),
             Entry(EffectConfig.SparkleFxId, "Sparkle")
         };
-        var palettes = new[] { Entry(EffectConfig.RedReefPaletteId, "Red Reef") };
+        var palettes = new[]
+        {
+            Entry(EffectConfig.RedReefPaletteId, "Red Reef"),
+            Entry(EffectConfig.AuroraPaletteId, "Aurora")
+        };
 
         var warnings = WledCatalogValidator.ValidateConfiguredIds(effects, palettes);
 
@@ -26,11 +31,16 @@ public sealed class WledCatalogValidatorTests
     public void ValidateConfiguredIds_MissingFxId_ReturnsWarning()
     {
         var effects = new[] { Entry(1, "Solid") };
-        var palettes = new[] { Entry(EffectConfig.RedReefPaletteId, "Red Reef") };
+        var palettes = new[]
+        {
+            Entry(EffectConfig.RedReefPaletteId, "Red Reef"),
+            Entry(EffectConfig.AuroraPaletteId, "Aurora")
+        };
 
         var warnings = WledCatalogValidator.ValidateConfiguredIds(effects, palettes);
 
         Assert.Contains(warnings, w => w.Contains($"FX {EffectConfig.RippleFxId}"));
+        Assert.Contains(warnings, w => w.Contains($"FX {EffectConfig.ChaseFxId}"));
         Assert.Contains(warnings, w => w.Contains($"FX {EffectConfig.CelebrateFxId}"));
         Assert.Contains(warnings, w => w.Contains($"FX {EffectConfig.SparkleFxId}"));
     }
@@ -41,6 +51,7 @@ public sealed class WledCatalogValidatorTests
         var effects = new[]
         {
             Entry(EffectConfig.RippleFxId, "Ripple"),
+            Entry(EffectConfig.ChaseFxId, "Chase"),
             Entry(EffectConfig.CelebrateFxId, "Fireworks"),
             Entry(EffectConfig.SparkleFxId, "Sparkle")
         };
@@ -48,8 +59,9 @@ public sealed class WledCatalogValidatorTests
 
         var warnings = WledCatalogValidator.ValidateConfiguredIds(effects, palettes);
 
-        Assert.Single(warnings);
-        Assert.Contains($"({EffectConfig.RedReefPaletteId})", warnings[0]);
+        Assert.Equal(2, warnings.Count);
+        Assert.Contains(warnings, w => w.Contains($"({EffectConfig.RedReefPaletteId})"));
+        Assert.Contains(warnings, w => w.Contains($"({EffectConfig.AuroraPaletteId})"));
     }
 
     [Fact]

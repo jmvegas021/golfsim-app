@@ -10,7 +10,7 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_PostsEdgesInThenChaseToCenterHold()
+    public async Task OnBallReadyAsync_PostsChaseAuroraAtMaxOnce()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -20,25 +20,19 @@ public sealed class WledShotEffectSinkHoldTests
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        var expected = WledHttpReadyAnimationBuilder.ResolveEdgesInStepCount(8) +
-            WledHttpReadyAnimationBuilder.ResolveChaseStepCount(8);
-        Assert.Equal(expected, handler.PostCount);
-        Assert.Contains("\"fx\":0", handler.LastBody);
+        Assert.Equal(1, handler.PostCount);
+        Assert.Contains($"\"fx\":{EffectConfig.ChaseFxId}", handler.LastBody);
+        Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
+        Assert.Contains("\"sx\":255", handler.LastBody);
+        Assert.Contains("\"ix\":255", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
-        // First frame: green on both edges.
-        Assert.Contains("\"start\":0", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"stop\":1", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"start\":7", handler.Bodies[0], StringComparison.Ordinal);
-        Assert.Contains("\"stop\":8", handler.Bodies[0], StringComparison.Ordinal);
-        // Hold is a center band smaller than the full strip.
-        var holdLit = WledHttpReadyAnimationBuilder.ResolveHoldLitCount(8);
-        Assert.True(holdLit < 8);
-        Assert.Contains($"\"stop\":{(8 - holdLit) / 2 + holdLit}", handler.LastBody);
+        Assert.Contains("\"stop\":8", handler.LastBody);
+        Assert.Contains("\"stop\":0", handler.LastBody);
     }
 
     [Fact]
-    public async Task OnBallNotReadyAsync_ExpandsThenBreathesUntilReadySupersedesIt()
+    public async Task OnBallNotReadyAsync_PostsRedChaseThenReadySupersedesWithAurora()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -46,14 +40,15 @@ public sealed class WledShotEffectSinkHoldTests
             () => ConfiguredWled(brightness: 180),
             animationManager);
 
-        var breathing = sink.OnBallNotReadyAsync();
-        await handler.WaitForPostsAsync(2);
+        await sink.OnBallNotReadyAsync();
         await sink.OnBallReadyAsync(new ShotPayload());
-        await breathing;
 
-        Assert.Contains(handler.Bodies, body => body.Contains("[180,30,30]", StringComparison.Ordinal));
-        Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Equal(2, handler.PostCount);
+        Assert.Contains("[180,30,30]", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"pal\":0", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.DoesNotContain($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.Bodies[0]);
         Assert.Contains("\"bri\":180", handler.LastBody);
+        Assert.Contains($"\"pal\":{EffectConfig.AuroraPaletteId}", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
     }
 

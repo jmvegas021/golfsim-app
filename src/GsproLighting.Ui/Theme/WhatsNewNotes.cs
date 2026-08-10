@@ -7,9 +7,9 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "New WLED tab: live effects, palettes, colors, speed/intensity, presets, and Sync ambient.",
-        "Basic idle/waiting ambient is Ripple + Red Reef (layered, colors max, timing 15%).",
-        "Shot/ready/not-ready flashes still play over DRGB, then return to Ripple ambient via HTTP.",
-        "Open full WLED from the tab for matrix/audio/Wi‑Fi and other controller-only settings.",
+        "Ready uses native WLED Chase + Aurora at max speed/intensity (smooth on-device).",
+        "Not Ready stays red Chase at max sx/ix (Default palette — not Aurora).",
+        "Ready↔Not Ready full-strip POSTs clear leftover center-band segments.",
+        "Hit directions (Left / Center / Right) remain solid half-fills.",
     ];
 }

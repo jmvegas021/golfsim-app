@@ -23,9 +23,10 @@ public sealed class LightingPreviewCatalog
             Item(
                 LightingPreviewIds.NotReady,
                 "Not ready",
-                "Red outside→center, then hold dim red",
+                "WLED red Chase (max speed/intensity, Default palette — not Aurora)",
                 effects.NotReady,
-                holdBrightnessFactor: 0.33),
+                holdBrightnessFactor: 0.33,
+                holdAsSolid: false),
             Item(
                 LightingPreviewIds.Ready,
                 "Ready / idle",

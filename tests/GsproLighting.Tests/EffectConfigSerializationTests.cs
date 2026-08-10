@@ -25,8 +25,7 @@ public sealed class EffectConfigSerializationTests
 
         // Legacy RGB deserializes into the slot, then Load rewrites product lighting.
         AssertRippleAmbient(config.Effects.Idle, 71, 255, 153);
-        AssertColor(config.Effects.NotReady.Color, 229, 83, 61);
-        Assert.Equal(EffectAnimations.OutsideToCenter, config.Effects.NotReady.Animation);
+        AssertRedChase(config.Effects.NotReady, 255, 92, 68);
         AssertRippleAmbient(config.Effects.Waiting, 255, 192, 28);
         AssertColor(config.Effects.WaterHazard.Color, 0, 168, 200);
         AssertColor(config.Effects.OutOfBounds.Color, 255, 42, 42);
@@ -91,8 +90,7 @@ public sealed class EffectConfigSerializationTests
     {
         var effects = new EffectConfig();
 
-        AssertColor(effects.NotReady.Color, 229, 83, 61);
-        Assert.Equal(EffectAnimations.OutsideToCenter, effects.NotReady.Animation);
+        AssertRedChase(effects.NotReady, 255, 92, 68);
         AssertRippleAmbient(effects.Idle, 71, 255, 153);
         AssertRippleAmbient(effects.Waiting, 255, 192, 28);
         AssertColor(effects.PureStrike.Color, 0, 224, 90);
@@ -152,6 +150,18 @@ public sealed class EffectConfigSerializationTests
         Assert.Equal(79, slot.WledFxId);
         Assert.Equal(62, slot.WledOptions.PaletteId);
         Assert.Equal(38, slot.WledOptions.Speed);
+    }
+
+    private static void AssertRedChase(EffectSlot slot, byte red, byte green, byte blue)
+    {
+        AssertColor(slot.Color, red, green, blue);
+        Assert.Equal(EffectMode.WledPreset, slot.Mode);
+        Assert.Equal(EffectConfig.ChaseFxId, slot.WledFxId);
+        Assert.NotNull(slot.WledOptions);
+        Assert.Equal(EffectConfig.MaxTimingByte, slot.WledOptions!.Speed);
+        Assert.Equal(EffectConfig.MaxTimingByte, slot.WledOptions.Intensity);
+        Assert.Equal(0, slot.WledOptions.PaletteId);
+        Assert.NotEqual(EffectConfig.AuroraPaletteId, slot.WledOptions.PaletteId);
     }
 
     private static void AssertColor(RgbColor color, byte red, byte green, byte blue)

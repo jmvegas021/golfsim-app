@@ -8,16 +8,24 @@ namespace GsproLighting.Core.Config;
 /// </summary>
 public sealed class EffectConfig
 {
-    // WLED FX ids: Ripple = 79, Fireworks Starburst ≈ 89, Sparkle ≈ 20 (device catalogs vary).
+    // WLED FX ids: Ripple = 79, Chase = 28, Fireworks Starburst ≈ 89, Sparkle ≈ 20
+    // (device catalogs vary; ids match stock WLED defaults).
     public const int RippleFxId = 79;
+    public const int ChaseFxId = 28;
     public const int CelebrateFxId = 89;
     public const int SparkleFxId = 20;
 
     /// <summary>WLED built-in palette “Red Reaf” (commonly typed Red Reef).</summary>
     public const int RedReefPaletteId = 62;
 
+    /// <summary>WLED built-in palette Aurora (greens on dark blue). Not palette id 9.</summary>
+    public const int AuroraPaletteId = 50;
+
     /// <summary>~15% of the 0–255 WLED speed/intensity range.</summary>
     public const int RippleTimingByte = 38;
+
+    /// <summary>Maximum WLED speed/intensity (sx/ix).</summary>
+    public const int MaxTimingByte = 255;
 
     public EffectSlot Idle { get; set; } = null!;
     public EffectSlot NotReady { get; set; } = null!;
@@ -57,8 +65,8 @@ public sealed class EffectConfig
     {
         // Basic ambient — WLED Ripple (layered, Red Reef, colors max, timing 15%).
         Idle = CreateRippleAmbient(RgbColor.FromRgb(61, 220, 132));
-        // Not ready — alert red outside→center, then dim hold.
-        NotReady = EffectSlot.Curated(RgbColor.FromRgb(229, 83, 61), EffectAnimations.OutsideToCenter);
+        // Not ready — red Chase at max sx/ix (Default palette; not Aurora).
+        NotReady = CreateRedChase(RgbColor.FromRgb(229, 83, 61));
         // Waiting — same Ripple ambient with amber tint while Connect state is unknown.
         Waiting = CreateRippleAmbient(RgbColor.FromRgb(212, 160, 23));
         PureStrike = EffectSlot.Curated(RgbColor.FromRgb(0, 224, 90), EffectAnimations.DirectionAuto);
@@ -81,6 +89,30 @@ public sealed class EffectConfig
                 Intensity = RippleTimingByte,
                 PaletteId = RedReefPaletteId,
                 Overlay = true
+            });
+
+    /// <summary>Red Chase at max speed/intensity — Default palette keeps segment colors red.</summary>
+    public static EffectSlot CreateRedChase(RgbColor color) =>
+        EffectSlot.WledPreset(
+            color.WithMaxIntensity(),
+            ChaseFxId,
+            new WledPresetOptions
+            {
+                Speed = MaxTimingByte,
+                Intensity = MaxTimingByte,
+                PaletteId = 0
+            });
+
+    /// <summary>Chase + Aurora at max speed/intensity (Ready live path).</summary>
+    public static EffectSlot CreateChaseAurora(RgbColor color) =>
+        EffectSlot.WledPreset(
+            color.WithMaxIntensity(),
+            ChaseFxId,
+            new WledPresetOptions
+            {
+                Speed = MaxTimingByte,
+                Intensity = MaxTimingByte,
+                PaletteId = AuroraPaletteId
             });
 
     public EffectConfig Clone() => new()
