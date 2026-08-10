@@ -151,6 +151,38 @@ public sealed class WledPreviewHoldTests
         Assert.Empty(output.Clears);
     }
 
+    [Fact]
+    public async Task PreviewAndHoldAsync_SkipFadeOut_DoesNotDimPreviousHold()
+    {
+        var output = new RecordingWledOutput();
+        using var player = new WledPreviewPlayer(output);
+        var waiting = new PreviewHoldPlanFactory().Create(
+            new LightingPreviewItem
+            {
+                Id = LightingPreviewIds.Waiting,
+                Title = "Waiting",
+                Description = "test",
+                Slot = EffectSlot.Curated(RgbColor.FromRgb(200, 0, 0), EffectAnimations.Solid),
+                HoldAsSolid = true,
+                HoldBrightnessFactor = 1
+            },
+            new WledConfig { Brightness = 180 });
+        var next = CreateReadyPlan(180);
+
+        await player.PreviewAndHoldAsync(waiting, new WledConfig { Brightness = 180 });
+        output.SolidHolds.Clear();
+
+        await player.PreviewAndHoldAsync(
+            next,
+            new WledConfig { Brightness = 180 },
+            skipFadeOut: true);
+
+        Assert.DoesNotContain(
+            output.SolidHolds,
+            hold => hold.Color.R == 200 && hold.Brightness is byte b && b < 180);
+        Assert.Contains(output.SolidHolds, hold => hold.Color.G == 80);
+    }
+
     private static PreviewHoldPlan CreateReadyPlan(byte brightness) =>
         new PreviewHoldPlanFactory().Create(
             new LightingPreviewItem

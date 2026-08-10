@@ -49,12 +49,15 @@ public sealed class SettingsForm : Form
             ResolveWledForPreview,
             ResolveControllerIp,
             app.Preview,
-            app.ReportWledFailure);
+            app.ReportWledFailure,
+            app.SuspendLiveEffectsForManualControl);
         _preview = new PreviewTabPanel(
             ResolveEffectsForPreview,
             ResolveWledForPreview,
             app.Preview,
-            app.ReportWledFailure);
+            app.ReportWledFailure,
+            app.SuspendLiveEffectsForManualControl,
+            app.ResumeAmbientLighting);
         _wled = new WledTabPanel(
             ResolveControllerIp,
             () => _connection.Brightness,

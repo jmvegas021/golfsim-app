@@ -200,6 +200,30 @@ public sealed class WledShotEffectSinkHoldTests
     }
 
     [Fact]
+    public async Task CancelActiveEffects_StopsWaitingKeepalive()
+    {
+        var output = new RecordingWledOutput();
+        var keepalive = new PreviewHoldKeepalive { Interval = TimeSpan.FromMilliseconds(40) };
+        var effects = FastHoldEffects();
+        var sink = new WledShotEffectSink(
+            output,
+            () => effects,
+            () => new WledConfig { Brightness = 180, LedCount = 8, ControllerIp = "192.168.86.40" },
+            keepalive);
+
+        var waitingTask = sink.HoldWaitingAsync();
+        await Task.Delay(120);
+        var countBefore = output.SolidCountFor(212, 160, 23);
+        Assert.True(countBefore >= 1);
+
+        sink.CancelActiveEffects();
+        await waitingTask;
+        await Task.Delay(120);
+
+        Assert.Equal(countBefore, output.SolidCountFor(212, 160, 23));
+    }
+
+    [Fact]
     public async Task HoldWaitingAsync_KeepaliveResendsWaitingSolid_NotIdle()
     {
         var output = new RecordingWledOutput();

@@ -17,6 +17,7 @@ public sealed class PreviewTabPanel : UserControl
     private readonly Func<EffectConfig> _resolveEffects;
     private readonly Func<WledConfig> _resolveWled;
     private readonly Action<string, string>? _logWledFailure;
+    private readonly Action? _onPreviewStopped;
     private readonly LedStripPreview _strip = new();
     private readonly LightingPreviewCatalog _catalog = new();
     private readonly PreviewPlaybackCoordinator _coordinator;
@@ -35,12 +36,15 @@ public sealed class PreviewTabPanel : UserControl
         Func<EffectConfig> resolveEffects,
         Func<WledConfig> resolveWled,
         WledPreviewPlayer player,
-        Action<string, string>? logWledFailure = null)
+        Action<string, string>? logWledFailure = null,
+        Action? onManualPreviewStarting = null,
+        Action? onPreviewStopped = null)
     {
         _resolveEffects = resolveEffects;
         _resolveWled = resolveWled;
         _logWledFailure = logWledFailure;
-        _coordinator = new PreviewPlaybackCoordinator(player, _strip);
+        _onPreviewStopped = onPreviewStopped;
+        _coordinator = new PreviewPlaybackCoordinator(player, _strip, onManualPreviewStarting);
 
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;
@@ -295,10 +299,12 @@ public sealed class PreviewTabPanel : UserControl
 
         try
         {
-            await _coordinator.StopAsync(_resolveEffects(), _resolveWled());
+            // Drop the manual hold locally; live ambient (Waiting/Idle/NotReady) takes back over.
+            await _coordinator.StopAsync(_resolveEffects(), _resolveWled()).ConfigureAwait(true);
+            _onPreviewStopped?.Invoke();
             foreach (var card in _stateCards)
                 card.IsSelected = false;
-            SetState("Stopped · holding ready / idle green", generation);
+            SetState("Stopped · live ambient restored", generation);
         }
         catch (Exception ex)
         {

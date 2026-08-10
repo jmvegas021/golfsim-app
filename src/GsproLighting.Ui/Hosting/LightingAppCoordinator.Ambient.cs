@@ -35,6 +35,27 @@ public sealed partial class LightingAppCoordinator
     }
 
     /// <summary>
+    /// Cancels live Waiting/Idle keepalive so Quick Control / Preview can drive WLED immediately
+    /// without ambient HTTP re-applying Ripple over the top.
+    /// </summary>
+    public void SuspendLiveEffectsForManualControl()
+    {
+        try
+        {
+            _effectSink.CancelActiveEffects();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("SuspendLiveEffectsForManualControl", ex);
+        }
+    }
+
+    /// <summary>
+    /// Restarts the Connect-appropriate ambient hold after a manual preview stops or Settings closes.
+    /// </summary>
+    public void ResumeAmbientLighting() => RestartAmbientAfterConnectionChange();
+
+    /// <summary>
     /// Re-applies the ambient hold appropriate for current Connect readiness against the new
     /// controller IP (Waiting / Idle / NotReady). Cancels any in-flight hold via the sink gate.
     /// </summary>
@@ -45,6 +66,7 @@ public sealed partial class LightingAppCoordinator
 
         try
         {
+            Preview.CancelActivePreview();
             _ = BallReadyState switch
             {
                 BallReadyState.Ready => _effectSink.HoldIdleForConnectionChangeAsync(),

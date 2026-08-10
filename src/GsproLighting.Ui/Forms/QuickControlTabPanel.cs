@@ -53,13 +53,14 @@ public sealed partial class QuickControlTabPanel : UserControl
         Func<WledConfig> resolveWled,
         Func<string> getControllerIp,
         WledPreviewPlayer player,
-        Action<string, string>? logWledFailure = null)
+        Action<string, string>? logWledFailure = null,
+        Action? onManualPreviewStarting = null)
     {
         _resolveEffects = resolveEffects;
         _resolveWled = resolveWled;
         _getControllerIp = getControllerIp;
         _logWledFailure = logWledFailure;
-        _coordinator = new PreviewPlaybackCoordinator(player, _strip);
+        _coordinator = new PreviewPlaybackCoordinator(player, _strip, onManualPreviewStarting);
 
         Dock = DockStyle.Fill;
         BackColor = UiTheme.Background;

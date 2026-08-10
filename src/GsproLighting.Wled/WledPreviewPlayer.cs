@@ -81,7 +81,8 @@ public sealed class WledPreviewPlayer : IDisposable
         WledConfig config,
         TimeSpan? holdDuration = null,
         CancellationToken cancellationToken = default,
-        Action? onHoldStarted = null)
+        Action? onHoldStarted = null,
+        bool skipFadeOut = false)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(config);
@@ -91,7 +92,8 @@ public sealed class WledPreviewPlayer : IDisposable
 
         var session = RunSessionAsync(linked, async token =>
         {
-            await FadeFromHeldAsync(token).ConfigureAwait(false);
+            if (!skipFadeOut)
+                await FadeFromHeldAsync(token).ConfigureAwait(false);
             await PlayEffectAsync(plan.Slot, config, plan.Direction, token).ConfigureAwait(false);
 
             if (plan.Slot.Mode == EffectMode.WledPreset)

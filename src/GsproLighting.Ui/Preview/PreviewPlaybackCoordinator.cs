@@ -13,21 +13,25 @@ namespace GsproLighting.Ui.Preview;
 public sealed class PreviewPlaybackCoordinator
 {
     private static readonly TimeSpan SequenceHold = TimeSpan.FromMilliseconds(1200);
-    private static readonly TimeSpan StripHandoff = TimeSpan.FromMilliseconds(120);
 
     private readonly WledPreviewPlayer _player;
     private readonly LedStripPreview _strip;
     private readonly PreviewHoldPlanFactory _planFactory = new();
     private readonly LightingPreviewCatalog _catalog = new();
+    private readonly Action? _onManualPreviewStarting;
     private CancellationTokenSource? _sequenceCts;
     private CancellationTokenSource? _itemCts;
     private RgbColor? _stripHoldColor;
     private double _stripHoldIntensity = 0.9;
 
-    public PreviewPlaybackCoordinator(WledPreviewPlayer player, LedStripPreview strip)
+    public PreviewPlaybackCoordinator(
+        WledPreviewPlayer player,
+        LedStripPreview strip,
+        Action? onManualPreviewStarting = null)
     {
         _player = player ?? throw new ArgumentNullException(nameof(player));
         _strip = strip ?? throw new ArgumentNullException(nameof(strip));
+        _onManualPreviewStarting = onManualPreviewStarting;
     }
 
     public string? CurrentStateLabel { get; private set; }
@@ -42,9 +46,16 @@ public sealed class PreviewPlaybackCoordinator
         Action? onHoldStarted = null)
     {
         CancelSequence();
+        NotifyManualPreviewStarting();
         var plan = _planFactory.Create(item, wled, direction);
         CurrentStateLabel = item.Title;
-        await PlayPlanAsync(plan, wled, holdDuration: null, cancellationToken, onHoldStarted)
+        await PlayPlanAsync(
+                plan,
+                wled,
+                holdDuration: null,
+                cancellationToken,
+                onHoldStarted,
+                immediate: true)
             .ConfigureAwait(true);
     }
 
@@ -56,6 +67,7 @@ public sealed class PreviewPlaybackCoordinator
         CancellationToken cancellationToken = default)
     {
         CancelSequence();
+        NotifyManualPreviewStarting();
         _sequenceCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = _sequenceCts.Token;
         IsPlayAllRunning = true;
@@ -88,7 +100,8 @@ public sealed class PreviewPlaybackCoordinator
                             plan,
                             wled,
                             isLast ? null : SequenceHold,
-                            itemToken)
+                            itemToken,
+                            immediate: true)
                         .ConfigureAwait(true);
                 }
                 catch (OperationCanceledException) when (!token.IsCancellationRequested)
@@ -118,11 +131,13 @@ public sealed class PreviewPlaybackCoordinator
     {
         CancelSequence();
         _player.CancelActivePreview();
-        CurrentStateLabel = "Stopped · holding ready / idle";
+        CurrentStateLabel = "Stopped";
         _strip.ClearToIdle(effects.Idle.Color);
         _stripHoldColor = effects.Idle.Color;
         _stripHoldIntensity = 0.9;
-        await _player.StopAndHoldIdleAsync(effects.Idle, wled).ConfigureAwait(true);
+        // Ambient is restored by the host (ResumeAmbientLighting) — don't start a second Idle
+        // hold through the preview player that would race the effect sink.
+        await Task.CompletedTask.ConfigureAwait(true);
     }
 
     public void SkipCurrent()
@@ -144,31 +159,38 @@ public sealed class PreviewPlaybackCoordinator
         IsPlayAllRunning = false;
     }
 
+    private void NotifyManualPreviewStarting()
+    {
+        try
+        {
+            _onManualPreviewStarting?.Invoke();
+        }
+        catch
+        {
+            // Preview must still run if ambient suspend fails.
+        }
+    }
+
     private async Task PlayPlanAsync(
         PreviewHoldPlan plan,
         WledConfig wled,
         TimeSpan? holdDuration,
         CancellationToken cancellationToken,
-        Action? onHoldStarted = null)
+        Action? onHoldStarted = null,
+        bool immediate = false)
     {
-        await HandoffStripAsync(plan, cancellationToken).ConfigureAwait(true);
+        // On-screen strip first so UI feels instant, then WLED (no fade/handoff delay).
         _strip.Play(plan.Slot, plan.Direction, holdAfter: true, holdIntensity: plan.Item.HoldBrightnessFactor);
         _stripHoldColor = plan.Slot.Color;
         _stripHoldIntensity = plan.Item.HoldBrightnessFactor;
 
-        await _player.PreviewAndHoldAsync(plan, wled, holdDuration, cancellationToken, onHoldStarted)
+        await _player.PreviewAndHoldAsync(
+                plan,
+                wled,
+                holdDuration,
+                cancellationToken,
+                onHoldStarted,
+                skipFadeOut: immediate)
             .ConfigureAwait(true);
-    }
-
-    private async Task HandoffStripAsync(PreviewHoldPlan _, CancellationToken cancellationToken)
-    {
-        if (_stripHoldColor is null)
-            return;
-
-        _strip.HoldSolid(
-            _stripHoldColor,
-            intensity: Math.Max(0.12, _stripHoldIntensity * 0.35),
-            status: "Transitioning…");
-        await Task.Delay(StripHandoff, cancellationToken).ConfigureAwait(true);
     }
 }

@@ -260,6 +260,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
             args.Cancel = true;
             _settings.Hide();
+            _app.ResumeAmbientLighting();
             _tray.ShowBalloonTip(
                 2500,
                 "GSPro Lighting",

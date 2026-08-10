@@ -23,6 +23,7 @@ public sealed class WledShotEffectSink : IShotEventSink
     private readonly PreviewHoldKeepalive _keepalive;
     private readonly WledHttpClient _httpClient;
     private readonly Action<string>? _logFailure;
+    private readonly Action? _onTakeover;
     private readonly object _gate = new();
     private CancellationTokenSource? _activeEffectCts;
     private bool _readyIdleActive;
@@ -33,7 +34,8 @@ public sealed class WledShotEffectSink : IShotEventSink
         Func<WledConfig>? wledConfig = null,
         PreviewHoldKeepalive? keepalive = null,
         WledHttpClient? httpClient = null,
-        Action<string>? logFailure = null)
+        Action<string>? logFailure = null,
+        Action? onTakeover = null)
     {
         _output = output;
         _effects = effects;
@@ -42,6 +44,7 @@ public sealed class WledShotEffectSink : IShotEventSink
         _keepalive = keepalive ?? new PreviewHoldKeepalive();
         _httpClient = httpClient ?? new WledHttpClient();
         _logFailure = logFailure;
+        _onTakeover = onTakeover;
     }
 
     public async Task OnShotAsync(ShotPayload shot, CancellationToken cancellationToken = default)
@@ -195,6 +198,19 @@ public sealed class WledShotEffectSink : IShotEventSink
             HoldIdleAsync,
             cancellationToken);
 
+    /// <summary>
+    /// Stops Waiting/Idle/NotReady keepalive (and any in-flight shot) so manual Preview / Quick
+    /// Control owns the strip without HTTP Ripple stomping DRGB frames.
+    /// </summary>
+    public void CancelActiveEffects()
+    {
+        lock (_gate)
+        {
+            _readyIdleActive = false;
+            _activeEffectCts?.Cancel();
+        }
+    }
+
     private Task HoldSlotAsync(EffectSlot slot, CancellationToken cancellationToken)
     {
         if (slot.Mode == EffectMode.WledPreset)
@@ -245,6 +261,16 @@ public sealed class WledShotEffectSink : IShotEventSink
 
         try
         {
+            // Live GSPro ownership beats an open Quick Control / Preview hold.
+            try
+            {
+                _onTakeover?.Invoke();
+            }
+            catch
+            {
+                // Takeover must never block the live shot path.
+            }
+
             await playEffect(linked.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (

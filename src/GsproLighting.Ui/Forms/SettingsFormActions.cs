@@ -133,6 +133,7 @@ internal sealed class SettingsFormActions
         _effects.ShowActionStatus($"{label} playing on-screen and on WLED…");
         try
         {
+            _app.SuspendLiveEffectsForManualControl();
             await preview();
             _effects.ShowActionStatus($"{label} sent.");
         }
