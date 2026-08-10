@@ -16,9 +16,12 @@ public sealed class DrgbWledOutput : IWledOutput
 
     public void Configure(WledConfig config)
     {
+        ArgumentNullException.ThrowIfNull(config);
         lock (_gate)
         {
-            _config = config;
+            // Snapshot so later Config.Wled mutations cannot silently retarget UDP without
+            // an explicit Configure (Preview / effect-sink must sync Connection → output).
+            _config = Clone(config);
             _udp?.Dispose();
             _udp = new UdpClient();
         }
@@ -29,9 +32,13 @@ public sealed class DrgbWledOutput : IWledOutput
         byte? brightness = null,
         CancellationToken cancellationToken = default)
     {
-        var count = Math.Max(1, _config.LedCount);
+        WledConfig config;
+        lock (_gate)
+            config = _config;
+
+        var count = Math.Max(1, config.LedCount);
         var pixels = new RgbColor[count];
-        var scaled = Scale(color, brightness ?? _config.Brightness);
+        var scaled = DrgbPacketBuilder.Scale(color, brightness ?? config.Brightness);
         Array.Fill(pixels, scaled);
         return SendPixelsAsync(pixels, 255, cancellationToken);
     }
@@ -41,33 +48,54 @@ public sealed class DrgbWledOutput : IWledOutput
         byte? brightness = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(pixels);
+
         UdpClient udp;
         WledConfig config;
         lock (_gate)
         {
             if (_udp is null)
-                Configure(_config);
-            udp = _udp!;
+            {
+                _udp = new UdpClient();
+            }
+
+            udp = _udp;
             config = _config;
         }
 
-        var count = Math.Min(pixels.Count, Math.Max(1, config.LedCount));
-        var packet = new byte[2 + count * 3];
-        packet[0] = 2; // DRGB
-        packet[1] = 5; // seconds until WLED resumes normal effects
-        var scale = brightness ?? config.Brightness;
-
-        for (var i = 0; i < count; i++)
+        if (!config.HasConfiguredController)
         {
-            var c = Scale(pixels[i], scale);
-            var offset = 2 + i * 3;
-            packet[offset] = c.R;
-            packet[offset + 1] = c.G;
-            packet[offset + 2] = c.B;
+            throw new InvalidOperationException(
+                "WLED controller IP is not configured — cannot send DRGB realtime frames.");
         }
 
-        var endpoint = new IPEndPoint(IPAddress.Parse(config.ControllerIp), config.UdpPort);
-        await udp.SendAsync(packet, endpoint, cancellationToken);
+        if (!IPAddress.TryParse(config.ControllerIp.Trim(), out var address))
+        {
+            throw new InvalidOperationException(
+                $"Invalid WLED controller IP '{config.ControllerIp}' for DRGB.");
+        }
+
+        // Frame length is authoritative — callers resolve LedCount from Connection / snapshot.
+        var count = Math.Max(1, pixels.Count);
+        var scale = brightness ?? config.Brightness;
+        var packet = DrgbPacketBuilder.Build(pixels, scale);
+        var endpoint = new IPEndPoint(address, config.UdpPort);
+
+        try
+        {
+            await udp.SendAsync(packet, endpoint, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"DRGB send failed to {config.ControllerIp}:{config.UdpPort} " +
+                $"({count} LEDs, protocol {DrgbPacketBuilder.ProtocolDrgb}): {ex.Message}",
+                ex);
+        }
     }
 
     public Task ClearAsync(CancellationToken cancellationToken = default) =>
@@ -84,14 +112,13 @@ public sealed class DrgbWledOutput : IWledOutput
         return ValueTask.CompletedTask;
     }
 
-    private static RgbColor Scale(RgbColor color, byte brightness)
+    private static WledConfig Clone(WledConfig source) => new()
     {
-        if (brightness >= 255)
-            return color;
-
-        return RgbColor.FromRgb(
-            (byte)(color.R * brightness / 255),
-            (byte)(color.G * brightness / 255),
-            (byte)(color.B * brightness / 255));
-    }
+        ControllerIp = source.ControllerIp,
+        UdpPort = source.UdpPort,
+        LedCount = source.LedCount,
+        Brightness = source.Brightness,
+        Protocol = source.Protocol,
+        InvertLeftRight = source.InvertLeftRight
+    };
 }

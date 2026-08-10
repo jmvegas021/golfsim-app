@@ -7,9 +7,9 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Ready: DRGB sides→center fill, retract to a solid green top/center band, then DRGB keepalive hold.",
-        "Not Ready: DRGB morph/expand to full red, then brightness breathe on DRGB (no HTTP chase fight).",
-        "Hit directions stay HTTP; starting one cancels DRGB first so live mode hands back cleanly.",
-        "Preview Ready / Not Ready match live BallReady / BallNotReady DRGB sequences.",
+        "Fix Preview Ready/Not Ready DRGB: sync Connection IP/port/LED count into UDP before streaming (HTTP solids already worked).",
+        "Surface DRGB send failures with host:port:LED count instead of a silent “running” status.",
+        "Fix WLED network scan when the PC NIC reports a wide mask (/16 etc.): clamp to the host’s /24 and use a longer probe timeout.",
+        "Scan miss was unrelated to the v0.8.22 DRGB move — discovery was not changed in that release.",
     ];
 }

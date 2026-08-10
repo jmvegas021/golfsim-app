@@ -21,20 +21,23 @@ public sealed class WledDiscoveredDevice
 
 /// <summary>
 /// Finds WLED controllers on the local LAN by probing every host on the machine's own /24 (or
-/// smaller) IPv4 subnets with a short-timeout GET /json/info — no mDNS/Bonjour dependency, works
-/// reliably on the typical flat home/bay network this app targets.
+/// smaller) IPv4 subnets with a short-timeout GET /json/info — no mDNS/Bonjour dependency.
+/// Wider NIC masks (e.g. /16) are clamped to the host's /24 so home/bay LANs still scan.
 /// </summary>
 public sealed class WledNetworkDiscovery : IDisposable
 {
-    private const int MinSubnetMaskBits = 24;
-    private const int MaxConcurrentProbes = 48;
+    /// <summary>Probe ceilings — wider than this is clamped to a /24 around the host IP.</summary>
+    public const int MaxSubnetHostBits = 8; // /24
+
+    private const int MaxConcurrentProbes = 32;
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(900);
 
     private readonly WledDeviceClient _client;
     private readonly bool _ownsClient;
 
     public WledNetworkDiscovery(WledDeviceClient? client = null)
     {
-        _client = client ?? new WledDeviceClient(requestTimeout: TimeSpan.FromMilliseconds(400));
+        _client = client ?? new WledDeviceClient(requestTimeout: ProbeTimeout);
         _ownsClient = client is null;
     }
 
@@ -46,6 +49,9 @@ public sealed class WledNetworkDiscovery : IDisposable
             .SelectMany(BuildCandidateAddresses)
             .Distinct()
             .ToList();
+
+        if (candidates.Count == 0)
+            return [];
 
         var found = new ConcurrentBag<WledDiscoveredDevice>();
         using var throttle = new SemaphoreSlim(MaxConcurrentProbes);
@@ -61,15 +67,14 @@ public sealed class WledNetworkDiscovery : IDisposable
                     found.Add(new WledDiscoveredDevice
                     {
                         IpAddress = ip,
-                        Name = info.Name,
+                        Name = string.IsNullOrWhiteSpace(info.Name) ? "WLED" : info.Name,
                         Version = info.Version,
                         LedCount = info.LedCount
                     });
             }
             catch
             {
-                // Expected for the overwhelming majority of the subnet — not a WLED device,
-                // unreachable, or didn't respond in time. Nothing to report.
+                // Expected for non-WLED / slow / unreachable hosts.
             }
             finally
             {
@@ -89,7 +94,7 @@ public sealed class WledNetworkDiscovery : IDisposable
             _client.Dispose();
     }
 
-    private static IEnumerable<(IPAddress Address, IPAddress Mask)> GetLocalIPv4Subnets()
+    internal static IEnumerable<(IPAddress Address, IPAddress Mask)> GetLocalIPv4Subnets()
     {
         foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
         {
@@ -104,44 +109,62 @@ public sealed class WledNetworkDiscovery : IDisposable
                     continue;
                 if (IPAddress.IsLoopback(addr.Address) || addr.IPv4Mask is null)
                     continue;
+                if (IsLinkLocal(addr.Address))
+                    continue;
                 yield return (addr.Address, addr.IPv4Mask);
             }
         }
     }
 
     /// <summary>
-    /// Enumerates every host address on the subnet, excluding the network/broadcast addresses.
-    /// Skips anything larger than /24 (255+ hosts) to keep a scan bounded to a few seconds.
+    /// Enumerates every host address on the subnet (network/broadcast excluded).
+    /// Masks wider than /24 are clamped to the /24 containing <paramref name="subnet"/>.Address
+    /// so a mis-reported /16 NIC still probes ~254 hosts instead of silently scanning nothing.
     /// Public for unit testing — pure subnet math, no I/O.
     /// </summary>
     public static IEnumerable<string> BuildCandidateAddresses((IPAddress Address, IPAddress Mask) subnet)
     {
-        var addressBytes = subnet.Address.GetAddressBytes();
-        var maskBytes = subnet.Mask.GetAddressBytes();
-        var maskBits = maskBytes.Sum(CountSetBits);
-        if (maskBits < MinSubnetMaskBits)
+        if (IsLinkLocal(subnet.Address))
             yield break;
 
-        var networkBytes = new byte[4];
-        for (var i = 0; i < 4; i++)
-            networkBytes[i] = (byte)(addressBytes[i] & maskBytes[i]);
-
-        var hostBits = 32 - maskBits;
-        var hostCount = (1 << hostBits) - 2;
-        for (var host = 1; host <= hostCount; host++)
+        var addressValue = ToUInt32(subnet.Address.GetAddressBytes());
+        var maskValue = ToUInt32(subnet.Mask.GetAddressBytes());
+        var maskBits = CountBits(maskValue);
+        if (maskBits < 32 - MaxSubnetHostBits)
         {
-            var candidate = (byte[])networkBytes.Clone();
-            candidate[3] = (byte)(candidate[3] | host);
-            yield return new IPAddress(candidate).ToString();
+            // Clamp to /24 containing this host (e.g. 10.0.5.20/16 → 10.0.5.0/24).
+            maskValue = 0xFFFFFF00u;
         }
+
+        var network = addressValue & maskValue;
+        var broadcast = network | ~maskValue;
+        for (var host = network + 1; host < broadcast; host++)
+            yield return new IPAddress(ToBytes(host)).ToString();
     }
 
-    private static int CountSetBits(byte value)
+    private static bool IsLinkLocal(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+        return bytes.Length == 4 && bytes[0] == 169 && bytes[1] == 254;
+    }
+
+    private static uint ToUInt32(byte[] bytes) =>
+        ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
+
+    private static byte[] ToBytes(uint value) =>
+    [
+        (byte)(value >> 24),
+        (byte)(value >> 16),
+        (byte)(value >> 8),
+        (byte)value
+    ];
+
+    private static int CountBits(uint value)
     {
         var count = 0;
         while (value != 0)
         {
-            count += value & 1;
+            count += (int)(value & 1);
             value >>= 1;
         }
 

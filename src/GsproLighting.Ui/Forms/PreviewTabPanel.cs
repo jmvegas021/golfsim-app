@@ -11,6 +11,7 @@ namespace GsproLighting.Ui.Forms;
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
+    private readonly Func<WledConfig> _resolveWled;
     private readonly Func<string> _resolveControllerIp;
     private readonly Func<byte> _resolveBrightness;
     private readonly Func<int> _resolveLedCount;
@@ -23,6 +24,7 @@ public sealed class PreviewTabPanel : UserControl
     private int _statusGeneration;
 
     public PreviewTabPanel(
+        Func<WledConfig> resolveWled,
         Func<string> resolveControllerIp,
         Func<byte> resolveBrightness,
         Func<int> resolveLedCount,
@@ -31,6 +33,7 @@ public sealed class PreviewTabPanel : UserControl
         Action? cancelLiveEffects = null,
         Action<string, string>? logWledFailure = null)
     {
+        _resolveWled = resolveWled ?? throw new ArgumentNullException(nameof(resolveWled));
         _resolveControllerIp = resolveControllerIp;
         _resolveBrightness = resolveBrightness;
         _resolveLedCount = resolveLedCount;
@@ -225,9 +228,9 @@ public sealed class PreviewTabPanel : UserControl
     private Task ApplyNotReadyAnimationAsync() =>
         ApplyDrgbHoldAsync(
             "Not Ready · DRGB",
-            (token, onHold) => _readyDrgb.RunNotReadyAsync(
-                _resolveLedCount(),
-                _resolveBrightness(),
+            (wled, token, onHold) => _readyDrgb.RunNotReadyAsync(
+                Math.Max(1, wled.LedCount),
+                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
                 token,
                 onHold),
             holdStatus: "Not Ready breathe · DRGB keepalive");
@@ -235,9 +238,9 @@ public sealed class PreviewTabPanel : UserControl
     private Task ApplyReadyAnimationAsync() =>
         ApplyDrgbHoldAsync(
             "Ready · DRGB",
-            (token, onHold) => _readyDrgb.RunReadyAsync(
-                _resolveLedCount(),
-                _resolveBrightness(),
+            (wled, token, onHold) => _readyDrgb.RunReadyAsync(
+                Math.Max(1, wled.LedCount),
+                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
                 token,
                 onHold),
             holdStatus: "Ready hold · DRGB keepalive");
@@ -254,25 +257,34 @@ public sealed class PreviewTabPanel : UserControl
 
     private async Task ApplyDrgbHoldAsync(
         string label,
-        Func<CancellationToken, Action, Task> play,
+        Func<WledConfig, CancellationToken, Action, Task> play,
         string holdStatus)
     {
-        var ip = ResolveIpOrStatus();
-        if (ip is null)
+        // Sync Connection → shared DrgbWledOutput before UDP (same path Quick Control uses).
+        // HTTP solids pass the textbox IP directly; DRGB previously used a stale Configure snapshot.
+        var wled = _resolveWled();
+        if (!wled.HasConfiguredController)
+        {
+            SetStatus("Set a real controller IP on Connection first.", isError: true);
+            RefreshIpLabel();
             return;
+        }
 
+        var ip = wled.ControllerIp.Trim();
+        var target = $"{ip}:{wled.UdpPort} · {Math.Max(1, wled.LedCount)} LEDs";
         var generation = ++_statusGeneration;
         // Cancel HTTP only — do not CancelActive on DRGB so Ready→Not Ready can morph.
         _stateManager.CancelActive();
-        SetStatus($"Running {label} on {ip}…");
+        SetStatus($"Running {label} → {target}…");
         try
         {
             await play(
+                    wled,
                     CancellationToken.None,
                     () =>
                     {
                         if (generation == _statusGeneration)
-                            SetStatus($"{holdStatus} · {ip}");
+                            SetStatus($"{holdStatus} · {target}");
                     })
                 .ConfigureAwait(true);
         }

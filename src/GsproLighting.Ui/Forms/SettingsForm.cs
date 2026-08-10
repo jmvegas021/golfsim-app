@@ -52,6 +52,7 @@ public sealed class SettingsForm : Form
             app.ReportWledFailure,
             app.SuspendLiveEffectsForManualControl);
         _preview = new PreviewTabPanel(
+            ResolveWledForPreview,
             ResolveControllerIp,
             () => _connection.Brightness,
             () => _connection.LedCount,

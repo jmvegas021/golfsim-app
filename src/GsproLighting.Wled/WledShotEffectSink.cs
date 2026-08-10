@@ -157,6 +157,9 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         try
         {
             InvokeTakeover();
+            // Point shared DRGB UDP at this snapshot before Ready/Not Ready / solids run —
+            // Config.Wled can lag the Connection textbox until SyncWledConnectionLive runs.
+            _output.Configure(config);
             await action(config, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (

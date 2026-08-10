@@ -173,7 +173,9 @@ public sealed partial class ConnectionTabPanel
 
             if (found.Count == 0)
             {
-                _scanStatus.Text = "No WLED devices found on this network — enter the IP manually.";
+                _scanStatus.Text =
+                    "No WLED devices found on this network — enter the IP manually. " +
+                    "Scan probes each /24 LAN around this PC’s adapters (HTTP /json/info).";
                 return;
             }
 

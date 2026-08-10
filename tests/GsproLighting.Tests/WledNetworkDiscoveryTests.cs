@@ -37,10 +37,25 @@ public sealed class WledNetworkDiscoveryTests
     }
 
     [Fact]
-    public void BuildCandidateAddresses_LargerThanSlash24_YieldsNothing()
+    public void BuildCandidateAddresses_WiderThanSlash24_ClampsToHostSlash24()
     {
-        // /16 (65k+ hosts) is deliberately skipped to keep a scan bounded.
+        // /16 would previously yield nothing — clamp to the /24 containing the host.
         var subnet = (IPAddress.Parse("172.16.5.5"), IPAddress.Parse("255.255.0.0"));
+
+        var candidates = WledNetworkDiscovery.BuildCandidateAddresses(subnet).ToList();
+
+        Assert.Equal(254, candidates.Count);
+        Assert.Contains("172.16.5.1", candidates);
+        Assert.Contains("172.16.5.254", candidates);
+        Assert.DoesNotContain("172.16.5.0", candidates);
+        Assert.DoesNotContain("172.16.4.1", candidates);
+        Assert.DoesNotContain("172.16.6.1", candidates);
+    }
+
+    [Fact]
+    public void BuildCandidateAddresses_LinkLocal_YieldsNothing()
+    {
+        var subnet = (IPAddress.Parse("169.254.10.20"), IPAddress.Parse("255.255.0.0"));
 
         var candidates = WledNetworkDiscovery.BuildCandidateAddresses(subnet).ToList();
 
