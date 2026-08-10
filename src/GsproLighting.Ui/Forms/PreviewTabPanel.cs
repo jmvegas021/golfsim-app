@@ -6,25 +6,33 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// Skeleton Preview: five HTTP solid-color buttons proving click → lights.
+/// HTTP-only manual controls for solid colors and the two live ready-state animations.
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
     private readonly Func<string> _resolveControllerIp;
     private readonly Func<byte> _resolveBrightness;
+    private readonly Func<int> _resolveLedCount;
+    private readonly Action? _cancelLiveEffects;
     private readonly Action<string, string>? _logWledFailure;
     private readonly Label _ipLabel = new();
     private readonly Label _statusLabel = new();
-    private readonly WledSolidHttpApplier _applier = new();
+    private readonly WledHttpStateAnimationManager _stateManager;
     private int _statusGeneration;
 
     public PreviewTabPanel(
         Func<string> resolveControllerIp,
         Func<byte> resolveBrightness,
+        Func<int> resolveLedCount,
+        WledHttpStateAnimationManager stateManager,
+        Action? cancelLiveEffects = null,
         Action<string, string>? logWledFailure = null)
     {
         _resolveControllerIp = resolveControllerIp;
         _resolveBrightness = resolveBrightness;
+        _resolveLedCount = resolveLedCount;
+        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _cancelLiveEffects = cancelLiveEffects;
         _logWledFailure = logWledFailure;
 
         Dock = DockStyle.Fill;
@@ -41,13 +49,6 @@ public sealed class PreviewTabPanel : UserControl
 
     protected override void OnPaintBackground(PaintEventArgs e) =>
         UiTheme.FillNightBackground(e.Graphics, ClientRectangle);
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            _applier.Dispose();
-        base.Dispose(disposing);
-    }
 
     private Control BuildRoot()
     {
@@ -67,8 +68,8 @@ public sealed class PreviewTabPanel : UserControl
             new TabSectionHeading
             {
                 Dock = DockStyle.Top,
-                Title = "Preview solid colors",
-                Subtitle = "One HTTP POST per click (Solid FX 0). Set the controller IP on Connection first."
+                Title = "Preview HTTP lights",
+                Subtitle = "Test solid colors or live ready-state animations. Set the controller IP on Connection first."
             },
             0,
             0);
@@ -110,6 +111,8 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("Blue", RgbColor.FromRgb(0, 0, 255)));
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
+        row.Controls.Add(AnimationButton("Not Ready · Breathe", ApplyNotReadyAnimationAsync));
+        row.Controls.Add(AnimationButton("Ready · Edges In", ApplyReadyAnimationAsync, isPrimary: true));
         return row;
     }
 
@@ -129,6 +132,14 @@ public sealed class PreviewTabPanel : UserControl
         return button;
     }
 
+    private NightButton AnimationButton(string label, Func<Task> action, bool isPrimary = false)
+    {
+        var button = NightButton.Create(label, 170, isPrimary: isPrimary);
+        button.Margin = new Padding(0, 0, 10, 10);
+        button.Click += async (_, _) => await action();
+        return button;
+    }
+
     private async Task ApplyColorAsync(string label, RgbColor color)
     {
         var ip = ResolveIpOrStatus();
@@ -136,10 +147,11 @@ public sealed class PreviewTabPanel : UserControl
             return;
 
         var generation = ++_statusGeneration;
+        CancelLiveEffects();
         SetStatus($"Sending {label} to {ip}…");
         try
         {
-            await _applier.ApplySolidAsync(ip, color, _resolveBrightness()).ConfigureAwait(true);
+            await _stateManager.ApplySolidAsync(ip, color, _resolveBrightness()).ConfigureAwait(true);
             if (generation == _statusGeneration)
                 SetStatus($"{label} OK · {ip}");
         }
@@ -159,10 +171,11 @@ public sealed class PreviewTabPanel : UserControl
             return;
 
         var generation = ++_statusGeneration;
+        CancelLiveEffects();
         SetStatus($"Sending Off to {ip}…");
         try
         {
-            await _applier.ApplyOffAsync(ip).ConfigureAwait(true);
+            await _stateManager.ApplyOffAsync(ip).ConfigureAwait(true);
             if (generation == _statusGeneration)
                 SetStatus($"Off OK · {ip}");
         }
@@ -172,6 +185,65 @@ public sealed class PreviewTabPanel : UserControl
                 return;
             SetStatus(ex.Message, isError: true);
             _logWledFailure?.Invoke("preview-solid", ex.Message);
+        }
+    }
+
+    private Task ApplyNotReadyAnimationAsync() =>
+        ApplyAnimationAsync(
+            "Not Ready breathing",
+            (ip, token) => _stateManager.RunRedBreathingAsync(
+                ip,
+                _resolveBrightness(),
+                token));
+
+    private Task ApplyReadyAnimationAsync() =>
+        ApplyAnimationAsync(
+            "Ready edges-in",
+            (ip, token) => _stateManager.RunReadyAsync(
+                ip,
+                _resolveLedCount(),
+                _resolveBrightness(),
+                token));
+
+    private async Task ApplyAnimationAsync(
+        string label,
+        Func<string, CancellationToken, Task> animation)
+    {
+        var ip = ResolveIpOrStatus();
+        if (ip is null)
+            return;
+
+        var generation = ++_statusGeneration;
+        CancelLiveEffects();
+        SetStatus($"Running {label} on {ip}…");
+        try
+        {
+            await animation(ip, CancellationToken.None).ConfigureAwait(true);
+            if (generation == _statusGeneration)
+                SetStatus($"{label} complete · holding final state");
+        }
+        catch (OperationCanceledException) when (generation != _statusGeneration)
+        {
+            // A newer Preview action superseded this animation.
+        }
+        catch (Exception ex)
+        {
+            if (generation != _statusGeneration)
+                return;
+            SetStatus(ex.Message, isError: true);
+            _logWledFailure?.Invoke("preview-animation", ex.Message);
+        }
+    }
+
+    private void CancelLiveEffects()
+    {
+        try
+        {
+            _cancelLiveEffects?.Invoke();
+        }
+        catch
+        {
+            // Manual Preview must still work if cancellation reporting fails.
         }
     }
 

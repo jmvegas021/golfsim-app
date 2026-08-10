@@ -82,6 +82,19 @@ public sealed class WledDeviceClient : IDisposable
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Posts a specialized state body, such as a multi-range animation frame, through the
+    /// same JSON serializer, retry policy, and detailed failure formatter as normal patches.
+    /// </summary>
+    public Task ApplyStateBodyAsync(
+        string controllerIp,
+        object body,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        return PostJsonAsync(controllerIp, "/json/state", body, cancellationToken);
+    }
+
     public Task ApplyPresetRequestAsync(
         string controllerIp,
         WledPresetRequest request,

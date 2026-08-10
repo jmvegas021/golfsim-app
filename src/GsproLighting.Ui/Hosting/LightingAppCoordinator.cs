@@ -24,6 +24,7 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     private readonly BallReadyStateResolver _readyStateResolver = new();
     private readonly DrgbWledOutput _wled = new();
     private readonly WledErrorLogger _wledErrors;
+    private readonly WledHttpStateAnimationManager _httpStateManager = new();
     private readonly WledShotEffectSink _effectSink;
     private readonly CompositeShotEventSink _shotSink;
     private readonly object _proxyGate = new();
@@ -42,13 +43,12 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
         _wled.Configure(Config.Wled);
         Preview = new WledPreviewPlayer(_wled);
         _wledErrors = new WledErrorLogger(Config.Logging.RawLogDirectory);
-        // Skeleton: cancel-only on construct — nothing POSTs until Preview click or GSPro event.
         _effectSink = new WledShotEffectSink(
             () => Config.Wled,
+            _httpStateManager,
             logFailure: ReportEffectSinkFailure,
             onTakeover: () => Preview.CancelActivePreview());
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
-        _effectSink.CancelActiveEffects();
     }
 
     /// <summary>
@@ -88,6 +88,7 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     public ShotFeedBuffer FeedBuffer => _feed;
     public IWledOutput Wled => _wled;
     public WledPreviewPlayer Preview { get; }
+    public WledHttpStateAnimationManager HttpStateManager => _httpStateManager;
     public string? LastProxyError => _lastProxyError;
     public ConnectDiscoverySnapshot? R50Snapshot => _r50Watch?.Snapshot;
     public bool IsR50WatchRunning => _r50Watch?.IsRunning == true;
@@ -276,6 +277,8 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
     {
         await StopR50AutoWatchAsync().ConfigureAwait(false);
         await StopProxyAsync().ConfigureAwait(false);
+        _effectSink.Dispose();
+        _httpStateManager.Dispose();
         Preview.Dispose();
         await _wled.DisposeAsync().ConfigureAwait(false);
     }

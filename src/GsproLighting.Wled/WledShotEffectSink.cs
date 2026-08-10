@@ -6,10 +6,9 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled;
 
 /// <summary>
-/// Skeleton live sink: one HTTP solid POST per GSPro event. No DRGB animations,
-/// no Ripple ambient, no keepalive, no return-to-idle.
+/// Maps GSPro events to the focused HTTP state manager. No DRGB, ambient, or idle restart.
 /// </summary>
-public sealed class WledShotEffectSink : IShotEventSink
+public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 {
     /// <summary>Ball ready — green.</summary>
     public static readonly RgbColor ReadyColor = RgbColor.FromRgb(0, 220, 0);
@@ -24,20 +23,20 @@ public sealed class WledShotEffectSink : IShotEventSink
     public static readonly RgbColor PlayerColor = RgbColor.FromRgb(40, 120, 255);
 
     private readonly Func<WledConfig> _wledConfig;
-    private readonly WledSolidHttpApplier _applier;
+    private readonly WledHttpStateAnimationManager _animationManager;
+    private readonly bool _ownsAnimationManager;
     private readonly Action<string>? _logFailure;
     private readonly Action? _onTakeover;
-    private readonly object _gate = new();
-    private CancellationTokenSource? _activeEffectCts;
 
     public WledShotEffectSink(
         Func<WledConfig> wledConfig,
-        WledSolidHttpApplier? applier = null,
+        WledHttpStateAnimationManager? animationManager = null,
         Action<string>? logFailure = null,
         Action? onTakeover = null)
     {
         _wledConfig = wledConfig;
-        _applier = applier ?? new WledSolidHttpApplier();
+        _animationManager = animationManager ?? new WledHttpStateAnimationManager();
+        _ownsAnimationManager = animationManager is null;
         _logFailure = logFailure;
         _onTakeover = onTakeover;
     }
@@ -50,7 +49,7 @@ public sealed class WledShotEffectSink : IShotEventSink
             shot.BallData?.SideSpin is null)
             return Task.CompletedTask;
 
-        return ApplySolidOnceAsync(ShotColor, useDimBrightness: false, cancellationToken);
+        return ApplySolidOnceAsync(ShotColor, cancellationToken);
     }
 
     public Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default)
@@ -58,14 +57,25 @@ public sealed class WledShotEffectSink : IShotEventSink
         if (response.Code != 201)
             return Task.CompletedTask;
 
-        return ApplySolidOnceAsync(PlayerColor, useDimBrightness: false, cancellationToken);
+        return ApplySolidOnceAsync(PlayerColor, cancellationToken);
     }
 
     public Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default) =>
-        ApplySolidOnceAsync(ReadyColor, useDimBrightness: false, cancellationToken);
+        RunEffectAsync(
+            (config, token) => _animationManager.RunReadyAsync(
+                config.ControllerIp,
+                config.LedCount,
+                config.Brightness,
+                token),
+            cancellationToken);
 
     public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default) =>
-        ApplySolidOnceAsync(NotReadyColor, useDimBrightness: true, cancellationToken);
+        RunEffectAsync(
+            (config, token) => _animationManager.RunRedBreathingAsync(
+                config.ControllerIp,
+                config.Brightness,
+                token),
+            cancellationToken);
 
     /// <summary>
     /// Skeleton: ambient Waiting removed — no HTTP on unknown Connect state.
@@ -79,47 +89,35 @@ public sealed class WledShotEffectSink : IShotEventSink
     public Task HoldIdleForConnectionChangeAsync(CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    /// <summary>Cancels any in-flight solid POST so a newer event can own the gate.</summary>
-    public void CancelActiveEffects()
-    {
-        lock (_gate)
-            _activeEffectCts?.Cancel();
-    }
+    /// <summary>Cancels the current loop or in-flight frame before manual control takes over.</summary>
+    public void CancelActiveEffects() => _animationManager.CancelActive();
 
     private async Task ApplySolidOnceAsync(
         RgbColor color,
-        bool useDimBrightness,
+        CancellationToken cancellationToken) =>
+        await RunEffectAsync(
+            (config, token) => _animationManager.ApplySolidAsync(
+                config.ControllerIp,
+                color,
+                config.Brightness,
+                token),
+            cancellationToken).ConfigureAwait(false);
+
+    private async Task RunEffectAsync(
+        Func<WledConfig, CancellationToken, Task> action,
         CancellationToken cancellationToken)
     {
         var config = _wledConfig();
         if (!config.HasConfiguredController)
             return;
 
-        var linked = BeginEffect(cancellationToken);
-        if (linked is null)
-            return;
-
         try
         {
-            try
-            {
-                _onTakeover?.Invoke();
-            }
-            catch
-            {
-                // Takeover must never block the live shot path.
-            }
-
-            var brightness = useDimBrightness
-                ? (byte)Math.Max(1, config.Brightness / 3)
-                : config.Brightness;
-
-            await _applier
-                .ApplySolidAsync(config.ControllerIp, color, brightness, linked.Token)
-                .ConfigureAwait(false);
+            InvokeTakeover();
+            await action(config, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (
-            !cancellationToken.IsCancellationRequested && linked.IsCancellationRequested)
+            !cancellationToken.IsCancellationRequested)
         {
             // Superseded by a newer live event.
         }
@@ -127,9 +125,23 @@ public sealed class WledShotEffectSink : IShotEventSink
         {
             LogEffectFailure(ex);
         }
-        finally
+    }
+
+    public void Dispose()
+    {
+        if (_ownsAnimationManager)
+            _animationManager.Dispose();
+    }
+
+    private void InvokeTakeover()
+    {
+        try
         {
-            CompleteEffect(linked);
+            _onTakeover?.Invoke();
+        }
+        catch
+        {
+            // Takeover must never block the live shot path.
         }
     }
 
@@ -147,24 +159,4 @@ public sealed class WledShotEffectSink : IShotEventSink
         }
     }
 
-    private CancellationTokenSource? BeginEffect(CancellationToken cancellationToken)
-    {
-        lock (_gate)
-        {
-            _activeEffectCts?.Cancel();
-            _activeEffectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            return _activeEffectCts;
-        }
-    }
-
-    private void CompleteEffect(CancellationTokenSource completed)
-    {
-        lock (_gate)
-        {
-            if (ReferenceEquals(_activeEffectCts, completed))
-                _activeEffectCts = null;
-        }
-
-        completed.Dispose();
-    }
 }

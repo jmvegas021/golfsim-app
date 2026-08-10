@@ -51,10 +51,12 @@ public sealed class SettingsForm : Form
             app.Preview,
             app.ReportWledFailure,
             app.SuspendLiveEffectsForManualControl);
-        // Skeleton Preview: solid HTTP only — not wired to animations / ambient resume.
         _preview = new PreviewTabPanel(
             ResolveControllerIp,
             () => _connection.Brightness,
+            () => _connection.LedCount,
+            app.HttpStateManager,
+            app.SuspendLiveEffectsForManualControl,
             app.ReportWledFailure);
         _wled = new WledTabPanel(
             ResolveControllerIp,
@@ -381,7 +383,7 @@ public sealed class SettingsForm : Form
     {
         var tip = _tabs.SelectedTab?.Text switch
         {
-            "Preview" => "Click Red/Green/Blue/White/Off — one HTTP solid POST to the Connection IP.",
+            "Preview" => "Test solids, continuous Not Ready breathing, or Ready edges-in over HTTP.",
             "WLED" => ProductCopy.WledTabTip,
             "Connection" => ProductCopy.NoWledBody,
             "Live feed" => ProductCopy.LiveFeedWaitingBody,

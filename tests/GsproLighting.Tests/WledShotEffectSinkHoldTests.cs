@@ -10,46 +10,51 @@ namespace GsproLighting.Tests;
 public sealed class WledShotEffectSinkHoldTests
 {
     [Fact]
-    public async Task OnBallReadyAsync_PostsSolidGreenOnce()
+    public async Task OnBallReadyAsync_PostsEdgeFramesThenHoldsSolidGreen()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier);
+            animationManager);
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
-        Assert.Equal(1, handler.PostCount);
+        Assert.Equal(5, handler.PostCount);
         Assert.Contains("\"fx\":0", handler.LastBody);
         Assert.Contains("[0,220,0]", handler.LastBody);
         Assert.Contains("\"live\":false", handler.LastBody);
+        Assert.Contains("\"start\":0", handler.LastBody);
+        Assert.Contains("\"stop\":8", handler.LastBody);
     }
 
     [Fact]
-    public async Task OnBallNotReadyAsync_PostsDimRedOnce()
+    public async Task OnBallNotReadyAsync_BreathesUntilReadySupersedesIt()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(brightness: 180),
-            applier);
+            animationManager);
 
-        await sink.OnBallNotReadyAsync();
+        var breathing = sink.OnBallNotReadyAsync();
+        await handler.WaitForPostsAsync(2);
+        await sink.OnBallReadyAsync(new ShotPayload());
+        await breathing;
 
-        Assert.Equal(1, handler.PostCount);
-        Assert.Contains("[180,30,30]", handler.LastBody);
-        Assert.Contains("\"bri\":60", handler.LastBody);
+        Assert.Contains(handler.Bodies, body => body.Contains("[180,30,30]", StringComparison.Ordinal));
+        Assert.Contains("\"bri\":180", handler.LastBody);
+        Assert.Contains("[0,220,0]", handler.LastBody);
     }
 
     [Fact]
     public async Task OnShotAsync_PostsBrightGreenOnce_NoFollowUpIdle()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier);
+            animationManager);
 
         await sink.OnShotAsync(SampleShot());
         await Task.Delay(100);
@@ -62,10 +67,10 @@ public sealed class WledShotEffectSinkHoldTests
     public async Task OnPlayerInfoAsync_PostsBlueOnce()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier);
+            animationManager);
 
         await sink.OnPlayerInfoAsync(new GsproResponse { Code = 201 });
 
@@ -77,10 +82,10 @@ public sealed class WledShotEffectSinkHoldTests
     public async Task HoldWaitingAsync_DoesNotPost()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier);
+            animationManager);
 
         await sink.HoldWaitingAsync();
 
@@ -91,10 +96,10 @@ public sealed class WledShotEffectSinkHoldTests
     public async Task HoldIdleForConnectionChangeAsync_DoesNotPost()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier);
+            animationManager);
 
         await sink.HoldIdleForConnectionChangeAsync();
 
@@ -105,10 +110,10 @@ public sealed class WledShotEffectSinkHoldTests
     public async Task OnBallReadyAsync_SkipsWhenControllerNotConfigured()
     {
         var handler = new RecordingHttpHandler();
-        using var applier = CreateApplier(handler);
+        using var animationManager = CreateAnimationManager(handler);
         var sink = new WledShotEffectSink(
             () => new WledConfig { ControllerIp = WledConfig.DefaultControllerIp, Brightness = 180 },
-            applier);
+            animationManager);
 
         await sink.OnBallReadyAsync(new ShotPayload());
 
@@ -121,11 +126,11 @@ public sealed class WledShotEffectSinkHoldTests
         var handler = new FailingHttpHandler();
         using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
         using var client = new WledDeviceClient(http);
-        using var applier = new WledSolidHttpApplier(client);
+        using var animationManager = new WledHttpStateAnimationManager(client);
         var logs = new List<string>();
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier,
+            animationManager,
             logFailure: logs.Add);
 
         await sink.OnBallReadyAsync(new ShotPayload());
@@ -140,18 +145,18 @@ public sealed class WledShotEffectSinkHoldTests
         var handler = new FailingHttpHandler();
         using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
         using var client = new WledDeviceClient(http);
-        using var applier = new WledSolidHttpApplier(client);
+        using var animationManager = new WledHttpStateAnimationManager(client);
         var sink = new WledShotEffectSink(
             () => ConfiguredWled(),
-            applier);
+            animationManager);
 
         await sink.OnShotAsync(SampleShot());
     }
 
-    private static WledSolidHttpApplier CreateApplier(RecordingHttpHandler handler)
+    private static WledHttpStateAnimationManager CreateAnimationManager(RecordingHttpHandler handler)
     {
         var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-        return new WledSolidHttpApplier(new WledDeviceClient(http));
+        return new WledHttpStateAnimationManager(new WledDeviceClient(http));
     }
 
     private static WledConfig ConfiguredWled(byte brightness = 180) =>
@@ -177,8 +182,19 @@ public sealed class WledShotEffectSinkHoldTests
 
     private sealed class RecordingHttpHandler : HttpMessageHandler
     {
+        private readonly TaskCompletionSource _twoPosts =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int PostCount { get; private set; }
         public string LastBody { get; private set; } = "";
+        public List<string> Bodies { get; } = [];
+
+        public Task WaitForPostsAsync(int count)
+        {
+            if (PostCount >= count)
+                return Task.CompletedTask;
+            return _twoPosts.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -188,6 +204,9 @@ public sealed class WledShotEffectSinkHoldTests
             LastBody = request.Content is null
                 ? ""
                 : await request.Content.ReadAsStringAsync(cancellationToken);
+            Bodies.Add(LastBody);
+            if (PostCount >= 2)
+                _twoPosts.TrySetResult();
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{}")
