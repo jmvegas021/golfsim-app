@@ -47,7 +47,8 @@ public sealed partial class LightingAppCoordinator : IAsyncDisposable
             () => Config.Wled,
             _httpStateManager,
             logFailure: ReportEffectSinkFailure,
-            onTakeover: () => Preview.CancelActivePreview());
+            onTakeover: () => Preview.CancelActivePreview(),
+            effectConfig: () => Config.Effects);
         _shotSink = new CompositeShotEventSink(_feed, _effectSink);
     }
 

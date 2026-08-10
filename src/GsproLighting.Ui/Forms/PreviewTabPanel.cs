@@ -1,4 +1,5 @@
 using GsproLighting.Core.Config;
+using GsproLighting.Core.Models;
 using GsproLighting.Ui.Controls;
 using GsproLighting.Ui.Theme;
 using GsproLighting.Wled.Device;
@@ -6,7 +7,7 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// HTTP-only manual controls for solid colors and the two live ready-state animations.
+/// HTTP-only manual controls for solid colors, ready-state animations, and hit-direction fills.
 /// </summary>
 public sealed class PreviewTabPanel : UserControl
 {
@@ -69,7 +70,7 @@ public sealed class PreviewTabPanel : UserControl
             {
                 Dock = DockStyle.Top,
                 Title = "Preview HTTP lights",
-                Subtitle = "Test solid colors or live ready-state animations. Set the controller IP on Connection first."
+                Subtitle = "Test solids, Ready/Not Ready, or hit-direction fills. Set the controller IP on Connection first."
             },
             0,
             0);
@@ -113,6 +114,27 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(OffButton());
         row.Controls.Add(AnimationButton("Not Ready · Center Out + Breathe", ApplyNotReadyAnimationAsync, width: 250));
         row.Controls.Add(AnimationButton("Ready · Center Out", ApplyReadyAnimationAsync, isPrimary: true, width: 180));
+        row.Controls.Add(AnimationButton(
+            "Far Left · Red",
+            () => ApplyHitDirectionAsync(ShotDirection.FarLeft, "Far Left · Red"),
+            width: 140));
+        row.Controls.Add(AnimationButton(
+            "Mid Left · Yellow",
+            () => ApplyHitDirectionAsync(ShotDirection.MidLeft, "Mid Left · Yellow"),
+            width: 160));
+        row.Controls.Add(AnimationButton(
+            "Center · Green",
+            () => ApplyHitDirectionAsync(ShotDirection.Center, "Center · Green"),
+            isPrimary: true,
+            width: 140));
+        row.Controls.Add(AnimationButton(
+            "Mid Right · Yellow",
+            () => ApplyHitDirectionAsync(ShotDirection.MidRight, "Mid Right · Yellow"),
+            width: 170));
+        row.Controls.Add(AnimationButton(
+            "Far Right · Red",
+            () => ApplyHitDirectionAsync(ShotDirection.FarRight, "Far Right · Red"),
+            width: 140));
         return row;
     }
 
@@ -206,6 +228,16 @@ public sealed class PreviewTabPanel : UserControl
             "Ready center-out",
             (ip, token) => _stateManager.RunReadyAsync(
                 ip,
+                _resolveLedCount(),
+                _resolveBrightness(),
+                token));
+
+    private Task ApplyHitDirectionAsync(ShotDirection direction, string label) =>
+        ApplyAnimationAsync(
+            label,
+            (ip, token) => _stateManager.RunHitDirectionAsync(
+                ip,
+                direction,
                 _resolveLedCount(),
                 _resolveBrightness(),
                 token));

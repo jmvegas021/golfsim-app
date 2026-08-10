@@ -41,6 +41,7 @@ public sealed partial class ConnectionTabPanel : UserControl
     private readonly NumericUpDown _pureSmash = Number(1, 2, 2, 0.01M);
     private readonly NumericUpDown _mishitSmash = Number(0.5M, 2, 2, 0.01M);
     private readonly NumericUpDown _centerHla = Number(0, 45, 1, 0.1M);
+    private readonly NumericUpDown _midHla = Number(0, 45, 1, 0.1M);
     private readonly CheckBox _autoWatch = Check("Auto-watch R50 / Connect logs (recommended)");
     private readonly CheckBox _startProxy = Check("Start Open Connect proxy on launch");
     private readonly CheckBox _startMinimized = Check("Start minimized to tray");
@@ -89,6 +90,7 @@ public sealed partial class ConnectionTabPanel : UserControl
         flow.Controls.Add(Field("Pure minimum smash factor", _pureSmash));
         flow.Controls.Add(Field("Mishit maximum smash factor", _mishitSmash));
         flow.Controls.Add(Field("Center HLA ± degrees", _centerHla));
+        flow.Controls.Add(Field("Mid HLA ± degrees", _midHla));
         flow.Controls.Add(UiTheme.CreateSectionLabel("Startup"));
         flow.Controls.Add(_autoWatch);
         flow.Controls.Add(_startProxy);

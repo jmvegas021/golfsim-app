@@ -4,7 +4,7 @@ using GsproLighting.Core.Models;
 namespace GsproLighting.Core.Services;
 
 /// <summary>
-/// Maps a live shot to its configured quality effect and HLA direction.
+/// Maps a live shot to its configured quality effect and HLA direction bucket.
 /// </summary>
 public sealed class ShotEffectMapper
 {
@@ -22,23 +22,55 @@ public sealed class ShotEffectMapper
         var slot = isPutt ? effects.Putt : SelectStrikeSlot(shot, effects);
         var direction = ClassifyDirection(
             shot.BallData?.Hla,
-            effects.CenterHlaAbsDegrees);
+            effects.CenterHlaAbsDegrees,
+            effects.MidHlaAbsDegrees);
         return new ShotLightPlan(slot, direction, isPutt);
     }
 
     public RgbColor Map(ShotPayload shot, EffectConfig effects) =>
         MapPlan(shot, effects).Color;
 
-    public static ShotDirection ClassifyDirection(double? hla, double centerHlaAbsDegrees)
+    /// <summary>
+    /// Buckets HLA into five hit-direction bands.
+    /// Defaults: |HLA| &lt;= 1.5° center (green); &lt;= 4.0° mid yellow; beyond far red.
+    /// Negative HLA → left; positive → right.
+    /// </summary>
+    public static ShotDirection ClassifyDirection(
+        double? hla,
+        double centerHlaAbsDegrees,
+        double midHlaAbsDegrees = 4.0)
     {
         if (hla is not double angle || double.IsNaN(angle))
             return ShotDirection.Center;
 
         var centerThreshold = Math.Abs(centerHlaAbsDegrees);
-        if (Math.Abs(angle) <= centerThreshold)
+        var midThreshold = Math.Max(Math.Abs(midHlaAbsDegrees), centerThreshold);
+        var abs = Math.Abs(angle);
+
+        if (abs <= centerThreshold)
             return ShotDirection.Center;
 
-        return angle < 0 ? ShotDirection.Left : ShotDirection.Right;
+        var isLeft = angle < 0;
+        if (abs <= midThreshold)
+            return isLeft ? ShotDirection.MidLeft : ShotDirection.MidRight;
+
+        return isLeft ? ShotDirection.FarLeft : ShotDirection.FarRight;
+    }
+
+    /// <summary>Swaps left/right buckets when the strip is mounted mirrored.</summary>
+    public static ShotDirection ApplyInvertLeftRight(ShotDirection direction, bool invert)
+    {
+        if (!invert)
+            return direction;
+
+        return direction switch
+        {
+            ShotDirection.FarLeft => ShotDirection.FarRight,
+            ShotDirection.MidLeft => ShotDirection.MidRight,
+            ShotDirection.MidRight => ShotDirection.MidLeft,
+            ShotDirection.FarRight => ShotDirection.FarLeft,
+            _ => direction
+        };
     }
 
     public static bool IsPutt(ShotPayload shot, EffectConfig effects)

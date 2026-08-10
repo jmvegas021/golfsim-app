@@ -1,4 +1,5 @@
 using GsproLighting.Core.Config;
+using GsproLighting.Core.Models;
 
 namespace GsproLighting.Wled.Device;
 
@@ -41,6 +42,22 @@ public sealed class WledHttpStateAnimationManager : IDisposable
             token => RunFramesAsync(
                 controllerIp,
                 WledHttpAnimationFrameFactory.CreateReadySequence(ledCount, brightness),
+                token),
+            cancellationToken);
+
+    public Task RunHitDirectionAsync(
+        string controllerIp,
+        ShotDirection direction,
+        int ledCount,
+        byte brightness,
+        CancellationToken cancellationToken = default) =>
+        RunSupersedingAsync(
+            token => RunFramesAsync(
+                controllerIp,
+                WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+                    direction,
+                    ledCount,
+                    brightness),
                 token),
             cancellationToken);
 

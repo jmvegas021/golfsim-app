@@ -125,6 +125,7 @@ public sealed class EffectConfigSerializationTests
             MishitMaxSmashFactor = 1.1,
             PuttMaxBallSpeedMph = 15,
             CenterHlaAbsDegrees = 2.0,
+            MidHlaAbsDegrees = 5.5,
             Idle = EffectSlot.Curated(RgbColor.FromRgb(1, 2, 3), EffectAnimations.Solid)
         };
 
@@ -135,6 +136,7 @@ public sealed class EffectConfigSerializationTests
         Assert.Equal(1.1, effects.MishitMaxSmashFactor);
         Assert.Equal(15, effects.PuttMaxBallSpeedMph);
         Assert.Equal(2.0, effects.CenterHlaAbsDegrees);
+        Assert.Equal(5.5, effects.MidHlaAbsDegrees);
     }
 
     private static void AssertRippleAmbient(EffectSlot slot, byte red, byte green, byte blue)

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GsproLighting.Core.Models;
 using GsproLighting.Wled.Device;
 using Xunit;
 
@@ -84,6 +85,91 @@ public sealed class WledHttpAnimationFrameFactoryTests
     public void CreateNotReadyExpandSequence_LimitsHttpRequestCountForLongStrips()
     {
         var frames = WledHttpAnimationFrameFactory.CreateNotReadyExpandSequence(
+            ledCount: 300,
+            brightness: 255);
+
+        Assert.Equal(WledHttpAnimationFrameFactory.MaximumExpandStepCount + 1, frames.Count);
+    }
+
+    [Fact]
+    public void CreateHitDirectionSequence_FarLeft_FillsFromCenterTowardLeftOnly()
+    {
+        var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.FarLeft,
+            ledCount: 12,
+            brightness: 180);
+
+        Assert.Equal(7, frames.Count);
+        var firstSegments = ReadSegments(frames[0]);
+        AssertRange(firstSegments[0], id: 0, start: 0, stop: 5);
+        AssertRange(firstSegments[1], id: 1, start: 5, stop: 6);
+        AssertRange(firstSegments[2], id: 2, start: 6, stop: 12);
+        Assert.Equal([220, 40, 40], ReadPrimaryColor(firstSegments[1]));
+
+        var finalSegments = ReadSegments(frames[^1]);
+        AssertRange(finalSegments[0], id: 0, start: 0, stop: 0);
+        AssertRange(finalSegments[1], id: 1, start: 0, stop: 6);
+        AssertRange(finalSegments[2], id: 2, start: 6, stop: 12);
+        Assert.Equal([220, 40, 40], ReadPrimaryColor(finalSegments[1]));
+    }
+
+    [Fact]
+    public void CreateHitDirectionSequence_FarRight_FillsFromCenterTowardRightOnly()
+    {
+        var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.FarRight,
+            ledCount: 12,
+            brightness: 180);
+
+        Assert.Equal(7, frames.Count);
+        var firstSegments = ReadSegments(frames[0]);
+        AssertRange(firstSegments[0], id: 0, start: 0, stop: 6);
+        AssertRange(firstSegments[1], id: 1, start: 6, stop: 7);
+        AssertRange(firstSegments[2], id: 2, start: 7, stop: 12);
+        Assert.Equal([220, 40, 40], ReadPrimaryColor(firstSegments[1]));
+
+        var finalSegments = ReadSegments(frames[^1]);
+        AssertRange(finalSegments[1], id: 1, start: 6, stop: 12);
+        AssertRange(finalSegments[2], id: 2, start: 12, stop: 12);
+    }
+
+    [Fact]
+    public void CreateHitDirectionSequence_Center_ExpandsOutwardGreen()
+    {
+        var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.Center,
+            ledCount: 12,
+            brightness: 180);
+
+        Assert.Equal(13, frames.Count);
+        var firstSegments = ReadSegments(frames[0]);
+        AssertRange(firstSegments[0], id: 0, start: 0, stop: 5);
+        AssertRange(firstSegments[1], id: 1, start: 5, stop: 7);
+        AssertRange(firstSegments[2], id: 2, start: 7, stop: 12);
+        Assert.Equal([0, 220, 0], ReadPrimaryColor(firstSegments[1]));
+
+        var finalSegments = ReadSegments(frames[^1]);
+        AssertRange(finalSegments[0], id: 0, start: 0, stop: 12);
+        Assert.Equal([0, 220, 0], ReadPrimaryColor(finalSegments[0]));
+    }
+
+    [Fact]
+    public void CreateHitDirectionSequence_MidLeft_UsesYellow()
+    {
+        var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.MidLeft,
+            ledCount: 12,
+            brightness: 200);
+
+        var firstSegments = ReadSegments(frames[0]);
+        Assert.Equal([220, 180, 0], ReadPrimaryColor(firstSegments[1]));
+    }
+
+    [Fact]
+    public void CreateHitDirectionSequence_LimitsHttpRequestCountForLongStrips()
+    {
+        var frames = WledHttpAnimationFrameFactory.CreateHitDirectionSequence(
+            ShotDirection.FarLeft,
             ledCount: 300,
             brightness: 255);
 

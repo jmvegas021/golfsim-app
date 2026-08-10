@@ -19,7 +19,7 @@ public sealed class ShotEffectMapperTests
 
         Assert.True(plan.IsPutt);
         Assert.Same(_effects.Putt, plan.Slot);
-        Assert.Equal(ShotDirection.Left, plan.Direction);
+        Assert.Equal(ShotDirection.MidLeft, plan.Direction);
     }
 
     [Fact]
@@ -32,7 +32,17 @@ public sealed class ShotEffectMapperTests
         Assert.False(plan.IsPutt);
         Assert.Same(_effects.PureStrike, plan.Slot);
         Assert.Same(_effects.PureStrike.Color, plan.Color);
-        Assert.Equal(ShotDirection.Right, plan.Direction);
+        Assert.Equal(ShotDirection.MidRight, plan.Direction);
+    }
+
+    [Fact]
+    public void MapPlan_FarHla_SelectsFarBucket()
+    {
+        var shot = CreateShot(speed: 130, hla: -6, smashFactor: 1.5);
+
+        var plan = _mapper.MapPlan(shot, _effects);
+
+        Assert.Equal(ShotDirection.FarLeft, plan.Direction);
     }
 
     [Fact]

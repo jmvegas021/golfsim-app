@@ -51,7 +51,7 @@ public sealed class WledShotEffectSinkHoldTests
     }
 
     [Fact]
-    public async Task OnShotAsync_PostsBrightGreenOnce_NoFollowUpIdle()
+    public async Task OnShotAsync_PostsHitDirectionCenterOut_NoFollowUpIdle()
     {
         var handler = new RecordingHttpHandler();
         using var animationManager = CreateAnimationManager(handler);
@@ -62,8 +62,45 @@ public sealed class WledShotEffectSinkHoldTests
         await sink.OnShotAsync(SampleShot());
         await Task.Delay(100);
 
-        Assert.Equal(1, handler.PostCount);
-        Assert.Contains("[0,255,80]", handler.LastBody);
+        // LedCount 8 → 8 expand steps + 1 hold for center green.
+        Assert.Equal(9, handler.PostCount);
+        Assert.Contains("[0,220,0]", handler.LastBody);
+        Assert.Contains("\"live\":false", handler.LastBody);
+        Assert.Contains("\"start\":0", handler.LastBody);
+        Assert.Contains("\"stop\":8", handler.LastBody);
+    }
+
+    [Fact]
+    public async Task OnShotAsync_FarLeftHla_PostsLeftOnlyRed()
+    {
+        var handler = new RecordingHttpHandler();
+        using var animationManager = CreateAnimationManager(handler);
+        var sink = new WledShotEffectSink(
+            () => ConfiguredWled(),
+            animationManager);
+
+        await sink.OnShotAsync(SampleShot(hla: -6));
+
+        Assert.True(handler.PostCount > 1);
+        Assert.Contains("[220,40,40]", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"start\":3", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"stop\":4", handler.Bodies[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnShotAsync_RespectsInvertLeftRight()
+    {
+        var handler = new RecordingHttpHandler();
+        using var animationManager = CreateAnimationManager(handler);
+        var sink = new WledShotEffectSink(
+            () => ConfiguredWled(invertLeftRight: true),
+            animationManager);
+
+        // Negative HLA is left; invert plays far-right animation (grows from center to right).
+        await sink.OnShotAsync(SampleShot(hla: -6));
+
+        Assert.Contains("\"start\":4", handler.Bodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"stop\":5", handler.Bodies[0], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -162,22 +199,25 @@ public sealed class WledShotEffectSinkHoldTests
         return new WledHttpStateAnimationManager(new WledDeviceClient(http));
     }
 
-    private static WledConfig ConfiguredWled(byte brightness = 180) =>
+    private static WledConfig ConfiguredWled(
+        byte brightness = 180,
+        bool invertLeftRight = false) =>
         new()
         {
             Brightness = brightness,
             LedCount = 8,
-            ControllerIp = "192.168.86.40"
+            ControllerIp = "192.168.86.40",
+            InvertLeftRight = invertLeftRight
         };
 
-    private static ShotPayload SampleShot() =>
+    private static ShotPayload SampleShot(double hla = 0) =>
         new()
         {
             BallData = new BallData
             {
                 Speed = 140,
                 SideSpin = 0,
-                Hla = 0,
+                Hla = hla,
                 CarryDistance = 200
             },
             MeasuredSmashFactor = 1.5

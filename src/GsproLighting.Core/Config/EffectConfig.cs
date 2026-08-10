@@ -36,9 +36,17 @@ public sealed class EffectConfig
     public double MishitMaxSmashFactor { get; set; } = 1.25;
 
     /// <summary>
-    /// Absolute HLA degrees within which a shot counts as center (left / right otherwise).
+    /// Absolute HLA degrees within which a shot counts as center (green).
+    /// Default 1.5°.
     /// </summary>
     public double CenterHlaAbsDegrees { get; set; } = 1.5;
+
+    /// <summary>
+    /// Absolute HLA degrees at/below which a non-center shot is mid left/right (yellow).
+    /// Beyond this is far left/right (red). Default 4.0°.
+    /// Must be greater than <see cref="CenterHlaAbsDegrees"/>; classifier clamps if needed.
+    /// </summary>
+    public double MidHlaAbsDegrees { get; set; } = 4.0;
 
     public EffectConfig() => ResetLightingSlotsToProductDefaults();
 
@@ -92,6 +100,7 @@ public sealed class EffectConfig
         PuttMaxBallSpeedMph = PuttMaxBallSpeedMph,
         PureMinSmashFactor = PureMinSmashFactor,
         MishitMaxSmashFactor = MishitMaxSmashFactor,
-        CenterHlaAbsDegrees = CenterHlaAbsDegrees
+        CenterHlaAbsDegrees = CenterHlaAbsDegrees,
+        MidHlaAbsDegrees = MidHlaAbsDegrees
     };
 }

@@ -1,6 +1,7 @@
 using GsproLighting.Core.Config;
 using GsproLighting.Core.Contracts;
 using GsproLighting.Core.Models;
+using GsproLighting.Core.Services;
 using GsproLighting.Wled.Device;
 
 namespace GsproLighting.Wled;
@@ -16,13 +17,12 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     /// <summary>Ball not ready — dim red (also sent at reduced brightness).</summary>
     public static readonly RgbColor NotReadyColor = RgbColor.FromRgb(180, 30, 30);
 
-    /// <summary>Any shot — bright green.</summary>
-    public static readonly RgbColor ShotColor = RgbColor.FromRgb(0, 255, 80);
-
     /// <summary>Player info — blue.</summary>
     public static readonly RgbColor PlayerColor = RgbColor.FromRgb(40, 120, 255);
 
     private readonly Func<WledConfig> _wledConfig;
+    private readonly Func<EffectConfig> _effectConfig;
+    private readonly ShotEffectMapper _shotMapper = new();
     private readonly WledHttpStateAnimationManager _animationManager;
     private readonly bool _ownsAnimationManager;
     private readonly Action<string>? _logFailure;
@@ -32,9 +32,11 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
         Func<WledConfig> wledConfig,
         WledHttpStateAnimationManager? animationManager = null,
         Action<string>? logFailure = null,
-        Action? onTakeover = null)
+        Action? onTakeover = null,
+        Func<EffectConfig>? effectConfig = null)
     {
         _wledConfig = wledConfig;
+        _effectConfig = effectConfig ?? (() => new EffectConfig());
         _animationManager = animationManager ?? new WledHttpStateAnimationManager();
         _ownsAnimationManager = animationManager is null;
         _logFailure = logFailure;
@@ -49,7 +51,21 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
             shot.BallData?.SideSpin is null)
             return Task.CompletedTask;
 
-        return ApplySolidOnceAsync(ShotColor, cancellationToken);
+        return RunEffectAsync(
+            (config, token) =>
+            {
+                var plan = _shotMapper.MapPlan(shot, _effectConfig());
+                var direction = ShotEffectMapper.ApplyInvertLeftRight(
+                    plan.Direction,
+                    config.InvertLeftRight);
+                return _animationManager.RunHitDirectionAsync(
+                    config.ControllerIp,
+                    direction,
+                    config.LedCount,
+                    config.Brightness,
+                    token);
+            },
+            cancellationToken);
     }
 
     public Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default)
@@ -159,5 +175,4 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
             // Logging must never break the live effect path.
         }
     }
-
 }
