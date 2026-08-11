@@ -26,7 +26,7 @@ public sealed class OpenConnectReadyEdgeDispatcherTests
     }
 
     [Fact]
-    public void FirstNotReadyHeartbeat_FiresWaitingNotNotReady()
+    public void FirstNotReadyHeartbeat_FiresWaiting_ThenNotReadySupersedes()
     {
         var sink = new RecordingSink();
         var dispatcher = new OpenConnectReadyEdgeDispatcher();
@@ -34,14 +34,18 @@ public sealed class OpenConnectReadyEdgeDispatcherTests
 
         // Code 201 is often absent — first connected+not-ready heartbeat → Waiting.
         dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
-        dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
         Assert.Equal(1, sink.WaitingCount);
         Assert.Equal(0, sink.NotReadyCount);
+
+        // Next not-ready must supersede Waiting (do not stay stuck on loading).
+        dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
+        Assert.Equal(1, sink.WaitingCount);
+        Assert.Equal(1, sink.NotReadyCount);
 
         dispatcher.Dispatch(ReadyHeartbeat(), sink, CancellationToken.None, _ => { });
         dispatcher.Dispatch(notReady, sink, CancellationToken.None, _ => { });
         Assert.Equal(1, sink.ReadyCount);
-        Assert.Equal(1, sink.NotReadyCount);
+        Assert.Equal(2, sink.NotReadyCount);
         Assert.Equal(1, sink.WaitingCount);
     }
 

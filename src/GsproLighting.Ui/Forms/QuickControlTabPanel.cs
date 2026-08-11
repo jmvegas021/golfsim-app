@@ -19,6 +19,10 @@ public sealed partial class QuickControlTabPanel : UserControl
 {
     private static readonly HashSet<string> PreviewOnlyIds =
     [
+        LightingPreviewIds.Pure,
+        LightingPreviewIds.Mishit,
+        LightingPreviewIds.Putt,
+        LightingPreviewIds.Player,
         LightingPreviewIds.Celebrate,
         LightingPreviewIds.Hazard,
         LightingPreviewIds.Water,
@@ -40,7 +44,7 @@ public sealed partial class QuickControlTabPanel : UserControl
     private readonly FlowLayoutPanel _presetGrid = WrapFlow();
     private readonly EmptyStateBanner _presetsEmpty = new() { Width = 640, Margin = new Padding(0, 4, 0, 4) };
     private readonly Label _status = new();
-    private readonly CheckBox _power = new() { Text = "Power on" };
+    private readonly NightCheckBox _power = new() { Text = "Power on" };
     private readonly NightSlider _brightness = new() { Minimum = 1, Maximum = 255, Width = 260 };
     private readonly Label _brightnessValue = new();
     private readonly List<NightButton> _stateButtons = [];
@@ -135,7 +139,10 @@ public sealed partial class QuickControlTabPanel : UserControl
         _status.Text = "Tap a state to preview it on the real strip.";
         stack.Controls.Add(_status);
 
-        stack.Controls.Add(Section("States", "Preview-only states never fire from live GSPro data.", _stateGrid));
+        stack.Controls.Add(Section(
+            "States",
+            "Live bay states: Waiting, Ready, Not Ready. Pure / Mishit / Putt / Celebrate / Hazard and similar quality cues are Preview-only — live shots drive Direction only.",
+            _stateGrid));
         stack.Controls.Add(Section("WLED presets", "Your saved presets on this controller.", BuildPresetsBody()));
         stack.Controls.Add(Section("Power", "Applies immediately to the connected controller.", BuildPowerBody()));
 

@@ -8,7 +8,8 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Wled;
 
 /// <summary>
-/// Maps GSPro events to WLED: Ready / Not Ready / Waiting / hit directions use DDP streaming.
+/// Maps GSPro events to WLED: Ready / Not Ready / hit directions use DDP streaming.
+/// Loading / Waiting uses native WLED Ripple over HTTP (<c>live:false</c>).
 /// </summary>
 public sealed class WledShotEffectSink : IShotEventSink, IDisposable
 {
@@ -18,7 +19,7 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     /// <summary>Ball not ready — solid red (DDP Not Ready hold).</summary>
     public static readonly RgbColor NotReadyColor = RgbColor.FromRgb(255, 0, 0);
 
-    /// <summary>GSPro loading / start — aqua (DDP Waiting hold).</summary>
+    /// <summary>GSPro loading / start — aqua tint for native WLED Ripple (HTTP).</summary>
     public static readonly RgbColor WaitingColor = RgbColor.FromRgb(0, 200, 220);
 
     private readonly Func<WledConfig> _wledConfig;
@@ -70,14 +71,16 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
                     direction,
                     config.LedCount,
                     config.Brightness,
-                    token);
+                    token,
+                    tuning: _effectConfig().StatusTuning.Direction,
+                    notReadyFallbackTuning: _effectConfig().StatusTuning.NotReady);
             },
             cancellationToken);
     }
 
     public Task OnPlayerInfoAsync(GsproResponse response, CancellationToken cancellationToken = default)
     {
-        // Code 201 = player / start-screen info from GSPro → aqua loading ripple (DDP).
+        // Code 201 = player / start-screen info from GSPro → native WLED Ripple (HTTP).
         // Also rare in R50 log-watch sessions — see OnWaitingAsync for Connect-loading edges.
         if (response.Code != 201)
             return Task.CompletedTask;
@@ -86,11 +89,19 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
     }
 
     public Task OnWaitingAsync(CancellationToken cancellationToken = default) =>
-        RunDrgbEffectAsync(
-            (config, token) => _readyDrgb.RunWaitingAsync(
-                config.LedCount,
-                config.Brightness,
-                token),
+        RunEffectAsync(
+            async (config, token) =>
+            {
+                // Cancel DDP Ready/Not Ready/direction so HTTP Ripple can own the strip.
+                _readyDrgb.CancelActive();
+                await _animationManager.ApplyWaitingRippleAsync(
+                        config.ControllerIp,
+                        config.Brightness,
+                        WaitingColor,
+                        tuning: _effectConfig().StatusTuning.Waiting,
+                        cancellationToken: token)
+                    .ConfigureAwait(false);
+            },
             cancellationToken);
 
     public Task OnBallReadyAsync(ShotPayload payload, CancellationToken cancellationToken = default) =>
@@ -98,7 +109,8 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
             (config, token) => _readyDrgb.RunReadyAsync(
                 config.LedCount,
                 config.Brightness,
-                token),
+                token,
+                tuning: _effectConfig().StatusTuning.Ready),
             cancellationToken);
 
     public Task OnBallNotReadyAsync(CancellationToken cancellationToken = default) =>
@@ -106,7 +118,8 @@ public sealed class WledShotEffectSink : IShotEventSink, IDisposable
             (config, token) => _readyDrgb.RunNotReadyAsync(
                 config.LedCount,
                 config.Brightness,
-                token),
+                token,
+                tuning: _effectConfig().StatusTuning.NotReady),
             cancellationToken);
 
     /// <summary>

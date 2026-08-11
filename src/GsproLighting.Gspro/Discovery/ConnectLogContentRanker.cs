@@ -12,10 +12,14 @@ public static class ConnectLogContentRanker
         "Logging ball data",
         "before sending to GSPro",
         "carryDistance",
+        "carryDeviationAngle",
+        "launchDirection",
         "GarminR50Form",
         "sidespin",
         "ballSpeed",
-        "spinType"
+        "spinType",
+        "READY_TO_HIT",
+        "NOT_READY_TO_HIT"
     };
 
     private static readonly string[] MediumMarkers =

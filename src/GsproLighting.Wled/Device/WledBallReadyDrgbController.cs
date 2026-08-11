@@ -1,3 +1,4 @@
+using GsproLighting.Core.Config;
 using GsproLighting.Core.Models;
 using GsproLighting.Wled.Animations;
 using GsproLighting.Wled.Contracts;
@@ -41,76 +42,112 @@ public sealed class WledBallReadyDrgbController : IDisposable
         int ledCount,
         byte brightness,
         CancellationToken cancellationToken = default,
-        Action? onHoldStarted = null) =>
-        RunStatusAsync(
+        Action? onHoldStarted = null,
+        StatusEffectStateTuning? tuning = null)
+    {
+        var parameters = DrgbStatusEffectParams.FromTuning(tuning);
+        return RunStatusAsync(
             token => PlayIntroThenHoldAsync(
-                DrgbReadyFrameFactory.CreateReadySequence(ledCount),
-                DrgbBandShimmerEffect.ForReady(ledCount),
+                DrgbReadyFrameFactory.CreateReadySequence(ledCount, parameters),
+                DrgbBandShimmerEffect.ForReady(ledCount, parameters),
                 ledCount,
                 brightness,
                 HeldPose.ReadyCenterBand,
                 onHoldStarted,
                 token),
             cancellationToken);
+    }
 
     public Task RunNotReadyAsync(
         int ledCount,
         byte brightness,
         CancellationToken cancellationToken = default,
-        Action? onHoldStarted = null)
+        Action? onHoldStarted = null,
+        StatusEffectStateTuning? tuning = null)
     {
         // Capture before BeginSession clears pose when superseding the Ready hold.
         var fromReady = CurrentPose == HeldPose.ReadyCenterBand;
-        var intro = fromReady
-            ? DrgbNotReadyFrameFactory.CreateFromReadyCenterBand(ledCount)
-            : DrgbNotReadyFrameFactory.CreateExpandFromDark(ledCount);
         return RunStatusAsync(
-            token => PlayIntroThenHoldAsync(
-                intro,
-                DrgbBandShimmerEffect.ForNotReady(ledCount),
+            token => PlayNotReadyHoldAsync(
                 ledCount,
                 brightness,
-                HeldPose.NotReadyFull,
+                tuning,
                 onHoldStarted,
-                token),
+                token,
+                fromReady),
             cancellationToken);
     }
 
     /// <summary>
-    /// GSPro loading / start-screen aqua ripple (full-strip center→out shimmer).
-    /// Superseded by Ready / Not Ready / direction. Respects direction min-hold.
+    /// Legacy DDP aqua Waiting hold for tests / explicit DDP exercises.
+    /// Live and Preview Waiting use HTTP Ripple via
+    /// <see cref="WledHttpStateAnimationManager.ApplyWaitingRippleAsync"/>.
     /// </summary>
     public Task RunWaitingAsync(
         int ledCount,
         byte brightness,
         CancellationToken cancellationToken = default,
-        Action? onHoldStarted = null) =>
-        RunStatusAsync(
+        Action? onHoldStarted = null,
+        StatusEffectStateTuning? tuning = null)
+    {
+        var parameters = DrgbStatusEffectParams.FromTuning(tuning);
+        return RunStatusAsync(
             token => PlayIntroThenHoldAsync(
-                DrgbWaitingFrameFactory.CreateWaitingSequence(ledCount),
-                DrgbBandShimmerEffect.ForWaiting(ledCount),
+                DrgbWaitingFrameFactory.CreateWaitingSequence(ledCount, parameters),
+                DrgbBandShimmerEffect.ForWaiting(ledCount, parameters),
                 ledCount,
                 brightness,
                 HeldPose.WaitingAqua,
                 onHoldStarted,
                 token),
             cancellationToken);
+    }
 
     public Task RunDirectionAsync(
         ShotDirection direction,
         int ledCount,
         byte brightness,
         CancellationToken cancellationToken = default,
-        Action? onHoldStarted = null) =>
-        RunSupersedingAsync(
+        Action? onHoldStarted = null,
+        StatusEffectStateTuning? tuning = null,
+        StatusEffectStateTuning? notReadyFallbackTuning = null)
+    {
+        var parameters = DrgbStatusEffectParams.FromTuning(tuning);
+        return RunSupersedingAsync(
             token =>
             {
                 // Arm before intro so Ready/Not Ready arriving mid-slide cannot cancel
                 // the hit cue (R50 logs Not Ready ~2–3s after the Force line).
                 _directionHold.Arm();
+                // Live OnShotAsync passes StatusTuning.NotReady so that when min-hold
+                // elapses with nothing queued, we synthesize Not Ready (R50/GSPro often
+                // never send it after a Force shot). Real Ready / Not Ready via TryDefer
+                // replace this fallback (latest wins). Waiting / CancelActive clear it.
+                // Preview omits notReadyFallbackTuning so direction can be held manually.
+                // Use CancellationToken.None so the waiter outlives this direction session
+                // when BeginSession cancels it to start the deferred status.
+                if (notReadyFallbackTuning is not null)
+                {
+                    var fallbackTuning = notReadyFallbackTuning;
+                    _ = _directionHold.TryDefer(
+                        deferToken => RunSupersedingAsync(
+                            holdToken => PlayNotReadyHoldAsync(
+                                ledCount,
+                                brightness,
+                                fallbackTuning,
+                                onHoldStarted: null,
+                                holdToken,
+                                fromReady: false),
+                            deferToken),
+                        CancellationToken.None);
+                }
+
                 return PlayIntroThenHoldAsync(
-                    DrgbDirectionFrameFactory.CreateDirectionSequence(direction, ledCount),
-                    DrgbBandShimmerEffect.ForDirection(direction, ledCount),
+                    DrgbDirectionFrameFactory.CreateDirectionSequence(
+                        direction,
+                        ledCount,
+                        parameters),
+                    DrgbBandShimmerEffect.ForDirection(direction, ledCount, parameters),
                     ledCount,
                     brightness,
                     ToDirectionPose(direction),
@@ -118,6 +155,29 @@ public sealed class WledBallReadyDrgbController : IDisposable
                     token);
             },
             cancellationToken);
+    }
+
+    private Task PlayNotReadyHoldAsync(
+        int ledCount,
+        byte brightness,
+        StatusEffectStateTuning? tuning,
+        Action? onHoldStarted,
+        CancellationToken token,
+        bool fromReady)
+    {
+        var parameters = DrgbStatusEffectParams.FromTuning(tuning);
+        var intro = fromReady
+            ? DrgbNotReadyFrameFactory.CreateFromReadyCenterBand(ledCount, parameters)
+            : DrgbNotReadyFrameFactory.CreateExpandFromDark(ledCount, parameters);
+        return PlayIntroThenHoldAsync(
+            intro,
+            DrgbBandShimmerEffect.ForNotReady(ledCount, parameters),
+            ledCount,
+            brightness,
+            HeldPose.NotReadyFull,
+            onHoldStarted,
+            token);
+    }
 
     public void CancelActive()
     {

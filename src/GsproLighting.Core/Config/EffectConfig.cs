@@ -55,6 +55,12 @@ public sealed class EffectConfig
     /// </summary>
     public double MidHlaAbsDegrees { get; set; } = 4.0;
 
+    /// <summary>
+    /// Moderate per-state speed / intensity / layers (and concentrate band %) tweaks.
+    /// Persisted across Load/Save; not rewritten by <see cref="ResetLightingSlotsToProductDefaults"/>.
+    /// </summary>
+    public StatusEffectTuning StatusTuning { get; set; } = new();
+
     public EffectConfig() => ResetLightingSlotsToProductDefaults();
 
     /// <summary>
@@ -132,6 +138,7 @@ public sealed class EffectConfig
         PureMinSmashFactor = PureMinSmashFactor,
         MishitMaxSmashFactor = MishitMaxSmashFactor,
         CenterHlaAbsDegrees = CenterHlaAbsDegrees,
-        MidHlaAbsDegrees = MidHlaAbsDegrees
+        MidHlaAbsDegrees = MidHlaAbsDegrees,
+        StatusTuning = StatusTuning.Clone()
     };
 }

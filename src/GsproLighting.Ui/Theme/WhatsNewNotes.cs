@@ -7,9 +7,11 @@ public static class WhatsNewNotes
 
     public static readonly string[] Bullets =
     [
-        "Fix Preview Ready/Not Ready DRGB: sync Connection IP/port/LED count into UDP before streaming (HTTP solids already worked).",
-        "Surface DRGB send failures with host:port:LED count instead of a silent “running” status.",
-        "Fix WLED network scan when the PC NIC reports a wide mask (/16 etc.): clamp to the host’s /24 and use a longer probe timeout.",
-        "Scan miss was unrelated to the v0.8.22 DRGB move — discovery was not changed in that release.",
+        "Waiting uses native WLED Ripple over HTTP (live:false) — Preview Waiting matches live OnWaitingAsync and honors StatusTuning speed/intensity/layers.",
+        "Fix stuck Waiting: Connect-loading edges no longer leave the bay on aqua after Ready/Not Ready resumes.",
+        "Garmin R50 sparse Force metrics: radians→degrees and better shot assembly from incomplete Connect log lines.",
+        "Status effect tuning on Connection (Ready / Not Ready / Waiting / Direction sx·ix·layers / band size) with night-theme checkboxes.",
+        "After a shot, Direction holds 4s then falls back to Not Ready DDP if GSPro never sends Not Ready — real Ready/Not Ready still win.",
+        "Legend and Quick Control mark Pure / Mishit / Putt / Celebrate / Hazard as Preview-only; live shots drive Direction only.",
     ];
 }

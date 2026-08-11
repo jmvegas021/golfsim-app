@@ -11,7 +11,6 @@ namespace GsproLighting.Gspro.Watchers;
 /// </summary>
 public sealed class ConnectLogTailWatcher : IAsyncDisposable
 {
-    private readonly ConnectLogLineParser _parser = new();
     private readonly ShotFeedBuffer _feed;
     private readonly IShotEventSink _sink;
     private readonly string _rawLogDirectory;
@@ -187,7 +186,7 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
                 break;
             if (line.Length == 0)
                 continue;
-            HandleLine(line, token);
+            HandleLine(tail, line, token);
         }
     }
 
@@ -197,12 +196,14 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
     /// indefinitely until superseded by the next call, and synchronously awaiting one here
     /// would block this read loop from ever reaching the next line that's needed to end it.
     /// </summary>
-    private void HandleLine(string line, CancellationToken token)
+    private void HandleLine(TailState tail, string line, CancellationToken token)
     {
         ConnectParseResult parsed;
         try
         {
-            parsed = _parser.Parse(line);
+            // Per-file parser so sparse HLA / Ready edges from one Connect log
+            // cannot be cleared by Force-only lines from another tailed file.
+            parsed = tail.Parser.Parse(line);
         }
         catch (Exception ex)
         {
@@ -320,6 +321,7 @@ public sealed class ConnectLogTailWatcher : IAsyncDisposable
     private sealed class TailState : IDisposable
     {
         public required string Path { get; init; }
+        public ConnectLogLineParser Parser { get; } = new();
         public FileStream? Stream { get; private set; }
         public StringBuilder Builder { get; } = new();
 

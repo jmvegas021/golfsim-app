@@ -23,6 +23,7 @@ public sealed partial class ConnectionTabPanel
             _pureSmash.Value = (decimal)config.Effects.PureMinSmashFactor;
             _mishitSmash.Value = (decimal)config.Effects.MishitMaxSmashFactor;
             _centerHla.Value = (decimal)config.Effects.CenterHlaAbsDegrees;
+            _statusTuning.LoadConfig(config.Effects.StatusTuning);
             _autoWatch.Checked = config.R50Watch.AutoWatchEnabled;
             _startProxy.Checked = config.Ui.StartProxyOnLaunch;
             _startMinimized.Checked = config.Ui.StartMinimizedToTray;
@@ -52,6 +53,8 @@ public sealed partial class ConnectionTabPanel
         config.Effects.PureMinSmashFactor = (double)_pureSmash.Value;
         config.Effects.MishitMaxSmashFactor = (double)_mishitSmash.Value;
         config.Effects.CenterHlaAbsDegrees = (double)_centerHla.Value;
+        config.Effects.StatusTuning ??= new StatusEffectTuning();
+        _statusTuning.ApplyTo(config.Effects.StatusTuning);
         config.R50Watch.AutoWatchEnabled = _autoWatch.Checked;
         config.Ui.StartProxyOnLaunch = _startProxy.Checked;
         config.Ui.StartMinimizedToTray = _startMinimized.Checked;

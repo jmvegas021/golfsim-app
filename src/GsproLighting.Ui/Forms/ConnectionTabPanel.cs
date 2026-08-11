@@ -34,18 +34,19 @@ public sealed partial class ConnectionTabPanel : UserControl
     private int _ledCountValue = 60;
     private byte _brightnessValue = 180;
     private readonly NumericUpDown _wledPort = Number(1, 65535);
-    private readonly CheckBox _invert = Check("Invert left / right");
+    private readonly NightCheckBox _invert = NightCheckBox.Create("Invert left / right");
     private readonly NumericUpDown _listenPort = Number(1, 65535);
     private readonly NumericUpDown _upstreamPort = Number(1, 65535);
     private readonly NumericUpDown _puttSpeed = Number(1, 80, 1, 0.5M);
     private readonly NumericUpDown _pureSmash = Number(1, 2, 2, 0.01M);
     private readonly NumericUpDown _mishitSmash = Number(0.5M, 2, 2, 0.01M);
     private readonly NumericUpDown _centerHla = Number(0, 45, 1, 0.1M);
-    private readonly CheckBox _autoWatch = Check("Auto-watch R50 / Connect logs (recommended)");
-    private readonly CheckBox _startProxy = Check("Start Open Connect proxy on launch");
-    private readonly CheckBox _startMinimized = Check("Start minimized to tray");
-    private readonly CheckBox _startWithWindows = Check("Start GSPro Lighting when Windows starts");
-    private readonly CheckBox _captureDiagnostics = Check("Capture full diagnostics (includes heartbeats)");
+    private readonly StatusEffectTuningPanel _statusTuning = new();
+    private readonly NightCheckBox _autoWatch = NightCheckBox.Create("Auto-watch R50 / Connect logs (recommended)");
+    private readonly NightCheckBox _startProxy = NightCheckBox.Create("Start Open Connect proxy on launch");
+    private readonly NightCheckBox _startMinimized = NightCheckBox.Create("Start minimized to tray");
+    private readonly NightCheckBox _startWithWindows = NightCheckBox.Create("Start GSPro Lighting when Windows starts");
+    private readonly NightCheckBox _captureDiagnostics = NightCheckBox.Create("Capture full diagnostics (includes heartbeats)");
     private readonly NightButton _exportConfig = NightButton.Create("Export settings…", 160);
     private readonly NightButton _importConfig = NightButton.Create("Import settings…", 160);
     private readonly Label _backupStatus = new()
@@ -89,6 +90,7 @@ public sealed partial class ConnectionTabPanel : UserControl
         flow.Controls.Add(Field("Pure minimum smash factor", _pureSmash));
         flow.Controls.Add(Field("Mishit maximum smash factor", _mishitSmash));
         flow.Controls.Add(Field("Center HLA ± degrees (Left/Right beyond)", _centerHla));
+        flow.Controls.Add(_statusTuning);
         flow.Controls.Add(UiTheme.CreateSectionLabel("Startup"));
         flow.Controls.Add(_autoWatch);
         flow.Controls.Add(_startProxy);
@@ -135,6 +137,9 @@ public sealed partial class ConnectionTabPanel : UserControl
 
     /// <summary>Kicks off the network scan programmatically (first-run onboarding).</summary>
     public Task TriggerScanAsync() => ScanForWledDevicesAsync();
+
+    /// <summary>Current (possibly unsaved) status-light tuning from the Connection panel.</summary>
+    public StatusEffectTuning CaptureStatusTuning() => _statusTuning.Capture();
 
     protected override void Dispose(bool disposing)
     {
@@ -292,18 +297,6 @@ public sealed partial class ConnectionTabPanel : UserControl
         input.Anchor = AnchorStyles.Left;
         return row;
     }
-
-    private static CheckBox Check(string text) => new()
-    {
-        Text = text,
-        AutoSize = false,
-        Width = 560,
-        Height = UiTheme.TouchMin,
-        ForeColor = UiTheme.Text,
-        FlatStyle = FlatStyle.Flat,
-        Cursor = Cursors.Hand,
-        Margin = new Padding(0, 2, 0, 2)
-    };
 
     private static NumericUpDown Number(
         decimal minimum,

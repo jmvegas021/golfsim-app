@@ -13,12 +13,15 @@ public static class DrgbConcentrateBandGeometry
     /// </summary>
     public const double ConcentrateLitFraction = 0.28;
 
-    public static int ResolveLitCount(int ledCount)
+    public static int ResolveLitCount(
+        int ledCount,
+        double concentrateLitFraction = ConcentrateLitFraction)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
-        var raw = (int)Math.Round(ledCount * ConcentrateLitFraction);
+        var fraction = Math.Clamp(concentrateLitFraction, 0.15, 0.45);
+        var raw = (int)Math.Round(ledCount * fraction);
         var hold = Math.Clamp(raw, ledCount <= 2 ? 1 : 2, ledCount);
         if (ledCount % 2 == 0 && hold % 2 == 1)
             hold = Math.Min(ledCount, hold + 1);
@@ -27,42 +30,51 @@ public static class DrgbConcentrateBandGeometry
         return hold;
     }
 
-    public static LedBandRange ResolveCenter(int ledCount)
+    public static LedBandRange ResolveCenter(
+        int ledCount,
+        double concentrateLitFraction = ConcentrateLitFraction)
     {
-        var lit = ResolveLitCount(ledCount);
+        var lit = ResolveLitCount(ledCount, concentrateLitFraction);
         return new LedBandRange((ledCount - lit) / 2, lit);
     }
 
     /// <summary>
     /// Same-width band immediately left of the Ready center zone, clamped to strip start.
-    /// LitCount always equals the center band (0.28 concentrate) — never wider.
+    /// LitCount always equals the center band — never wider.
     /// </summary>
-    public static LedBandRange ResolveLeft(int ledCount)
+    public static LedBandRange ResolveLeft(
+        int ledCount,
+        double concentrateLitFraction = ConcentrateLitFraction)
     {
-        var center = ResolveCenter(ledCount);
+        var center = ResolveCenter(ledCount, concentrateLitFraction);
         var start = Math.Max(0, center.Start - center.LitCount);
         return new LedBandRange(start, center.LitCount);
     }
 
     /// <summary>
     /// Same-width band immediately right of the Ready center zone, clamped to strip end.
-    /// LitCount always equals the center band (0.28 concentrate) — never wider.
+    /// LitCount always equals the center band — never wider.
     /// </summary>
-    public static LedBandRange ResolveRight(int ledCount)
+    public static LedBandRange ResolveRight(
+        int ledCount,
+        double concentrateLitFraction = ConcentrateLitFraction)
     {
-        var center = ResolveCenter(ledCount);
+        var center = ResolveCenter(ledCount, concentrateLitFraction);
         var start = center.EndExclusive;
         if (start + center.LitCount > ledCount)
             start = Math.Max(0, ledCount - center.LitCount);
         return new LedBandRange(start, center.LitCount);
     }
 
-    public static LedBandRange Resolve(ShotDirection direction, int ledCount) =>
+    public static LedBandRange Resolve(
+        ShotDirection direction,
+        int ledCount,
+        double concentrateLitFraction = ConcentrateLitFraction) =>
         direction switch
         {
-            ShotDirection.Left => ResolveLeft(ledCount),
-            ShotDirection.Right => ResolveRight(ledCount),
-            _ => ResolveCenter(ledCount)
+            ShotDirection.Left => ResolveLeft(ledCount, concentrateLitFraction),
+            ShotDirection.Right => ResolveRight(ledCount, concentrateLitFraction),
+            _ => ResolveCenter(ledCount, concentrateLitFraction)
         };
 }
 

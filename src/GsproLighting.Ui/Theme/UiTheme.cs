@@ -89,17 +89,25 @@ public static class UiTheme
         }
     }
 
+    /// <summary>
+    /// Applies shared sizing/typography. Prefer <see cref="GsproLighting.Ui.Controls.NightCheckBox"/> —
+    /// stock FlatStyle checkmarks are invisible on this dark theme (BorderSize 0 + Transparent).
+    /// </summary>
     public static void StyleCheckBox(CheckBox checkBox)
     {
         checkBox.ForeColor = Text;
         checkBox.BackColor = Color.Transparent;
-        checkBox.FlatStyle = FlatStyle.Flat;
-        checkBox.FlatAppearance.BorderSize = 0;
         checkBox.Cursor = Cursors.Hand;
         checkBox.Font = BodyFont();
         checkBox.MinimumSize = new Size(0, TouchMin);
         checkBox.AutoSize = false;
         checkBox.Height = Math.Max(checkBox.Height, TouchMin);
+        // NightCheckBox paints its own indicator; do not flatten stock CheckBox chrome here.
+        if (checkBox is not GsproLighting.Ui.Controls.NightCheckBox)
+        {
+            checkBox.FlatStyle = FlatStyle.Standard;
+            checkBox.UseVisualStyleBackColor = true;
+        }
     }
 
     public static void StyleContextMenu(ContextMenuStrip menu)

@@ -63,14 +63,10 @@ public sealed class ConnectLogLineParser
     private readonly GarminConnectBallMapper _garminMapper = new();
     private readonly MultilineJsonAccumulator _jsonBuffer = new();
     private readonly GarminSparseMetricsAccumulator _sparseMetrics = new();
+    private readonly ConnectReadyWaitingEdgeState _statusEdges = new();
     private bool _awaitingBallJson;
     private string? _ballContextLine;
     private int _awaitingIdleLines;
-    /// <summary>R50 light state: null = unknown, true = green/ready, false = red/not-ready.</summary>
-    private bool? _isReady;
-    /// <summary>True after first Waiting edge until Ready/NotReady/Shot clears it.</summary>
-    private bool _waitingShown;
-    private bool _lookingForGarminWaitingArmed;
 
     public ConnectParseResult Parse(string line)
     {
@@ -79,11 +75,31 @@ public sealed class ConnectLogLineParser
 
         var trimmed = line.Trim();
 
+        // Ready / Not Ready must win over sparse property ingestion (status JSON
+        // also contains "key": "value" fragments).
+        if (!IsNoise(trimmed))
+        {
+            if (ConnectReadySignalClassifier.IsNotReady(trimmed))
+            {
+                ClearBallWait();
+                return _statusEdges.EmitNotReady(trimmed);
+            }
+
+            if (ConnectReadySignalClassifier.IsReady(trimmed))
+            {
+                ClearBallWait();
+                return _statusEdges.EmitReady(trimmed);
+            }
+        }
+
         // Sparse property lines can arrive before the ball marker — keep them.
         if (_sparseMetrics.TryIngestPropertyLine(trimmed))
         {
             _awaitingBallJson = true;
             _awaitingIdleLines = 0;
+            // Capture HLA keys in r50-log exports so direction bugs are diagnosable.
+            if (ContainsHlaPropertyKey(trimmed))
+                return ConnectParseResult.ForRaw(trimmed);
             return ConnectParseResult.Ignore;
         }
 
@@ -112,9 +128,6 @@ public sealed class ConnectLogLineParser
 
         if (IsNoise(trimmed))
             return ConnectParseResult.Ignore;
-
-        if (ConnectReadySignalClassifier.IsNotReady(trimmed))
-            return EmitNotReadyEdge(trimmed);
 
         if (ContainsAny(trimmed, BallLogMarkers))
             return HandleBallMarkerLine(trimmed);
@@ -148,10 +161,7 @@ public sealed class ConnectLogLineParser
             return ConnectParseResult.ForRaw(trimmed);
         }
 
-        if (ConnectReadySignalClassifier.IsReady(trimmed))
-            return EmitReadyEdge(trimmed);
-
-        var waiting = TryEmitWaiting(trimmed);
+        var waiting = _statusEdges.TryEmitWaiting(trimmed);
         if (waiting is not null)
             return waiting;
 
@@ -315,78 +325,19 @@ public sealed class ConnectLogLineParser
         return ConnectLogKeyValueMapper.TryMap(line, context);
     }
 
-    private ConnectParseResult? TryEmitWaiting(string trimmed)
-    {
-        // Prefer the stronger "Connected to LM" edge; also show aqua once while
-        // Connect is still hunting for Garmin before any Ready/Not Ready.
-        var connectedToLm = trimmed.Contains("Connected to LM", StringComparison.OrdinalIgnoreCase);
-        var looking = trimmed.Contains("Looking for Garmin", StringComparison.OrdinalIgnoreCase);
-
-        if (!connectedToLm && !looking)
-            return null;
-
-        // Once Ready/NotReady has been seen in this session, don't re-enter Waiting
-        // from "Looking for Garmin" keepalives — only from a fresh LM connect.
-        if (looking && !connectedToLm)
-        {
-            if (_isReady is not null || _waitingShown)
-                return ConnectParseResult.Ignore;
-            if (_lookingForGarminWaitingArmed)
-                return ConnectParseResult.Ignore;
-            _lookingForGarminWaitingArmed = true;
-            _waitingShown = true;
-            return ConnectParseResult.ForWaiting(trimmed);
-        }
-
-        if (_waitingShown && !connectedToLm)
-            return ConnectParseResult.Ignore;
-
-        // New LM connection always re-arms Waiting (loading / start).
-        _waitingShown = true;
-        _lookingForGarminWaitingArmed = false;
-        _isReady = null;
-        return ConnectParseResult.ForWaiting(trimmed);
-    }
+    private static bool ContainsHlaPropertyKey(string line) =>
+        line.Contains("carryDeviationAngle", StringComparison.OrdinalIgnoreCase) ||
+        line.Contains("launchDirection", StringComparison.OrdinalIgnoreCase) ||
+        line.Contains("\"hla\"", StringComparison.OrdinalIgnoreCase) ||
+        line.Contains("\"HLA\"", StringComparison.Ordinal) ||
+        line.Contains("horizontalLaunchAngle", StringComparison.OrdinalIgnoreCase);
 
     private ConnectParseResult EmitShot(ShotPayload shot, string raw)
     {
         // After a shot the monitor leaves ready; next green signal should fire once.
-        ClearReadyState();
+        _statusEdges.ClearAfterShot();
         ClearBallWait();
-        _waitingShown = false;
         return ConnectParseResult.ForShot(shot, raw);
-    }
-
-    private ConnectParseResult EmitReadyEdge(string trimmed)
-    {
-        ClearBallWait();
-        _waitingShown = false;
-        _lookingForGarminWaitingArmed = false;
-
-        if (_isReady == true)
-            return ConnectParseResult.Ignore;
-
-        _isReady = true;
-        return ConnectParseResult.ForReady(CreateReadyPayload(), trimmed);
-    }
-
-    private ConnectParseResult EmitNotReadyEdge(string trimmed)
-    {
-        ClearBallWait();
-        _waitingShown = false;
-        _lookingForGarminWaitingArmed = false;
-
-        // Debounce: one [Not ready] per red stretch (keepAlive / repeats ignored).
-        if (_isReady == false)
-            return ConnectParseResult.Ignore;
-
-        _isReady = false;
-        return ConnectParseResult.ForNotReady(trimmed);
-    }
-
-    private void ClearReadyState()
-    {
-        _isReady = null;
     }
 
     private void ClearBallWait()
@@ -397,17 +348,6 @@ public sealed class ConnectLogLineParser
         _jsonBuffer.Reset();
         _sparseMetrics.Reset();
     }
-
-    private static ShotPayload CreateReadyPayload() => new()
-    {
-        DeviceId = "GarminR50",
-        ShotDataOptions = new ShotDataOptions
-        {
-            LaunchMonitorBallDetected = true,
-            LaunchMonitorIsReady = true,
-            IsHeartBeat = false
-        }
-    };
 
     private static void EnsureShotOptions(ShotPayload shot)
     {

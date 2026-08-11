@@ -134,7 +134,7 @@ public sealed class ConnectLogLineParserTests
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("{").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("  \"ballSpeed\": 148.2,").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("  \"launchAngle\": 12.4,").Kind);
-        Assert.Equal(ConnectParseKind.Ignore, parser.Parse("  \"launchDirection\": 1.6,").Kind);
+        Assert.Equal(ConnectParseKind.Raw, parser.Parse("  \"launchDirection\": 1.6,").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("  \"carryDistance\": 246.0,").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("  \"sidespin\": -420.0,").Kind);
         Assert.Equal(ConnectParseKind.Ignore, parser.Parse("  \"spinType\": \"normal\",").Kind);

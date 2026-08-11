@@ -4,10 +4,20 @@ namespace GsproLighting.Wled.Device;
 /// Keeps hit-direction DDP poses visible for a minimum duration before Ready /
 /// Not Ready / Waiting may supersede. Latest deferred status wins; a new
 /// direction arms a fresh hold and drops any pending status.
+/// <para>
+/// Timing: <see cref="DefaultMinHold"/> (4s) with no extra grace. When the gate
+/// releases and a deferred action is queued (including the synthesized Not Ready
+/// fallback armed with each direction), that action runs immediately. If
+/// Cancel/Waiting clears the gate first, the deferred work is dropped.
+/// </para>
 /// </summary>
 public sealed class DrgbDirectionMinHoldGate
 {
-    /// <summary>Default minimum visible time for Left / Center / Right hit cues.</summary>
+    /// <summary>
+    /// Default minimum visible time for Left / Center / Right hit cues.
+    /// After this elapses with no Ready/Not Ready queued, the direction
+    /// controller synthesizes Not Ready (no additional grace period).
+    /// </summary>
     public static readonly TimeSpan DefaultMinHold = TimeSpan.FromSeconds(4);
 
     private readonly TimeSpan _minHold;

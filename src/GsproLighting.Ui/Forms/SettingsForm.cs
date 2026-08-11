@@ -61,7 +61,8 @@ public sealed class SettingsForm : Form
             app.DirectionDrgb,
             app.SuspendLiveEffectsForManualControl,
             app.ReportWledFailure,
-            configureOutput: wled => _app.Wled.Configure(wled));
+            configureOutput: wled => _app.Wled.Configure(wled),
+            resolveStatusTuning: SyncStatusTuningLive);
         _wled = new WledTabPanel(
             ResolveControllerIp,
             () => _connection.Brightness,
@@ -340,6 +341,17 @@ public sealed class SettingsForm : Form
         return _app.Config.Wled;
     }
 
+    /// <summary>
+    /// Pushes Connection-tab status tuning into live <see cref="EffectConfig.StatusTuning"/>
+    /// so Preview and subsequent Ready/Not Ready/Direction/Waiting use current slider values.
+    /// </summary>
+    private StatusEffectTuning SyncStatusTuningLive()
+    {
+        var tuning = _connection.CaptureStatusTuning();
+        _app.Config.Effects.StatusTuning = tuning;
+        return tuning;
+    }
+
     private string ResolveControllerIp() =>
         string.IsNullOrWhiteSpace(_connection.ControllerIp)
             ? _app.Config.Wled.ControllerIp
@@ -387,7 +399,7 @@ public sealed class SettingsForm : Form
     {
         var tip = _tabs.SelectedTab?.Text switch
         {
-            "Preview" => "Test solids over HTTP, or Ready / Not Ready / Left·Center·Right over DDP (28% band shimmer).",
+            "Preview" => "Test Waiting HTTP Ripple, solids over HTTP, or Ready / Not Ready / Left·Center·Right over DDP.",
             "WLED" => ProductCopy.WledTabTip,
             "Connection" => ProductCopy.NoWledBody,
             "Live feed" => ProductCopy.LiveFeedWaitingBody,

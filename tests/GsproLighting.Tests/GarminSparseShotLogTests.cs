@@ -23,7 +23,7 @@ public sealed class GarminSparseShotLogTests
             ConnectParseKind.Ignore,
             parser.Parse("      \"carryDeviationDistance\": 1.8679461479187012,").Kind);
         Assert.Equal(
-            ConnectParseKind.Ignore,
+            ConnectParseKind.Raw,
             parser.Parse("      \"carryDeviationAngle\": 0.1653008608988347,").Kind);
 
         Assert.Equal(
@@ -46,17 +46,46 @@ public sealed class GarminSparseShotLogTests
     }
 
     [Fact]
-    public void ConnectedToLm_EmitsWaiting()
+    public void ConnectedToLm_EmitsWaitingOnce_UntilDeviceCloseRearms()
     {
         var parser = new ConnectLogLineParser();
         var waiting = parser.Parse(
             " ==> Connected to LM! Telling it we're ready for shot ...");
         Assert.Equal(ConnectParseKind.Waiting, waiting.Kind);
 
-        // Fresh LM connect re-arms Waiting (bay reload / reconnect).
+        // Repeat Connected while still unknown must not re-fire Waiting.
+        Assert.Equal(
+            ConnectParseKind.Ignore,
+            parser.Parse(" ==> Connected to LM! Telling it we're ready for shot ...").Kind);
+
+        parser.Parse(
+            "Device close connection (we may be within 60s timeout from successful connection)");
         Assert.Equal(
             ConnectParseKind.Waiting,
             parser.Parse(" ==> Connected to LM! Telling it we're ready for shot ...").Kind);
+    }
+
+    [Fact]
+    public void WaitingThenReadyAndNotReady_AlwaysSupersede()
+    {
+        var parser = new ConnectLogLineParser();
+        Assert.Equal(
+            ConnectParseKind.Waiting,
+            parser.Parse("Looking for Garmin ...").Kind);
+        Assert.Equal(
+            ConnectParseKind.Ready,
+            parser.Parse("GarminR50Form: status READY_TO_HIT").Kind);
+        Assert.Equal(
+            ConnectParseKind.NotReady,
+            parser.Parse("NOT_READY_TO_HIT").Kind);
+
+        // Established status must not be clobbered by another Connected to LM.
+        Assert.Equal(
+            ConnectParseKind.Ignore,
+            parser.Parse(" ==> Connected to LM! Telling it we're ready for shot ...").Kind);
+        Assert.Equal(
+            ConnectParseKind.Ready,
+            parser.Parse("readyForShot=true").Kind);
     }
 
     [Fact]
@@ -69,6 +98,56 @@ public sealed class GarminSparseShotLogTests
         Assert.Equal(
             ConnectParseKind.Ignore,
             parser.Parse("Looking for Garmin ...").Kind);
+    }
+
+    [Fact]
+    public void PrefixedCarryDeviationAngle_MapsLeftRightFromSessionRadians()
+    {
+        var parser = new ConnectLogLineParser();
+        // log4net-prefixed property lines from R50 Connect (must still ingest HLA).
+        Assert.Equal(
+            ConnectParseKind.Raw,
+            parser.Parse(
+                "2026-08-11 07:33:17,615 [1] INFO  VGPconnect.GarminR50Form [(null)] - " +
+                "      \"carryDeviationAngle\": -0.22923017602424131,").Kind);
+        Assert.Equal(
+            ConnectParseKind.Raw,
+            parser.Parse(
+                "Logging ball data IMMEDIATELY before sending to GSPro").Kind);
+
+        var left = parser.Parse(
+            "Force 10.33|| SurfMul 0.78|| BallSpeed 22.35|| AngleSpeedBounce 0.64|| descent angle 24.5|| ExitAngle 21.9");
+        Assert.Equal(ConnectParseKind.Shot, left.Kind);
+        Assert.InRange(left.Shot!.BallData!.Hla!.Value, -14.0, -13.0);
+        Assert.Equal(
+            ShotDirection.Left,
+            ShotEffectMapper.ClassifyDirection(left.Shot.BallData.Hla, 1.5));
+
+        parser.Parse(
+            "2026-08-11 07:33:33,758 [1] INFO  VGPconnect.GarminR50Form [(null)] - " +
+            "      \"carryDeviationAngle\": 0.1653008608988347,");
+        parser.Parse("Logging ball data IMMEDIATELY before sending to GSPro");
+        var right = parser.Parse(
+            "Force 13.94|| SurfMul 0.78|| BallSpeed 31.05|| AngleSpeedBounce 0.66|| descent angle 10.6|| ExitAngle 4.7");
+        Assert.Equal(ConnectParseKind.Shot, right.Kind);
+        Assert.InRange(right.Shot!.BallData!.Hla!.Value, 9.0, 10.0);
+        Assert.Equal(
+            ShotDirection.Right,
+            ShotEffectMapper.ClassifyDirection(right.Shot.BallData.Hla, 1.5));
+    }
+
+    [Fact]
+    public void ForceOnlySessionLines_ClassifyCenterWhenHlaAbsent()
+    {
+        var parser = new ConnectLogLineParser();
+        parser.Parse("Logging ball data IMMEDIATELY before sending to GSPro");
+        var shot = parser.Parse(
+            "Force 10.33|| SurfMul 0.78|| BallSpeed 22.35|| AngleSpeedBounce 0.64|| descent angle 24.5|| ExitAngle 21.9");
+        Assert.Equal(ConnectParseKind.Shot, shot.Kind);
+        Assert.Null(shot.Shot!.BallData!.Hla);
+        Assert.Equal(
+            ShotDirection.Center,
+            ShotEffectMapper.ClassifyDirection(shot.Shot.BallData.Hla, 1.5));
     }
 
     [Fact]

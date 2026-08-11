@@ -58,6 +58,8 @@ public sealed class ConfigStore
         NormalizePaths(config);
         MigrateRealtimeTransportToDdp(config.Wled);
         config.Effects.ResetLightingSlotsToProductDefaults();
+        config.Effects.StatusTuning ??= new StatusEffectTuning();
+        config.Effects.StatusTuning.ClampAll();
     }
 
     /// <summary>

@@ -17,7 +17,7 @@ public sealed partial class WledTabPanel : UserControl
     private readonly Label _connectionStatus = new();
     private readonly Label _deviceMeta = new();
     private readonly EmptyStateBanner _empty = new();
-    private readonly CheckBox _power = new() { Text = "Power on" };
+    private readonly NightCheckBox _power = new() { Text = "Power on" };
     private readonly NightSlider _brightness = new() { Minimum = 1, Maximum = 255, Width = 280 };
     private readonly Label _brightnessValue = new();
     private readonly WledCatalogPicker _effects = new() { Height = 220 };
@@ -26,9 +26,9 @@ public sealed partial class WledTabPanel : UserControl
     private readonly NightSlider _intensity = new() { Minimum = 0, Maximum = 255, Width = 280 };
     private readonly Label _speedValue = new();
     private readonly Label _intensityValue = new();
-    private readonly CheckBox _overlay = new() { Text = "Layered (keep golf flashes over ambient)" };
-    private readonly CheckBox _option2 = new() { Text = "Extra option 1 (o2)" };
-    private readonly CheckBox _option3 = new() { Text = "Extra option 2 (o3)" };
+    private readonly NightCheckBox _overlay = new() { Text = "Layered (keep golf flashes over ambient)" };
+    private readonly NightCheckBox _option2 = new() { Text = "Extra option 1 (o2)" };
+    private readonly NightCheckBox _option3 = new() { Text = "Extra option 2 (o3)" };
     private readonly ToolTip _optionsToolTip = new();
     private readonly WledColorSlotEditor _colors = new();
     private readonly NightComboBox _segments = new() { Width = 220 };

@@ -198,7 +198,7 @@ public sealed class WledShotEffectSinkHoldTests
     }
 
     [Fact]
-    public async Task OnPlayerInfoAsync_StreamsWaitingAquaDrgb_NoHttp()
+    public async Task OnPlayerInfoAsync_PostsWaitingRippleHttp_NoDdp()
     {
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
@@ -206,20 +206,17 @@ public sealed class WledShotEffectSinkHoldTests
         using var readyDrgb = new WledBallReadyDrgbController(output);
         using var sink = CreateSink(output, animationManager, readyDrgb: readyDrgb);
 
-        var waiting = sink.OnPlayerInfoAsync(new GsproResponse { Code = 201 });
-        await WaitUntilAsync(
-            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.WaitingAqua &&
-                  output.SnapshotFrames().Any(frame =>
-                      frame.Any(pixel => pixel.R == 0 && pixel.G > 0 && pixel.B > 0)),
-            TimeSpan.FromSeconds(3));
-        sink.CancelActiveEffects();
-        await waiting;
+        await sink.OnPlayerInfoAsync(new GsproResponse { Code = 201 });
 
-        Assert.Equal(0, handler.PostCount);
+        Assert.True(handler.PostCount >= 1);
+        Assert.Contains("\"fx\":2", handler.LastBody, StringComparison.Ordinal);
+        Assert.Contains("\"live\":false", handler.LastBody, StringComparison.Ordinal);
+        Assert.Equal(0, output.FrameCount);
+        Assert.Equal(WledBallReadyDrgbController.HeldPose.None, readyDrgb.CurrentPose);
     }
 
     [Fact]
-    public async Task HoldWaitingAsync_StreamsAquaDrgb_NoHttp()
+    public async Task HoldWaitingAsync_PostsWaitingRippleHttp_NoDdp()
     {
         var output = new RecordingWledOutput();
         var handler = new RecordingHttpHandler();
@@ -227,15 +224,11 @@ public sealed class WledShotEffectSinkHoldTests
         using var readyDrgb = new WledBallReadyDrgbController(output);
         using var sink = CreateSink(output, animationManager, readyDrgb: readyDrgb);
 
-        var waiting = sink.HoldWaitingAsync();
-        await WaitUntilAsync(
-            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.WaitingAqua,
-            TimeSpan.FromSeconds(3));
-        sink.CancelActiveEffects();
-        await waiting;
+        await sink.HoldWaitingAsync();
 
-        Assert.Equal(0, handler.PostCount);
-        Assert.True(output.FrameCount > 0);
+        Assert.True(handler.PostCount >= 1);
+        Assert.Contains("\"live\":false", handler.LastBody, StringComparison.Ordinal);
+        Assert.Equal(0, output.FrameCount);
     }
 
     [Fact]
@@ -281,11 +274,8 @@ public sealed class WledShotEffectSinkHoldTests
         using var sink = CreateSink(output, animationManager, readyDrgb: readyDrgb);
 
         var waiting = sink.OnPlayerInfoAsync(new GsproResponse { Code = 201 });
-        await WaitUntilAsync(
-            () => readyDrgb.CurrentPose == WledBallReadyDrgbController.HeldPose.WaitingAqua,
-            TimeSpan.FromSeconds(3));
-        sink.CancelActiveEffects();
         await waiting;
+        Assert.Equal(WledBallReadyDrgbController.HeldPose.None, readyDrgb.CurrentPose);
     }
 
     private static WledShotEffectSink CreateSink(

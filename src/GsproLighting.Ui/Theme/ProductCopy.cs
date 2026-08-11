@@ -21,17 +21,20 @@ public static class ProductCopy
 
     public const string LiveFeedWaitingTitle = "Live feed waiting";
     public const string LiveFeedWaitingBody =
-        "Ready, shot, putt, and player events show here once Connect is live. Clear, open the logs folder, or export a zip for support.";
+        "Ready, shot direction, and connect status show here once Connect is live. Clear, open the logs folder, or export a zip for support.";
 
     public const string LiveFeedConnectedTitle = "Connected — waiting for a shot";
     public const string LiveFeedConnectedBody =
-        "GSPro/R50 is connected. Ready, shot, putt, and player events will appear here as soon as one happens.";
+        "GSPro/R50 is connected. Ready, Not Ready, Waiting, and shot-direction events will appear here as soon as one happens.";
 
     public const string PreviewHint =
-        "Preview plays on-screen and on WLED without saving. Colors hold after each animation — Stop holds ready Ripple ambient.";
+        "Preview plays solids and Waiting Ripple over HTTP; Ready / Not Ready / directions over DDP. Quality cues (Pure, Mishit, Celebrate…) are Preview-only — live shots drive Direction only.";
 
     public const string WledTabIntro =
-        "Live WLED controls from your controller catalogs. Golf reactions still win during shots, then return to Ripple ambient.";
+        "Live WLED controls from your controller catalogs. Golf status (Ready / Not Ready / Direction / Waiting) still wins during a round.";
+
+    public const string WledDdpNote =
+        "Ready, Not Ready, and hit directions stream over DDP realtime (UDP :4048) with a 28% band shimmer hold (full-strip red for Not Ready). Waiting uses native WLED Ripple over HTTP. Live shots drive Direction only — Pure / Mishit / Putt / Celebrate / Hazard are Preview-only. Solids use HTTP. Wi‑Fi, security, 2D matrix editors, audio config, and firmware stay in the full WLED UI.";
 
     public const string WledTabTip =
         "Refresh loads effects/palettes/state. Apply writes the editor. Sync ambient restores Ripple + Red Reef. Open full WLED for advanced setup.";
@@ -64,9 +67,6 @@ public static class ProductCopy
 
     public const string WledEmptyBeforeRefresh =
         "Nothing loaded yet. Enter the WLED IP on Connection, then press Refresh.";
-
-    public const string WledDdpNote =
-        "Ready, Not Ready, and hit directions stream over DDP realtime (UDP :4048) with a 28% band shimmer hold (full-strip red for Not Ready). Solids use HTTP. Wi‑Fi, security, 2D matrix editors, audio config, and firmware stay in the full WLED UI.";
 
     public const string UpdatesIntro =
         "Check GitHub Releases for Setup or portable zip updates. Install only when you are between rounds.";

@@ -16,14 +16,19 @@ public static class DrgbNotReadyFrameFactory
     /// <summary>Solid red at full intensity for DDP Not Ready.</summary>
     public static readonly RgbColor NotReadyRed = RgbColor.FromRgb(255, 0, 0);
 
-    public static IReadOnlyList<LedAnimationFrame> CreateFromReadyCenterBand(int ledCount)
+    public static IReadOnlyList<LedAnimationFrame> CreateFromReadyCenterBand(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
-        var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount, p.IntroSpeedScale);
+        var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(
+            ledCount,
+            p.ConcentrateLitFraction);
         var expandSteps = Math.Max(0, (ledCount - concentrate) / (2 * advance));
         var frames = new List<LedAnimationFrame>(MorphStepCount + expandSteps + 1);
 
@@ -39,20 +44,23 @@ public static class DrgbNotReadyFrameFactory
                 duration));
         }
 
-        AppendExpandFrames(frames, ledCount, concentrate, cadence);
+        AppendExpandFrames(frames, ledCount, concentrate, cadence, p.IntroSpeedScale);
         return frames;
     }
 
-    public static IReadOnlyList<LedAnimationFrame> CreateExpandFromDark(int ledCount)
+    public static IReadOnlyList<LedAnimationFrame> CreateExpandFromDark(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount, p.IntroSpeedScale);
         var stepCount = ((ledCount + 1) / 2 + advance - 1) / advance;
         var frames = new List<LedAnimationFrame>(stepCount + 1);
-        AppendExpandFrames(frames, ledCount, fromLitCount: 0, cadence);
+        AppendExpandFrames(frames, ledCount, fromLitCount: 0, cadence, p.IntroSpeedScale);
         return frames;
     }
 
@@ -63,12 +71,13 @@ public static class DrgbNotReadyFrameFactory
         List<LedAnimationFrame> frames,
         int ledCount,
         int fromLitCount,
-        TimeSpan cadence)
+        TimeSpan cadence,
+        double introSpeedScale = 1.0)
     {
         var parity = ledCount % 2 == 0 ? 2 : 1;
         var lit = fromLitCount <= 0 ? parity : fromLitCount;
         lit = Math.Clamp(lit, parity, ledCount);
-        var step = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
+        var step = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount, introSpeedScale);
         var advance = Math.Max(2, step * 2);
 
         if (fromLitCount <= 0)

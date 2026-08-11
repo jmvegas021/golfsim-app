@@ -42,19 +42,19 @@ public sealed class EffectStateLegend : UserControl
 
     private static IEnumerable<LegendEntry> BuildEntries(EffectConfig effects) =>
     [
-        new("Waiting / start", "DDP aqua center→out shimmer (Connect loading / Code 201)", RgbColor.FromRgb(0, 200, 220)),
-        new("Not ready", "DDP red expand → full-strip center→out shimmer", RgbColor.FromRgb(255, 0, 0)),
-        new("Ready / idle", "DDP sides→center → 28% green center→out shimmer", RgbColor.FromRgb(0, 255, 0)),
-        new("Direction L/R", "DDP yellow 28% side band · shimmer toward outer edge", RgbColor.FromRgb(220, 180, 0)),
-        new("Direction center", "DDP green 28% center→out shimmer (same zone as Ready)", RgbColor.FromRgb(0, 255, 0)),
-        new("Pure", "Bright green · direction marker", effects.PureStrike.Color),
-        new("Mishit", "Deep red · direction marker", effects.Mishit.Color),
-        new("Putt", "Soft blue · direction marker", effects.Putt.Color),
-        new("Player", "Sky blue pulse", effects.Player.Color),
-        new("Celebrate", $"Gold fireworks · WLED FX {EffectConfig.CelebrateFxId}", effects.Celebrate.Color),
-        new("Hazard", $"Sparkle · WLED FX {EffectConfig.SparkleFxId}", effects.Hazard.Color),
-        new("Water", "Teal flash-hold", effects.WaterHazard.Color),
-        new("Out of bounds", "Hard red flash-hold", effects.OutOfBounds.Color)
+        new("Waiting / start", "Live · WLED Ripple via HTTP (Connect loading / Code 201)", RgbColor.FromRgb(0, 200, 220)),
+        new("Not ready", "Live · DDP red expand → full-strip center→out shimmer", RgbColor.FromRgb(255, 0, 0)),
+        new("Ready / idle", "Live · DDP sides→center → 28% green center→out shimmer", RgbColor.FromRgb(0, 255, 0)),
+        new("Direction L/R", "Live · DDP yellow 28% side band (shots drive this only)", RgbColor.FromRgb(220, 180, 0)),
+        new("Direction center", "Live · DDP green 28% center→out shimmer", RgbColor.FromRgb(0, 255, 0)),
+        new("Pure", "Preview only · bright green (live shots use Direction)", effects.PureStrike.Color),
+        new("Mishit", "Preview only · deep red (live shots use Direction)", effects.Mishit.Color),
+        new("Putt", "Preview only · soft blue (live shots use Direction)", effects.Putt.Color),
+        new("Player", "Preview only · sky blue pulse", effects.Player.Color),
+        new("Celebrate", $"Preview only · gold fireworks · WLED FX {EffectConfig.CelebrateFxId}", effects.Celebrate.Color),
+        new("Hazard", $"Preview only · sparkle · WLED FX {EffectConfig.SparkleFxId}", effects.Hazard.Color),
+        new("Water", "Preview only · teal flash-hold", effects.WaterHazard.Color),
+        new("Out of bounds", "Preview only · hard red flash-hold", effects.OutOfBounds.Color)
     ];
 
     private sealed record LegendEntry(string Title, string Description, RgbColor Color);

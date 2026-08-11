@@ -47,7 +47,7 @@ Or from PowerShell (SDK required):
 1. Set your **WLED IP** → **Test lights**
 2. Start **GSPro** + **GSPro Connect** (Garmin R50) as usual
 3. Start **GSPro Lighting** — **R50 auto-watch is on by default** (no AppData digging, no port retarget for native Connect)
-4. Hit balls — Connect log ball metrics become clean `[Shot]` / `[Putt]` / `[Ready]` feed lines and drive WLED (pure / mishit / putt / ready glow)
+4. Hit balls — Connect log ball metrics become clean `[Shot]` / `[Putt]` / `[Ready]` feed lines and drive WLED (Waiting Ripple, Ready / Not Ready DDP, Direction on shot)
 5. Minimize to tray and play
 
 **R50 Connect logs → lights:** the app tails GarminR50Form lines and maps them to `[Shot]` / `[Putt]` / `[Ready]` / `[Not ready]` using product-authored lighting defaults (Preview tab to test; no per-phase color editors). Green light = explicit ready (`READY_TO_HIT`, `readyForShot=true`); red = `NOT_READY_TO_HIT` / `readyForShot=false` (once each). Ready/idle/not-ready solids use DRGB keepalive so WLED realtime timeout (~5s) cannot drop the bay back to a playlist. Ball-marker `[LOG]` lines stay visible; `[NET]` peer keepalives are quiet.
@@ -94,13 +94,13 @@ Keep Ally + WLED (+ R50 hotspot/LAN) on the same network path you normally use f
 
 ## Auto-updates (developers)
 
-Version is centralized in `Directory.Build.props` (`0.4.5`, etc.).
+Version is centralized in `Directory.Build.props` (`0.8.27`, etc.).
 
 ```bash
 # macOS host → win-x64 + Velopack
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
-./scripts/package-release.sh 0.4.5
-./scripts/publish-github-release.sh 0.4.5
+./scripts/package-release.sh 0.8.27
+./scripts/publish-github-release.sh 0.8.27
 ```
 
 App update feed: `https://github.com/jmvegas021/golfsim-app` (Velopack `GithubSource` → public `releases.win.json`). The repo must stay **public** so the updater can download release assets without a token. Portable installs fall back to downloading `GsproLighting-windows-x64.zip`.

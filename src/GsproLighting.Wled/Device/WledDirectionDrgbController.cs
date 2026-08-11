@@ -1,3 +1,4 @@
+using GsproLighting.Core.Config;
 using GsproLighting.Core.Models;
 
 namespace GsproLighting.Wled.Device;
@@ -20,13 +21,17 @@ public sealed class WledDirectionDrgbController
         int ledCount,
         byte brightness,
         CancellationToken cancellationToken = default,
-        Action? onHoldStarted = null) =>
+        Action? onHoldStarted = null,
+        StatusEffectStateTuning? tuning = null,
+        StatusEffectStateTuning? notReadyFallbackTuning = null) =>
         _ddpSessions.RunDirectionAsync(
             direction,
             ledCount,
             brightness,
             cancellationToken,
-            onHoldStarted);
+            onHoldStarted,
+            tuning,
+            notReadyFallbackTuning);
 
     public void CancelActive() => _ddpSessions.CancelActive();
 }

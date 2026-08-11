@@ -143,7 +143,7 @@ public sealed class DrgbBandShimmerEffectTests
         var band = effect.Band;
 
         var early = effect.RenderFrame(ledCount, TimeSpan.Zero);
-        var late = effect.RenderFrame(ledCount, TimeSpan.FromMilliseconds(350));
+        var late = effect.RenderFrame(ledCount, TimeSpan.FromMilliseconds(800));
 
         var earlyPeak = BrightestIndex(early, band);
         var latePeak = BrightestIndex(late, band);
@@ -160,7 +160,7 @@ public sealed class DrgbBandShimmerEffectTests
         var band = effect.Band;
 
         var early = effect.RenderFrame(ledCount, TimeSpan.Zero);
-        var late = effect.RenderFrame(ledCount, TimeSpan.FromMilliseconds(350));
+        var late = effect.RenderFrame(ledCount, TimeSpan.FromMilliseconds(800));
 
         var earlyPeak = BrightestIndex(early, band);
         var latePeak = BrightestIndex(late, band);

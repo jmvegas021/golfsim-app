@@ -11,9 +11,32 @@ namespace GsproLighting.Gspro.Parsing;
 /// </summary>
 public sealed class GarminSparseMetricsAccumulator
 {
+    /// <summary>
+    /// Matches a JSON property anywhere on the line so log4net prefixes
+    /// (<c>INFO GarminR50Form - "carryDeviationAngle": 0.16,</c>) still ingest.
+    /// </summary>
     private static readonly Regex JsonProperty = new(
-        @"^\s*""(?<key>[^""]+)""\s*:\s*(?<value>-?\d+(?:\.\d+)?|""[^""]*"")\s*,?\s*$",
+        @"""(?<key>[^""]+)""\s*:\s*(?<value>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|""[^""]*"")\s*,?",
         RegexOptions.Compiled);
+
+    private static readonly HashSet<string> MetricKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ballSpeed", "BallSpeed", "speed", "Speed",
+        "carryDistance", "CarryDistance", "carry", "Carry",
+        "hla", "HLA", "launchDirection", "LaunchDirection",
+        "horizontalLaunchAngle", "HorizontalLaunchAngle", "carryDeviationAngle",
+        "vla", "VLA", "launchAngle", "LaunchAngle", "ExitAngle",
+        "verticalLaunchAngle", "VerticalLaunchAngle",
+        "sidespin", "sideSpin", "SideSpin",
+        "backspin", "backSpin", "BackSpin",
+        "totalSpin", "TotalSpin", "spin", "spinRate",
+        "spinAxis", "SpinAxis",
+        "smashFactor", "SmashFactor", "smash",
+        "clubSpeed", "ClubSpeed", "clubHeadSpeed",
+        "shotNumber", "ShotNumber", "shotId",
+        "spinType", "SpinType",
+        "carryDeviationDistance"
+    };
 
     private readonly Dictionary<string, string> _values =
         new(StringComparer.OrdinalIgnoreCase);
@@ -23,15 +46,23 @@ public sealed class GarminSparseMetricsAccumulator
     public void Reset() => _values.Clear();
 
     /// <summary>
-    /// Tries to ingest a single <c>"key": value</c> property line.
+    /// Tries to ingest a single ball-metric <c>"key": value</c> property.
+    /// Ignores status/ready JSON keys and full brace-wrapped objects.
     /// </summary>
     public bool TryIngestPropertyLine(string line)
     {
+        // Full JSON blobs are handled by the multiline / mapper path.
+        if (line.Contains('{') && line.Contains('}'))
+            return false;
+
         var match = JsonProperty.Match(line);
         if (!match.Success)
             return false;
 
         var key = match.Groups["key"].Value;
+        if (!MetricKeys.Contains(key))
+            return false;
+
         var raw = match.Groups["value"].Value.Trim();
         if (raw.Length >= 2 && raw[0] == '"' && raw[^1] == '"')
             raw = raw[1..^1];

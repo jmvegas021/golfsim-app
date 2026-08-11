@@ -18,8 +18,11 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
     /// <summary>Bright core half-width as a fraction of band length.</summary>
     public const double CoreHalfWidthFraction = 0.09;
 
-    /// <summary>Band-widths (or half-widths for center-out) traversed per second.</summary>
-    public const double BandWidthsPerSecond = 2.1;
+    /// <summary>
+    /// Band-widths (or half-widths for center-out) traversed per second.
+    /// ~0.9 reads as a slow breath / shimmer without feeling sluggish.
+    /// </summary>
+    public const double BandWidthsPerSecond = 0.9;
 
     /// <summary>Dim resting gain so the traveling gradient reads clearly.</summary>
     public const double BaseGain = 0.22;
@@ -33,14 +36,20 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
     private readonly LedBandRange _band;
     private readonly RgbColor _baseColor;
     private readonly DrgbShimmerMode _mode;
+    private readonly DrgbStatusEffectParams _parameters;
 
-    public DrgbBandShimmerEffect(LedBandRange band, RgbColor baseColor, DrgbShimmerMode mode)
+    public DrgbBandShimmerEffect(
+        LedBandRange band,
+        RgbColor baseColor,
+        DrgbShimmerMode mode,
+        DrgbStatusEffectParams? parameters = null)
     {
         if (band.LitCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(band), "Band must light at least one LED.");
         _band = band;
         _baseColor = baseColor;
         _mode = mode;
+        _parameters = parameters ?? DrgbStatusEffectParams.ProductDefaults;
     }
 
     public LedBandRange Band => _band;
@@ -49,33 +58,56 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
 
     public DrgbShimmerMode Mode => _mode;
 
-    public static DrgbBandShimmerEffect ForReady(int ledCount) =>
-        new(
-            DrgbConcentrateBandGeometry.ResolveCenter(ledCount),
+    public DrgbStatusEffectParams Parameters => _parameters;
+
+    public static DrgbBandShimmerEffect ForReady(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
+    {
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
+        return new(
+            DrgbConcentrateBandGeometry.ResolveCenter(ledCount, p.ConcentrateLitFraction),
             DrgbReadyFrameFactory.ReadyGreen,
-            DrgbShimmerMode.CenterOut);
+            DrgbShimmerMode.CenterOut,
+            p);
+    }
 
-    public static DrgbBandShimmerEffect ForNotReady(int ledCount) =>
-        ForFullStripCenterOut(ledCount, DrgbNotReadyFrameFactory.NotReadyRed);
+    public static DrgbBandShimmerEffect ForNotReady(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null) =>
+        ForFullStripCenterOut(ledCount, DrgbNotReadyFrameFactory.NotReadyRed, parameters);
 
-    public static DrgbBandShimmerEffect ForWaiting(int ledCount) =>
-        ForFullStripCenterOut(ledCount, DrgbWaitingFrameFactory.WaitingAqua);
+    public static DrgbBandShimmerEffect ForWaiting(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null) =>
+        ForFullStripCenterOut(ledCount, DrgbWaitingFrameFactory.WaitingAqua, parameters);
 
-    private static DrgbBandShimmerEffect ForFullStripCenterOut(int ledCount, RgbColor color)
+    private static DrgbBandShimmerEffect ForFullStripCenterOut(
+        int ledCount,
+        RgbColor color,
+        DrgbStatusEffectParams? parameters)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
         return new DrgbBandShimmerEffect(
             new LedBandRange(0, ledCount),
             color,
-            DrgbShimmerMode.CenterOut);
+            DrgbShimmerMode.CenterOut,
+            parameters);
     }
 
-    public static DrgbBandShimmerEffect ForDirection(ShotDirection direction, int ledCount) =>
-        new(
-            DrgbConcentrateBandGeometry.Resolve(direction, ledCount),
+    public static DrgbBandShimmerEffect ForDirection(
+        ShotDirection direction,
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
+    {
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
+        return new(
+            DrgbConcentrateBandGeometry.Resolve(direction, ledCount, p.ConcentrateLitFraction),
             DrgbDirectionFrameFactory.ResolveColor(direction),
-            ResolveMode(direction));
+            ResolveMode(direction),
+            p);
+    }
 
     public static DrgbShimmerMode ResolveMode(ShotDirection direction) =>
         direction switch
@@ -94,9 +126,9 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
 
         var pixels = DrgbReadyFrameFactory.CreateEmpty(ledCount);
         var lit = _band.LitCount;
-        var halo = Math.Max(2.0, lit * HaloHalfWidthFraction);
-        var wing = Math.Max(1.5, lit * WingHalfWidthFraction);
-        var core = Math.Max(1.0, lit * CoreHalfWidthFraction);
+        var halo = Math.Max(2.0, lit * _parameters.HaloHalfWidthFraction);
+        var wing = Math.Max(1.5, lit * _parameters.WingHalfWidthFraction);
+        var core = Math.Max(1.0, lit * _parameters.CoreHalfWidthFraction);
 
         for (var i = 0; i < lit; i++)
         {
@@ -128,7 +160,7 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
         };
     }
 
-    private static double DistanceToTravelingPeak(
+    private double DistanceToTravelingPeak(
         int localIndex,
         double from,
         double to,
@@ -139,26 +171,29 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
         if (span < 0.5)
             return Math.Abs(localIndex - from);
 
-        var phase = Wrap(elapsed.TotalSeconds * BandWidthsPerSecond, 1.0);
+        var phase = Wrap(elapsed.TotalSeconds * _parameters.ShimmerBandWidthsPerSecond, 1.0);
         var peak = from + ((to - from) * phase);
         return Math.Abs(localIndex - peak);
     }
 
-    private static double DistanceToCenterOutFront(int localIndex, int lit, TimeSpan elapsed)
+    private double DistanceToCenterOutFront(int localIndex, int lit, TimeSpan elapsed)
     {
         var mid = (lit - 1) / 2.0;
         var half = Math.Max(1.0, mid);
-        var phase = Wrap(elapsed.TotalSeconds * BandWidthsPerSecond, 1.0);
+        var phase = Wrap(elapsed.TotalSeconds * _parameters.ShimmerBandWidthsPerSecond, 1.0);
         var front = phase * half;
         var distFromCenter = Math.Abs(localIndex - mid);
         return Math.Abs(distFromCenter - front);
     }
 
-    private static double ResolveGain(double distance, double coreHalf, double wingHalf, double haloHalf)
+    private double ResolveGain(double distance, double coreHalf, double wingHalf, double haloHalf)
     {
         var core = CosineFalloff(distance, coreHalf);
         var wing = CosineFalloff(distance, wingHalf);
         var halo = CosineFalloff(distance, haloHalf);
+        var peak = _parameters.PeakGain;
+        var baseGain = _parameters.BaseGain;
+        var span = Math.Max(0.01, peak - baseGain);
 
         // Layer same-hue halo → wing → peak so the gradient reads richer without whitening.
         var layered = Math.Max(
@@ -166,7 +201,7 @@ public sealed class DrgbBandShimmerEffect : IDrgbHoldEffect
             Math.Max(
                 wing * ((WingGain - BaseGain) / (PeakGain - BaseGain)),
                 halo * ((HaloGain - BaseGain) / (PeakGain - BaseGain))));
-        return BaseGain + ((PeakGain - BaseGain) * layered);
+        return baseGain + (span * layered);
     }
 
     private static double Wrap(double value, double period)

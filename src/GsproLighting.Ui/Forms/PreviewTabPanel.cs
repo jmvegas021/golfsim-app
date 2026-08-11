@@ -7,14 +7,16 @@ using GsproLighting.Wled.Device;
 namespace GsproLighting.Ui.Forms;
 
 /// <summary>
-/// Manual WLED controls: solids over HTTP; Ready / Not Ready / hit directions over DDP.
+/// Manual WLED controls: solids + Waiting Ripple over HTTP; Ready / Not Ready / hit
+/// directions over DDP (same paths as live).
 /// </summary>
-public sealed class PreviewTabPanel : UserControl
+public sealed partial class PreviewTabPanel : UserControl
 {
     private readonly Func<WledConfig> _resolveWled;
     private readonly Func<string> _resolveControllerIp;
     private readonly Func<byte> _resolveBrightness;
     private readonly Func<int> _resolveLedCount;
+    private readonly Func<StatusEffectTuning> _resolveStatusTuning;
     private readonly Action? _cancelLiveEffects;
     private readonly Action<string, string>? _logWledFailure;
     private readonly Action<WledConfig>? _configureOutput;
@@ -35,12 +37,14 @@ public sealed class PreviewTabPanel : UserControl
         WledDirectionDrgbController? directionDrgb = null,
         Action? cancelLiveEffects = null,
         Action<string, string>? logWledFailure = null,
-        Action<WledConfig>? configureOutput = null)
+        Action<WledConfig>? configureOutput = null,
+        Func<StatusEffectTuning>? resolveStatusTuning = null)
     {
         _resolveWled = resolveWled ?? throw new ArgumentNullException(nameof(resolveWled));
         _resolveControllerIp = resolveControllerIp;
         _resolveBrightness = resolveBrightness;
         _resolveLedCount = resolveLedCount;
+        _resolveStatusTuning = resolveStatusTuning ?? (() => new StatusEffectTuning());
         _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
         _readyDrgb = readyDrgb ?? throw new ArgumentNullException(nameof(readyDrgb));
         _directionDrgb = directionDrgb ?? new WledDirectionDrgbController(_readyDrgb);
@@ -83,7 +87,7 @@ public sealed class PreviewTabPanel : UserControl
                 Dock = DockStyle.Top,
                 Title = "Preview lights",
                 Subtitle =
-                    "Ready / Not Ready / Left·Center·Right stream over DDP (UDP :4048). Solids use HTTP. Set the controller IP on Connection first."
+                    "Waiting uses HTTP Ripple (same as live). Ready / Not Ready / Left·Center·Right stream over DDP (UDP :4048). Solids use HTTP. Set the controller IP on Connection first."
             },
             0,
             0);
@@ -101,7 +105,8 @@ public sealed class PreviewTabPanel : UserControl
         _statusLabel.ForeColor = UiTheme.Muted;
         _statusLabel.Font = UiTheme.BodyFont(9.5f);
         _statusLabel.Margin = new Padding(0, 16, 0, 0);
-        _statusLabel.Text = "Click Ready or a direction for DDP, or a color to POST /json/state.";
+        _statusLabel.Text =
+            "Click Waiting for HTTP Ripple, Ready/direction for DDP, or a color to POST /json/state.";
         root.Controls.Add(_statusLabel, 0, 3);
 
         return root;
@@ -126,9 +131,9 @@ public sealed class PreviewTabPanel : UserControl
         row.Controls.Add(ColorButton("White", RgbColor.FromRgb(255, 255, 255)));
         row.Controls.Add(OffButton());
         row.Controls.Add(AnimationButton(
-            "Waiting · Aqua · DDP",
+            "Waiting · HTTP Ripple",
             ApplyWaitingAnimationAsync,
-            width: 180));
+            width: 190));
         row.Controls.Add(AnimationButton(
             "Not Ready · DDP",
             ApplyNotReadyAnimationAsync,
@@ -232,107 +237,6 @@ public sealed class PreviewTabPanel : UserControl
                 return;
             SetStatus(ex.Message, isError: true);
             _logWledFailure?.Invoke("preview-solid", ex.Message);
-        }
-    }
-
-    private Task ApplyWaitingAnimationAsync() =>
-        ApplyDdpHoldAsync(
-            "Waiting · Aqua · DDP",
-            (wled, token, onHold) => _readyDrgb.RunWaitingAsync(
-                Math.Max(1, wled.LedCount),
-                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
-                token,
-                onHold),
-            holdStatus: "Waiting · Aqua · DDP center→out shimmer");
-
-    private Task ApplyNotReadyAnimationAsync() =>
-        ApplyDdpHoldAsync(
-            "Not Ready · DDP",
-            (wled, token, onHold) => _readyDrgb.RunNotReadyAsync(
-                Math.Max(1, wled.LedCount),
-                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
-                token,
-                onHold),
-            holdStatus: "Not Ready · DDP band shimmer");
-
-    private Task ApplyReadyAnimationAsync() =>
-        ApplyDdpHoldAsync(
-            "Ready · DDP",
-            (wled, token, onHold) => _readyDrgb.RunReadyAsync(
-                Math.Max(1, wled.LedCount),
-                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
-                token,
-                onHold),
-            holdStatus: "Ready · DDP band shimmer");
-
-    private Task ApplyHitDirectionAsync(ShotDirection direction, string label) =>
-        ApplyDdpHoldAsync(
-            label,
-            (wled, token, onHold) => _directionDrgb.RunDirectionAsync(
-                direction,
-                Math.Max(1, wled.LedCount),
-                wled.Brightness == 0 ? (byte)1 : wled.Brightness,
-                token,
-                onHold),
-            holdStatus: $"{label} · DDP band shimmer");
-
-    private async Task ApplyDdpHoldAsync(
-        string label,
-        Func<WledConfig, CancellationToken, Action, Task> play,
-        string holdStatus)
-    {
-        // Sync Connection → shared DdpWledOutput before UDP (same path Quick Control uses).
-        // HTTP solids pass the textbox IP directly; realtime previously used a stale Configure snapshot.
-        var wled = _resolveWled();
-        if (!wled.HasConfiguredController)
-        {
-            SetStatus("Set a real controller IP on Connection first.", isError: true);
-            RefreshIpLabel();
-            return;
-        }
-
-        var ip = wled.ControllerIp.Trim();
-        var target = $"{ip}:{wled.UdpPort} · {Math.Max(1, wled.LedCount)} LEDs";
-        var generation = ++_statusGeneration;
-        // Cancel HTTP only — do not CancelActive on DDP so Ready→Not Ready can morph.
-        _stateManager.CancelActive();
-        // Same Configure path as live WledShotEffectSink so L/C/R use live LED count/IP.
-        _configureOutput?.Invoke(wled);
-        SetStatus($"Running {label} → {target}…");
-        try
-        {
-            await play(
-                    wled,
-                    CancellationToken.None,
-                    () =>
-                    {
-                        if (generation == _statusGeneration)
-                            SetStatus($"{holdStatus} · {target}");
-                    })
-                .ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by a newer Ready/Not Ready or CancelLiveEffects.
-        }
-        catch (Exception ex)
-        {
-            if (generation != _statusGeneration)
-                return;
-            SetStatus(ex.Message, isError: true);
-            _logWledFailure?.Invoke("preview-animation", ex.Message);
-        }
-    }
-
-    private void CancelLiveEffects()
-    {
-        try
-        {
-            _cancelLiveEffects?.Invoke();
-        }
-        catch
-        {
-            // Manual Preview must still work if cancellation reporting fails.
         }
     }
 

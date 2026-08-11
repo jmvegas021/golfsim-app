@@ -35,14 +35,22 @@ public static class DrgbReadyFrameFactory
     public static int ResolveLitAdvance(int ledCount) =>
         Math.Clamp(Math.Max(2, ledCount / 48), 2, LitAdvancePerFrame);
 
-    public static IReadOnlyList<LedAnimationFrame> CreateReadySequence(int ledCount)
+    public static int ResolveLitAdvance(int ledCount, double introSpeedScale) =>
+        Math.Max(1, (int)Math.Round(ResolveLitAdvance(ledCount) * Math.Max(0.25, introSpeedScale)));
+
+    public static IReadOnlyList<LedAnimationFrame> CreateReadySequence(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var advance = ResolveLitAdvance(ledCount);
-        var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
+        var advance = ResolveLitAdvance(ledCount, p.IntroSpeedScale);
+        var concentrate = DrgbConcentrateBandGeometry.ResolveLitCount(
+            ledCount,
+            p.ConcentrateLitFraction);
         var maxFromEdge = (ledCount + 1) / 2;
         var fillSteps = (maxFromEdge + advance - 1) / advance;
         var retractSteps = Math.Max(0, (ledCount - concentrate) / (2 * advance));
@@ -76,14 +84,19 @@ public static class DrgbReadyFrameFactory
         return frames;
     }
 
-    public static RgbColor[] CreateHoldPixels(int ledCount)
+    public static RgbColor[] CreateHoldPixels(
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
     {
-        var band = DrgbConcentrateBandGeometry.ResolveCenter(ledCount);
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
+        var band = DrgbConcentrateBandGeometry.ResolveCenter(ledCount, p.ConcentrateLitFraction);
         return CreateBand(ledCount, band.Start, band.LitCount, ReadyGreen);
     }
 
-    public static int ResolveConcentrateLitCount(int ledCount) =>
-        DrgbConcentrateBandGeometry.ResolveLitCount(ledCount);
+    public static int ResolveConcentrateLitCount(
+        int ledCount,
+        double concentrateLitFraction = ConcentrateLitFraction) =>
+        DrgbConcentrateBandGeometry.ResolveLitCount(ledCount, concentrateLitFraction);
 
     public static RgbColor[] CreateEmpty(int ledCount)
     {

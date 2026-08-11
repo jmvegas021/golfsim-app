@@ -45,8 +45,8 @@ public sealed class OpenConnectReadyEdgeDispatcher
         if (!shot.IndicatesNotReady)
             return;
 
-        // Connected + not-ready heartbeat before any Ready → aqua loading only.
-        // Code 201 is often absent; do not also fire NotReady or Waiting is superseded.
+        // Connected + not-ready heartbeat before any Ready → loading once.
+        // Do not occupy the Not Ready edge — Ready/Not Ready must always supersede Waiting.
         if (TryEnterWaitingEdge())
         {
             SinkCallDispatcher.Fire(() => sink.OnWaitingAsync(cancellationToken), onError);
@@ -95,13 +95,11 @@ public sealed class OpenConnectReadyEdgeDispatcher
     {
         lock (_gate)
         {
-            // Only before the first Ready/NotReady edge of a stretch.
+            // Only while readiness is still unknown and Waiting has not been shown.
             if (_isReady is not null || _waitingShown)
                 return false;
             _waitingShown = true;
-            // Occupy the not-ready edge so repeat heartbeats do not also fire NotReady
-            // (which would instantly supersede aqua Waiting).
-            _isReady = false;
+            // Leave _isReady null so the next Not Ready heartbeat can supersede Waiting.
             return true;
         }
     }

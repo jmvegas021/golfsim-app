@@ -56,6 +56,7 @@ internal sealed class RecordingHttpHandler : HttpMessageHandler
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public int PostCount { get; private set; }
+    public int GetCount { get; private set; }
     public string LastBody { get; private set; } = "";
     public List<string> Bodies { get; } = [];
 
@@ -70,6 +71,19 @@ internal sealed class RecordingHttpHandler : HttpMessageHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
+        if (request.Method == HttpMethod.Get)
+        {
+            GetCount++;
+            var path = request.RequestUri?.AbsolutePath ?? "";
+            var payload = path.Contains("/json/eff", StringComparison.OrdinalIgnoreCase)
+                ? """["Solid","Blink","Ripple","Rainbow"]"""
+                : "{}";
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload)
+            };
+        }
+
         PostCount++;
         LastBody = request.Content is null
             ? ""

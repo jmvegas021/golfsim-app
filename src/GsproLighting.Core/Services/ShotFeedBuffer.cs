@@ -98,7 +98,7 @@ public sealed class ShotFeedBuffer : IShotFeed, IShotEventSink
         {
             Timestamp = DateTimeOffset.Now,
             Kind = "Waiting",
-            Summary = "GSPro / Connect loading (aqua)"
+            Summary = "GSPro / Connect loading (WLED Ripple)"
         });
         return Task.CompletedTask;
     }

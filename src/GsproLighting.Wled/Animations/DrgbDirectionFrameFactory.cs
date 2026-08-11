@@ -20,21 +20,33 @@ public static class DrgbDirectionFrameFactory
 
     public static IReadOnlyList<LedAnimationFrame> CreateDirectionSequence(
         ShotDirection direction,
-        int ledCount)
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
     {
         if (ledCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(ledCount));
 
-        var target = DrgbConcentrateBandGeometry.Resolve(direction, ledCount);
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
+        var target = DrgbConcentrateBandGeometry.Resolve(
+            direction,
+            ledCount,
+            p.ConcentrateLitFraction);
         var color = ResolveColor(direction);
         return direction == ShotDirection.Center
-            ? CreateExpandIntoBand(ledCount, target, color)
-            : CreateSlideIntoBand(ledCount, target, color);
+            ? CreateExpandIntoBand(ledCount, target, color, p)
+            : CreateSlideIntoBand(ledCount, target, color, p);
     }
 
-    public static RgbColor[] CreateHoldPixels(ShotDirection direction, int ledCount)
+    public static RgbColor[] CreateHoldPixels(
+        ShotDirection direction,
+        int ledCount,
+        DrgbStatusEffectParams? parameters = null)
     {
-        var band = DrgbConcentrateBandGeometry.Resolve(direction, ledCount);
+        var p = parameters ?? DrgbStatusEffectParams.ProductDefaults;
+        var band = DrgbConcentrateBandGeometry.Resolve(
+            direction,
+            ledCount,
+            p.ConcentrateLitFraction);
         return DrgbReadyFrameFactory.CreateBand(
             ledCount,
             band.Start,
@@ -50,10 +62,11 @@ public static class DrgbDirectionFrameFactory
     private static IReadOnlyList<LedAnimationFrame> CreateExpandIntoBand(
         int ledCount,
         LedBandRange target,
-        RgbColor color)
+        RgbColor color,
+        DrgbStatusEffectParams parameters)
     {
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount, parameters.IntroSpeedScale);
         var parity = ledCount % 2 == 0 ? 2 : 1;
         var frames = new List<LedAnimationFrame>();
         frames.Add(new LedAnimationFrame(DrgbReadyFrameFactory.CreateEmpty(ledCount), cadence));
@@ -75,11 +88,14 @@ public static class DrgbDirectionFrameFactory
     private static IReadOnlyList<LedAnimationFrame> CreateSlideIntoBand(
         int ledCount,
         LedBandRange target,
-        RgbColor color)
+        RgbColor color,
+        DrgbStatusEffectParams parameters)
     {
         var cadence = TimeSpan.FromMilliseconds(FrameCadenceMilliseconds);
-        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount);
-        var fromStart = DrgbConcentrateBandGeometry.ResolveCenter(ledCount).Start;
+        var advance = DrgbReadyFrameFactory.ResolveLitAdvance(ledCount, parameters.IntroSpeedScale);
+        var fromStart = DrgbConcentrateBandGeometry
+            .ResolveCenter(ledCount, parameters.ConcentrateLitFraction)
+            .Start;
         var frames = new List<LedAnimationFrame>
         {
             new(DrgbReadyFrameFactory.CreateEmpty(ledCount), cadence)
